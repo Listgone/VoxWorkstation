@@ -13,7 +13,6 @@ const SettingsPage = {
     ['dict',       '发音词典'],
     ['project',    '项目与存储'],
     ['shortcut',   '快捷键'],
-    ['network',    '网络与代理'],
     ['notify',     '通知'],
     ['privacy',    '数据与隐私'],
     ['about',      '诊断与关于']
@@ -38,7 +37,6 @@ const SettingsPage = {
       case 'dict':       return this._dict();
       case 'project':    return this._project(s);
       case 'shortcut':   return this._shortcut();
-      case 'network':    return this._network(s);
       case 'notify':     return this._notify(s);
       case 'privacy':    return this._privacy(s);
       case 'about':      return this._about(s);
@@ -56,18 +54,18 @@ const SettingsPage = {
     const theme = document.documentElement.getAttribute('data-theme');
     return '<div class="card"><h2>外观与主题</h2>'
       + '<div class="themes">'
-      + '<div class="th' + (theme !== 'ink' ? ' on' : '') + '" data-theme-pick="light">'
-      + '<div class="thprev thprev-a"></div><b>明亮现代</b><span>默认 · 干净</span></div>'
-      + '<div class="th' + (theme === 'ink' ? ' on' : '') + '" data-theme-pick="ink">'
-      + '<div class="thprev thprev-b"></div><b>黑白水墨</b><span>山水背景 + 动效</span></div>'
+      + '<div class="th' + (theme !== 'glass' ? ' on' : '') + '" data-theme-pick="light">'
+      + '<div class="thprev thprev-a"></div><b>明亮现代</b><span>默认 · 干净 · 无动效</span></div>'
+      + '<div class="th' + (theme === 'glass' ? ' on' : '') + '" data-theme-pick="glass">'
+      + '<div class="thprev thprev-g"></div><b>液态玻璃</b><span>毛玻璃 + 彩色光斑</span></div>'
       + '</div>'
-      + this._row('界面缩放', '高分屏可调大（重启后生效）',
+      + this._row('界面缩放', '高分屏可调大（立即生效）',
           '<select id="s-scale" style="width:120px">'
           + [1, 1.1, 1.25].map(v => '<option value="' + v + '"' + (Number(s.uiScale) === v ? ' selected' : '') + '>'
               + Math.round(v * 100) + '%</option>').join('') + '</select>')
       + this._row('界面语言', '目前仅简体中文',
           '<select style="width:150px"><option>简体中文</option></select>')
-      + this._row('减少动效', '关闭水墨背景漂移与卡片动画，省电',
+      + this._row('减少动效', '关闭光斑游动与卡片入场动画，省电',
           this._sw(!s.reduceMotion, 'toggle-motion'))
       + '<div class="action-row mt-12"><button class="btn btn-primary" data-act="save-appearance">保存</button></div>'
       + '</div>';
@@ -179,29 +177,11 @@ const SettingsPage = {
   },
 
   _shortcut() {
-    const keys = [
-      ['Ctrl + Enter', '生成当前集全部台词'],
-      ['Ctrl + S', '保存当前集'],
-      ['空格', '播放 / 暂停试听'],
-      ['Ctrl + ← / →', '上一集 / 下一集'],
-      ['Ctrl + 1..8', '切换到对应页面'],
-      ['Ctrl + ,', '打开设置']
-    ];
-    return '<div class="card"><h2>快捷键 <span class="n">当前版本部分未启用</span></h2>'
-      + '<table><tr><th style="width:180px">按键</th><th>功能</th></tr>'
-      + keys.map(([k, v]) => '<tr><td><code>' + k + '</code></td><td>' + v + '</td></tr>').join('')
+    const keys = Shortcuts.LIST;
+    return '<div class="card"><h2>快捷键 <span class="n">全局生效</span></h2>'
+      + '<table><tr><th style="width:190px">按键</th><th>功能</th></tr>'
+      + keys.map(([k, v]) => '<tr><td><code>' + Util.escapeHtml(k) + '</code></td><td>' + Util.escapeHtml(v) + '</td></tr>').join('')
       + '</table></div>';
-  },
-
-  _network(s) {
-    const n = s.network || {};
-    return '<div class="card"><h2>网络与代理</h2>'
-      + this._row('使用系统代理', '访问境外 API 时需要', this._sw(n.useSystemProxy, 'toggle-sysproxy'))
-      + this._row('自定义代理', '留空则直连',
-          '<input type="text" id="n-proxy" value="' + Util.escapeAttr(n.proxy || '') + '" placeholder="http://127.0.0.1:7890" style="width:250px">')
-      + '<div class="action-row mt-12"><button class="btn btn-primary" data-act="save-network">保存</button>'
-      + '<span class="text-sm text-muted">（代理对 TTS 后端不影响，只作用于 AI 请求）</span></div>'
-      + '</div>';
   },
 
   _notify(s) {
@@ -253,9 +233,11 @@ const SettingsPage = {
         App.go('settings');
       }));
 
-    el.querySelector('[data-act="save-appearance"]')?.addEventListener('click', () => save({
-      uiScale: Number(el.querySelector('#s-scale').value)
-    }, '外观已保存'));
+    el.querySelector('[data-act="save-appearance"]')?.addEventListener('click', async () => {
+      const scale = Number(el.querySelector('#s-scale').value);
+      document.body.style.zoom = scale === 1 ? '' : String(scale);
+      await save({ uiScale: scale }, '外观已保存');
+    });
 
     /* 开关类 */
     const toggle = (act, apply) => {
@@ -268,7 +250,6 @@ const SettingsPage = {
     toggle('toggle-motion',   v => save({ reduceMotion: !v }));
     toggle('toggle-tts',      v => save({ tts: { ...s.tts, autoStart: v } }));
     toggle('toggle-srt',      v => save({ output: { ...s.output, exportSrt: v } }));
-    toggle('toggle-sysproxy', v => save({ network: { ...s.network, useSystemProxy: v } }));
     toggle('toggle-done',     v => save({ notify: { ...s.notify, onDone: v } }));
     toggle('toggle-fail',     v => save({ notify: { ...s.notify, onFail: v } }));
     toggle('toggle-redact',   v => save({ privacy: { ...s.privacy, redact: v } }));
@@ -342,10 +323,6 @@ const SettingsPage = {
     el.querySelector('[data-act="save-project"]')?.addEventListener('click', () => save({
       project: { ...s.project, autoSaveSec: parseInt(el.querySelector('#p-auto').value, 10) || 30 }
     }, '已保存'));
-
-    el.querySelector('[data-act="save-network"]')?.addEventListener('click', () => save({
-      network: { ...s.network, proxy: el.querySelector('#n-proxy').value.trim() }
-    }, '网络设置已保存'));
 
     el.querySelector('[data-act="pick-root"]')?.addEventListener('click', async () => {
       const r = await window.electronAPI.path.pick({ title: '选择输出根目录', defaultPath: s.output.root });

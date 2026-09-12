@@ -183,32 +183,132 @@ const TextPage = {
 
   _aiPanel() {
     const ai = Store.settings.ai || {};
+    const proj = Store.currentProject || {};
+    const DEFAULT_TASKS = ['normalize', 'split', 'tone', 'roles'];
+    // 注意：空数组是 truthy，必须判 length，否则项目没配 features 时一个都不勾
+    const saved = (proj.ai && Array.isArray(proj.ai.features)) ? proj.ai.features : [];
+    const on = saved.length ? saved : DEFAULT_TASKS;
+    const TASKS = [
+      ['normalize', '文本规范化', '数字 / 日期 / 百分比 / 单位 / 英文缩写 → 口语读法'],
+      ['split', '智能断句', '按语义切分，每句不超过 ' + ((proj.defaults || {}).maxLineLen || 25) + ' 字'],
+      ['tone', '语气标注', '自动插入 [laughing] / [sigh] 等 VoxCPM2 标记'],
+      ['roles', '角色分离', '识别「小明：……」拆成角色 + 台词']
+    ];
+    const hasKey = Store.hasApiKey;
+
     Modal.open({
       title: '✦ AI 文本处理', width: 620,
       body:
-        '<p class="text-sm text-muted" style="margin-bottom:12px">服务商：<b>'
-        + Util.escapeHtml(ai.model || '未配置') + '</b> · '
-        + (Store.hasApiKey ? '已配置 API Key' : '<span style="color:var(--danger)">未配置 API Key</span>') + '</p>'
-        + '<div class="checks">'
-        + ['规范化：数字/日期/百分比/缩写 → 口语读法',
-           '断句：按语义切分，目标句长 ≤ ' + ((Store.currentProject.defaults || {}).maxLineLen || 25) + ' 字',
-           '语气标注：自动插入 [laughing] / [sigh] 等 VoxCPM2 标记',
-           '角色分离：识别「小明：……」拆角色']
-          .map(t => '<div><span class="b">✓</span>' + Util.escapeHtml(t) + '</div>').join('')
+        '<p class="text-sm text-muted" style="margin-bottom:12px">'
+        + '服务商：<b>' + Util.escapeHtml(ai.model || '未配置') + '</b> · '
+        + (hasKey ? '已配置 API Key' : '<span style="color:var(--danger)">未配置 API Key</span>')
+        + (proj.ai && proj.ai.provider ? ' · 项目指定服务商' : ' · 跟随全局')
+        + '</p>'
+        + '<div class="checks" id="ai-tasks">'
+        + TASKS.map(([id, name, desc]) =>
+            '<label class="check-row" data-task="' + id + '">'
+            + '<span class="cbx' + (on.includes(id) ? ' on' : '') + '"></span>'
+            + '<span class="check-txt"><b>' + name + '</b><i>' + Util.escapeHtml(desc) + '</i></span>'
+            + '</label>').join('')
         + '</div>'
-        + '<p class="text-sm text-muted mt-12" style="margin-bottom:0">'
-        + (Store.hasApiKey
-            ? 'AI 处理会调用你配置的服务商，原文不会被改动。'
+        + '<div id="ai-run-log" class="text-sm text-muted" style="margin-top:12px;min-height:18px"></div>'
+        + '<p class="text-sm text-muted" style="margin:10px 0 0">'
+        + (hasKey
+            ? '原文不会被改动，结果只写进「处理后」栏。已选任务会按顺序执行。'
             : '请先到「设置 → AI 服务」填写接口地址、模型和 API Key。当前可先用「本地规范化」。')
         + '</p>',
       footer: '<button class="btn" data-act="cancel">关闭</button>'
-            + (Store.hasApiKey ? '' : '<button class="btn btn-primary" data-act="to-settings">去配置</button>')
+            + (hasKey ? '' : '<button class="btn btn-primary" data-act="to-settings">去配置</button>')
+            + (hasKey ? '<button class="btn btn-ai" data-act="run">开始处理</button>' : '')
     });
-    document.querySelector('[data-act="cancel"]')?.addEventListener('click', () => Modal.close());
-    document.querySelector('[data-act="to-settings"]')?.addEventListener('click', () => {
+
+    const host = document.getElementById('modal-host');
+    host.querySelectorAll('[data-task]').forEach(row =>
+      row.addEventListener('click', () => {
+        row.querySelector('.cbx').classList.toggle('on');
+      }));
+    host.querySelector('[data-act="cancel"]')?.addEventListener('click', () => Modal.close());
+    host.querySelector('[data-act="to-settings"]')?.addEventListener('click', () => {
       Modal.close(); SettingsPage._sec = 'ai'; App.go('settings');
     });
-  }
+    host.querySelector('[data-act="run"]')?.addEventListener('click', async (e) => {
+      const picked = [...host.querySelectorAll('[data-task]')]
+        .filter(r => r.querySelector('.cbx').classList.contains('on'))
+        .map(r => r.dataset.task);
+      if (!picked.length) { Toast.error('至少选一项', true); return; }
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try {
+        await this._runAI(picked, host);
+        Modal.close();
+        App.go('text');
+      } catch (err) {
+        Toast.error('AI 处理失败：' + (err.message || err), true);
+      } finally { btn.disabled = false; }
+    });
+  },
+
+  /** 依次执行选中的 AI 任务，每步都写回 _draft */
+  async _runAI(tasks, host) {
+    const log = host.querySelector('#ai-run-log');
+    const proj = Store.currentProject || {};
+    const opts = {
+      maxLen: (proj.defaults || {}).maxLineLen || 25,
+      projectPrompt: (proj.ai && proj.ai.prompt) || '',
+      dict: proj.dict || []
+    };
+    const say = (t) => { if (log) log.textContent = t; };
+
+    const tokenTotal = { prompt_tokens: 0, completion_tokens: 0 };
+
+    for (let i = 0; i < tasks.length; i++) {
+      const task = tasks[i];
+      const label = { normalize: '规范化', split: '断句', tone: '语气标注', roles: '角色分离' }[task];
+      say('[' + (i + 1) + '/' + tasks.length + '] ' + label + ' 处理中…');
+
+      if (task === 'roles') {
+        const src = this._draft.processed || this._draft.original;
+        const r = await window.electronAPI.ai.process('roles', src, opts);
+        if (!r.ok) throw new Error(label + '：' + r.message);
+        this._draft.lines = (r.roles || []).map(x => ({
+          text: String(x.text || '').trim(),
+          role: String(x.role || '旁白').trim(),
+          voice: this._voiceForRole(x.role),
+          audio: '', error: ''
+        })).filter(l => l.text);
+        if (r.usage) { tokenTotal.prompt_tokens += r.usage.prompt_tokens || 0; tokenTotal.completion_tokens += r.usage.completion_tokens || 0; }
+        continue;
+      }
+
+      const src = this._draft.processed || this._draft.original;
+      if (!src.trim()) throw new Error('没有可处理的文本');
+      const r = await window.electronAPI.ai.process(task, src, opts);
+      if (!r.ok) throw new Error(label + '：' + r.message);
+      if (r.usage) { tokenTotal.prompt_tokens += r.usage.prompt_tokens || 0; tokenTotal.completion_tokens += r.usage.completion_tokens || 0; }
+
+      if (task === 'normalize' || task === 'tone') this._draft.processed = r.text;
+      if (task === 'split') {
+        const texts = r.text.split('\n').map(s => s.trim()).filter(Boolean);
+        this._draft.processed = texts.join('\n');
+        const prev = this._draft.lines || [];
+        this._draft.lines = texts.map((t, i) => {
+          const old = prev[i] || {};
+          return { text: t, role: old.role || '', voice: old.voice || this._voiceForRole(old.role), audio: '', error: '' };
+        });
+      }
+    }
+
+    const cost = ((tokenTotal.prompt_tokens * 0.001 + tokenTotal.completion_tokens * 0.002) / 1000).toFixed(4);
+    say('完成 · token ' + (tokenTotal.prompt_tokens + tokenTotal.completion_tokens)
+      + '（输入 ' + tokenTotal.prompt_tokens + ' / 输出 ' + tokenTotal.completion_tokens + '）');
+    Toast.success('AI 处理完成 · ' + tasks.length + ' 项');
+  },
+
+  _voiceForRole(role) {
+    const p = Store.currentProject || {};
+    const hit = (p.roles || []).find(r => r.name === role);
+    return (hit && hit.voice) || p.fallbackVoice || '';
+  },
 };
 
 /* ── 本地文本规范化 + 断句（不联网）── */

@@ -79,7 +79,6 @@ const APP_SETTINGS_DEFAULTS = {
     exportSrt: true
   },
   project: { autoSaveSec: 30, dailyBackup: true },
-  network: { useSystemProxy: false, proxy: '' },
   privacy: { redact: false, onlyCurrentParagraph: true, keepDiffHistory: true },
   notify: { onDone: true, onFail: true }
 };
@@ -137,6 +136,169 @@ function readApiKey() {
    项目存储
    ══════════════════════════════════════════════════════════ */
 let store = null;
+
+/* ══════════════════════════════════════════════════════════
+   AI 服务调用（OpenAI 兼容）—— 统一走这里
+   ══════════════════════════════════════════════════════════ */
+function aiRequest(baseURL, key, bodyObj, timeoutMs) {
+  return new Promise((resolve) => {
+    let url;
+    try { url = new URL(String(baseURL).replace(/\/+$/, '') + '/chat/completions'); }
+    catch (e) { return resolve({ ok: false, message: '接口地址格式不对：' + baseURL }); }
+
+    const isHttps = url.protocol === 'https:';
+    const mod = isHttps ? require('https') : require('http');
+    const payload = JSON.stringify(bodyObj);
+
+    const req = mod.request({
+      hostname: url.hostname,
+      port: url.port || (isHttps ? 443 : 80),
+      path: url.pathname + url.search,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + key,
+        'Content-Length': Buffer.byteLength(payload)
+      },
+      timeout: timeoutMs
+    }, (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          let msg = 'HTTP ' + res.statusCode;
+          try { const j = JSON.parse(data); msg = (j.error && j.error.message) || j.message || msg; } catch (e) {}
+          return resolve({ ok: false, message: msg, status: res.statusCode });
+        }
+        try {
+          const j = JSON.parse(data);
+          const content = j.choices && j.choices[0] && j.choices[0].message
+            ? String(j.choices[0].message.content || '') : '';
+          resolve({ ok: true, content, usage: j.usage || null });
+        } catch (e) { resolve({ ok: false, message: '返回不是合法 JSON：' + data.slice(0, 160) }); }
+      });
+    });
+    req.on('error', (err) => resolve({ ok: false, message: err.message }));
+    req.on('timeout', () => { req.destroy(); resolve({ ok: false, message: '请求超时' }); });
+    req.write(payload);
+    req.end();
+  });
+}
+
+function currentAI() {
+  appSettings = appSettings || loadAppSettings();
+  const ai = appSettings.ai || {};
+  return {
+    baseURL: ai.baseURL || '',
+    model: ai.model || 'deepseek-chat',
+    timeoutSec: ai.timeoutSec || 60,
+    retries: Math.max(0, ai.retries || 0),
+    maxChars: ai.maxCharsPerCall || 4000,
+    key: readApiKey()
+  };
+}
+
+/* 每个任务一套 system prompt —— 都强调"只输出结果，不要解释" */
+const AI_TASKS = {
+  normalize: {
+    label: '文本规范化',
+    system: '你是中文 TTS 文本规范化引擎。把输入文本里的阿拉伯数字、日期、百分比、单位、'
+      + '英文缩写改写成适合朗读的中文口语形式。规则：2024年→二零二四年；3.14%→百分之三点一四；'
+      + 'IDC→I D C（缩写逐字母，字母间加空格）；km→公里；$→美元。'
+      + '除上述改写外，一个字都不要动，不要增删标点，不要换行。只输出改写后的文本，不要任何解释。'
+  },
+  split: {
+    label: '智能断句',
+    system: '你是中文配音断句引擎。把输入文本按语义切分成适合 TTS 朗读的短句。'
+      + '要求：每句不超过指定字数；在语义完整处断开，不要把一个词组拆开；'
+      + '保留原文用词，不改写、不增删内容；每句占一行。只输出句子，不要编号，不要解释。'
+  },
+  tone: {
+    label: '语气标注',
+    system: '你是 VoxCPM2 语气标注引擎。通读台词，在情绪明显的位置插入语气标记。'
+      + '可用标记：[laughing] 笑 [sigh] 叹息 [Uhm] 思考 [Question-ah] 疑问 [Question-en] 反问 '
+      + '[Surprise-wa] 惊讶 [Dissatisfaction-hnn] 不满 [Shh] 安静。'
+      + '标记放在情绪发生的句子开头或对应词之前。标记要克制，全篇不超过总句数的三分之一。'
+      + '不要改写文字，只在合适位置插入标记。只输出标注后的文本，不要解释。'
+  },
+  roles: {
+    label: '角色分离',
+    system: '你是剧本角色识别引擎。识别输入文本里「角色名：台词」这种格式，'
+      + '拆成角色与台词。如果原文没有角色标记，把整段归给「旁白」。'
+      + '严格输出 JSON 数组，形如 [{"role":"旁白","text":"..."}]，不要输出任何其他内容，不要用 markdown 代码块包裹。'
+  }
+};
+
+function aiChunks(text, maxChars) {
+  if (text.length <= maxChars) return [text];
+  const paras = text.split(/\n{2,}/);
+  const out = [];
+  let buf = '';
+  const push = () => { if (buf.trim()) out.push(buf.trim()); buf = ''; };
+  for (const p of paras) {
+    if (p.length > maxChars) {
+      push();
+      for (let i = 0; i < p.length; i += maxChars) out.push(p.slice(i, i + maxChars));
+    } else if ((buf + '\n\n' + p).length > maxChars) { push(); buf = p; }
+    else buf = buf ? buf + '\n\n' + p : p;
+  }
+  push();
+  return out.length ? out : [text];
+}
+
+async function aiRun(task, text, options = {}) {
+  const cfg = currentAI();
+  if (!cfg.key) return { ok: false, message: '未配置 API Key（设置 → AI 服务）' };
+  if (!cfg.baseURL) return { ok: false, message: '未配置接口地址（设置 → AI 服务）' };
+  const spec = AI_TASKS[task];
+  if (!spec) return { ok: false, message: '未知任务：' + task };
+
+  let system = spec.system;
+  if (task === 'split') system += '\n每句不超过 ' + (options.maxLen || 25) + ' 字。';
+  if (options.projectPrompt) system += '\n项目背景：' + options.projectPrompt;
+  if (options.dict && options.dict.length) {
+    system += '\n必须遵守的读音约定：' + options.dict.map(d => d.word + ' 读作 ' + d.reading).join('；') + '。';
+  }
+
+  const parts = aiChunks(text, cfg.maxChars);
+  const outs = [];
+  let usage = { prompt_tokens: 0, completion_tokens: 0 };
+
+  for (let i = 0; i < parts.length; i++) {
+    let r = null;
+    for (let attempt = 0; attempt <= cfg.retries; attempt++) {
+      r = await aiRequest(cfg.baseURL, cfg.key, {
+        model: cfg.model,
+        messages: [{ role: 'system', content: system }, { role: 'user', content: parts[i] }],
+        temperature: task === 'roles' ? 0 : 0.2,
+        stream: false
+      }, Math.min(300000, cfg.timeoutSec * 1000));
+      if (r.ok) break;
+      if (attempt < cfg.retries) await new Promise(res => setTimeout(res, 800));
+    }
+    if (!r || !r.ok) return { ok: false, message: (r && r.message) || '调用失败', done: i, total: parts.length };
+    outs.push(String(r.content || '').trim());
+    if (r.usage) {
+      usage.prompt_tokens += r.usage.prompt_tokens || 0;
+      usage.completion_tokens += r.usage.completion_tokens || 0;
+    }
+    if (send && mainWindow) send('vox:ai-progress', { task, done: i + 1, total: parts.length });
+  }
+
+  let content = outs.join('\n');
+  if (task === 'roles') {
+    // 容错：剥掉可能的 markdown 代码块
+    content = content.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+    try {
+      const arr = JSON.parse(content);
+      if (!Array.isArray(arr)) throw new Error('不是数组');
+      return { ok: true, roles: arr, usage, chunks: parts.length };
+    } catch (e) {
+      return { ok: false, message: '模型返回的角色 JSON 解析失败：' + content.slice(0, 120) };
+    }
+  }
+  return { ok: true, text: content, usage, chunks: parts.length };
+}
 
 /* ══════════════════════════════════════════════════════════
    与渲染进程通信
@@ -375,46 +537,22 @@ ipcMain.handle('vox:settings:setApiKey', (_e, key) => saveApiKey(key));
 ipcMain.handle('vox:settings:getApiKey', () => readApiKey());
 
 ipcMain.handle('vox:ai:test', async () => {
-  appSettings = appSettings || loadAppSettings();
-  const ai = appSettings.ai || {};
-  const key = readApiKey();
-  if (!key) return { ok: false, message: '未配置 API Key' };
-  const base = String(ai.baseURL || '').replace(/\/+$/, '');
-  if (!base) return { ok: false, message: '未配置接口地址' };
-
-  const body = JSON.stringify({
-    model: ai.model || 'deepseek-chat',
+  const cfg = currentAI();
+  if (!cfg.key) return { ok: false, message: '未配置 API Key' };
+  if (!cfg.baseURL) return { ok: false, message: '未配置接口地址' };
+  const r = await aiRequest(cfg.baseURL, cfg.key, {
+    model: cfg.model,
     messages: [{ role: 'user', content: '回复两个字：正常' }],
     max_tokens: 16, stream: false
-  });
-  return new Promise((resolve) => {
-    let url;
-    try { url = new URL(base + '/chat/completions'); }
-    catch (e) { return resolve({ ok: false, message: '接口地址格式不对' }); }
-    const req = http.request({
-      hostname: url.hostname, port: url.port || (url.protocol === 'https:' ? 443 : 80),
-      path: url.pathname + url.search, method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key,
-                 'Content-Length': Buffer.byteLength(body) },
-      timeout: Math.min(30000, (ai.timeoutSec || 60) * 1000)
-    }, (res) => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          let reply = '';
-          try { reply = JSON.parse(data).choices[0].message.content.trim(); } catch (e) {}
-          resolve({ ok: true, message: '连接正常', reply, status: res.statusCode });
-        } else {
-          resolve({ ok: false, message: `HTTP ${res.statusCode}：` + data.slice(0, 180), status: res.statusCode });
-        }
-      });
-    });
-    req.on('error', (err) => resolve({ ok: false, message: err.message }));
-    req.on('timeout', () => { req.destroy(); resolve({ ok: false, message: '请求超时' }); });
-    req.write(body);
-    req.end();
-  });
+  }, Math.min(30000, cfg.timeoutSec * 1000));
+  return r.ok
+    ? { ok: true, message: '连接正常', reply: String(r.content || '').trim() }
+    : { ok: false, message: r.message };
+});
+
+ipcMain.handle('vox:ai:process', async (_e, { task, text, options }) => {
+  if (!text || !String(text).trim()) return { ok: false, message: '没有可处理的文本' };
+  return aiRun(task, String(text), options || {});
 });
 
 ipcMain.handle('vox:projects:list', () => needStore().listProjects());

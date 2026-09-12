@@ -9,47 +9,10 @@
 </head>
 <body>
 
-<!-- 水墨山水背景层（仅「黑白水墨」主题显示） -->
-<div class="ink-bg" aria-hidden="true">
-  <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMax slice">
-    <defs>
-      <filter id="inkEdge" x="-10%" y="-10%" width="120%" height="120%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.011 0.019" numOctaves="3" seed="12" result="n"/>
-        <feDisplacementMap in="SourceGraphic" in2="n" scale="26" xChannelSelector="R" yChannelSelector="G"/>
-      </filter>
-      <filter id="inkEdgeSoft" x="-10%" y="-10%" width="120%" height="120%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.016 0.026" numOctaves="2" seed="5" result="n"/>
-        <feDisplacementMap in="SourceGraphic" in2="n" scale="16" xChannelSelector="R" yChannelSelector="G"/>
-        <feGaussianBlur stdDeviation="1.2"/>
-      </filter>
-      <filter id="cloudBlur"><feGaussianBlur stdDeviation="26"/></filter>
-      <linearGradient id="inkFade" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#fff" stop-opacity="0"/>
-        <stop offset="1" stop-color="#fff" stop-opacity=".8"/>
-      </linearGradient>
-    </defs>
-    <g filter="url(#inkEdgeSoft)" opacity=".13" style="animation:drift-far 150s ease-in-out infinite alternate">
-      <path fill="#161614" d="M-100,640 L60,520 L150,566 L280,432 L400,520 L520,392 L660,500 L800,430 L930,520 L1060,436 L1200,520 L1330,452 L1470,540 L1600,470 L1700,540 L1700,900 L-100,900 Z"/>
-    </g>
-    <g filter="url(#inkEdge)" opacity=".24" style="animation:drift-mid 110s ease-in-out infinite alternate">
-      <path fill="#161614" d="M-100,760 L40,600 L170,690 L300,520 L420,640 L520,560 L640,700 L780,600 L900,720 L1040,620 L1180,730 L1320,650 L1460,760 L1600,690 L1700,760 L1700,900 L-100,900 Z"/>
-    </g>
-    <g filter="url(#inkEdge)" opacity=".30" style="animation:drift-far 130s ease-in-out infinite alternate-reverse">
-      <path fill="#161614" d="M-100,830 L120,790 L300,820 L470,780 L650,818 L840,786 L1020,824 L1210,792 L1400,828 L1600,800 L1700,820 L1700,900 L-100,900 Z"/>
-    </g>
-    <g filter="url(#cloudBlur)">
-      <ellipse cx="330" cy="640" rx="290" ry="46" fill="#ffffff" opacity=".75"
-        style="animation:drift-cloud 70s ease-in-out infinite alternate, cloudPuff 13s ease-in-out infinite"/>
-      <ellipse cx="880" cy="700" rx="340" ry="40" fill="#ffffff" opacity=".7"
-        style="animation:drift-cloud 88s ease-in-out infinite alternate-reverse, cloudPuff 17s ease-in-out infinite"/>
-      <ellipse cx="1330" cy="650" rx="250" ry="38" fill="#ffffff" opacity=".65"
-        style="animation:drift-cloud 76s ease-in-out infinite alternate, cloudPuff 15s ease-in-out infinite"/>
-    </g>
-    <rect x="0" y="0" width="1600" height="900" fill="url(#inkFade)" opacity=".55"/>
-  </svg>
-  <div class="specks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+<!-- 液态玻璃背景层（仅「液态玻璃」主题显示）——纯 CSS 色斑，无位图 -->
+<div class="glass-bg" aria-hidden="true">
+  <span class="gb1"></span><span class="gb2"></span><span class="gb3"></span><span class="gb4"></span>
 </div>
-<div class="bloom" id="ink-bloom" aria-hidden="true"></div>
 
 <div id="titlebar">
   <div class="titlebar-drag">
@@ -57,7 +20,7 @@
     <span class="crumb" id="crumb"></span>
   </div>
   <div class="titlebar-actions">
-    <button id="btn-theme" title="切换主题（明亮现代 / 黑白水墨）"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+    <button id="btn-theme" title="切换主题（明亮现代 / 液态玻璃）"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
     <button id="btn-min" title="最小化"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
     <button id="btn-max" title="最大化"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16"/></svg></button>
     <button id="btn-close" title="关闭"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -146,6 +109,7 @@
 <script src="js/components/player.js"></script>
 <script src="js/components/gpu.js"></script>
 <script src="js/components/modal.js"></script>
+<script src="js/components/shortcuts.js"></script>
 <script src="js/pages/dashboard.js"></script>
 <script src="js/pages/projects.js"></script>
 <script src="js/pages/project-settings.js"></script>

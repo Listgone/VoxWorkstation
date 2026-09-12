@@ -20,12 +20,13 @@ const App = {
   async init() {
     // 主题（在 Store 就绪前先用本地缓存，避免闪白）
     const savedTheme = localStorage.getItem('vox-theme') || 'light';
-    document.documentElement.setAttribute('data-theme', savedTheme === 'ink' ? 'ink' : 'light');
+    document.documentElement.setAttribute('data-theme', savedTheme === 'glass' ? 'glass' : 'light');
 
     this._setupWindowControls();
     this._setupThemeToggle();
     this._setupNav();
     this._setupServerStatus();
+    Shortcuts.init();
 
     await API.init();
     try { window.__voxConfig = await window.electronAPI.getConfig(); } catch (e) { window.__voxConfig = {}; }
@@ -34,7 +35,7 @@ const App = {
 
     // 用设置里的主题 / 动效 / 缩放覆盖本地缓存
     const st = Store.settings || {};
-    if (st.theme) document.documentElement.setAttribute('data-theme', st.theme === 'ink' ? 'ink' : 'light');
+    if (st.theme) document.documentElement.setAttribute('data-theme', st.theme === 'glass' ? 'glass' : 'light');
     document.documentElement.setAttribute('data-reduce-motion', st.reduceMotion ? 'true' : 'false');
     if (Number(st.uiScale) && Number(st.uiScale) !== 1) {
       document.body.style.zoom = String(Number(st.uiScale));
@@ -128,7 +129,7 @@ const App = {
   /* ── 主题 ─────────────────────────────────── */
   _setupThemeToggle() {
     const apply = (theme) => {
-      if (theme !== 'ink') theme = 'light';
+      if (theme !== 'glass') theme = 'light';
       document.documentElement.setAttribute('data-theme', theme);
       localStorage.setItem('vox-theme', theme);
       window.dispatchEvent(new CustomEvent('vox:theme-changed', { detail: { theme } }));
@@ -137,7 +138,7 @@ const App = {
     this.applyTheme = apply;
     document.getElementById('btn-theme')?.addEventListener('click', () => {
       const cur = document.documentElement.getAttribute('data-theme');
-      apply(cur === 'ink' ? 'light' : 'ink');
+      apply(cur === 'glass' ? 'light' : 'glass');
     });
   },
 
@@ -215,9 +216,6 @@ const App = {
     if (ov) ov.style.display = 'none';
     const shell = document.getElementById('app-shell');
     if (shell) shell.style.display = 'flex';
-
-    const bloom = document.getElementById('ink-bloom');
-    if (bloom) { bloom.classList.remove('play'); void bloom.offsetWidth; bloom.classList.add('play'); }
 
     await this.go('dash');
     GpuMonitor.start();

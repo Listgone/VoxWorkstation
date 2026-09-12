@@ -31,7 +31,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   /* AI 服务 */
-  ai: { test: () => invoke('vox:ai:test') },
+  ai: {
+    test: () => invoke('vox:ai:test'),
+    process: (task, text, options) => invoke('vox:ai:process', { task, text, options }),
+    onProgress: (cb) => subscribe('vox:ai-progress', cb)
+  },
 
   /* 项目 */
   projects: {
