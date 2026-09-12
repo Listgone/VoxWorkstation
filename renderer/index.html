@@ -1,8 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- 渲染进程只允许加载本地脚本 + 访问本机后端 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; media-src 'self' blob: http://127.0.0.1:*; connect-src http://127.0.0.1:*; form-action 'none'; base-uri 'none'; object-src 'none'">
 <title>VoxWorkstation</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -26,6 +28,10 @@
 <div id="loading-overlay">
   <div class="loading-spinner"></div>
   <p id="loading-text">正在启动 VoxCPM2 引擎...</p>
+  <div class="loading-progress"></div>
+  <div id="loading-elapsed">已等待 0 秒</div>
+  <div id="loading-log"></div>
+  <button class="btn btn-secondary" id="loading-retry">重试启动</button>
 </div>
 
 <div id="app-shell" style="display:none">
@@ -49,7 +55,10 @@
 
 <footer id="status-bar"><span id="status-text">就绪</span><span id="char-count" class="text-muted text-sm" style="text-align:center">0字 | 0次生成 | 0次下载</span><span class="status-right"><span id="gpu-indicator" title="GPU"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg><span id="gpu-text">--</span></span></span></footer>
 
+<!-- 加载顺序有依赖：util / api / 组件 → 模块 → app（必须最后） -->
+<script src="js/util.js"></script>
 <script src="js/api.js"></script>
+<script src="js/components/toast.js"></script>
 <script src="js/components/player.js"></script>
 <script src="js/components/gpu.js"></script>
 <script src="js/modules/dub.js"></script>

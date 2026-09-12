@@ -1,4 +1,4 @@
-﻿/* ========================================
+/* ========================================
    StudioModule — Voice Design, Clone, HiFi Clone
    ======================================== */
 
@@ -6,6 +6,7 @@ const StudioModule = {
   _presets: [],
   _players: {},
   _blobs: {},
+  _presetsLoadedAt: 0,
 
   async init(ct) {
     ct.innerHTML = this._html();
@@ -13,7 +14,7 @@ const StudioModule = {
     this._players.design = AudioPlayer.create('studio-design-player');
     this._players.clone = AudioPlayer.create('studio-clone-player');
     this._players.hifi = AudioPlayer.create('studio-hifi-player');
-    await this._loadPresets();
+    await this._loadPresets(true);
   },
 
   _html() {
@@ -67,17 +68,18 @@ const StudioModule = {
       btn.addEventListener('click', () => {
         ct.querySelectorAll('#studio-tabs .tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['design','clone','hifi'].forEach(m => {
-          document.getElementById('studio-panel-' + m).style.display = btn.dataset.mode === m ? '' : 'none';
+        ['design', 'clone', 'hifi'].forEach(m => {
+          const panel = document.getElementById('studio-panel-' + m);
+          if (panel) panel.style.display = btn.dataset.mode === m ? '' : 'none';
         });
       });
     });
-    ['design','clone','hifi'].forEach(m => {
-      ['cfg','steps'].forEach(k => {
+    ['design', 'clone', 'hifi'].forEach(m => {
+      ['cfg', 'steps'].forEach(k => {
         const el = document.getElementById('studio-' + m + '-' + k);
         el?.addEventListener('input', () => {
           const v = document.getElementById('studio-' + m + '-' + k + '-val');
-          if (v) v.textContent = k === 'cfg' ? (parseInt(el.value)/10).toFixed(1) : el.value;
+          if (v) v.textContent = k === 'cfg' ? (parseInt(el.value) / 10).toFixed(1) : el.value;
         });
       });
       document.getElementById('studio-' + m + '-generate')?.addEventListener('click', () => {
@@ -89,50 +91,67 @@ const StudioModule = {
     });
   },
 
-  _sErr(m, msg) { const el = document.getElementById('studio-' + m + '-error'); if(el){el.textContent=msg;el.classList.add('show');} },
-  _hErr(m) { const el = document.getElementById('studio-' + m + '-error'); if(el)el.classList.remove('show'); },
+  _sErr(m, msg) { const el = document.getElementById('studio-' + m + '-error'); if (el) { el.textContent = msg; el.classList.add('show'); } },
+  _hErr(m) { const el = document.getElementById('studio-' + m + '-error'); if (el) el.classList.remove('show'); },
 
   _promptSave(mode) {
     const blob = this._blobs[mode];
     if (!blob || blob.size === 0) { this._toast('请先生成音频', true); return; }
     const descText = document.getElementById('studio-' + mode + '-text')?.value?.trim() || '';
     const style = document.getElementById('studio-' + mode + '-style')?.value || '';
-    const defDesc = (style && style !== '无' ? style + ': ' : '') + (descText || (mode==='design'?'音色设计':(mode==='clone'?'可控克隆':'极致克隆')));
+    const defDesc = (style && style !== '无' ? style + ': ' : '')
+      + (descText || (mode === 'design' ? '音色设计' : (mode === 'clone' ? '可控克隆' : '极致克隆')));
+
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
+    // 注意：这里必须转义，否则描述里出现一个 " 就会截断 value 属性
     overlay.innerHTML = '<div class="modal-box"><h3>保存到音色库</h3>'
       + '<div class="form-group"><label class="form-label">音色名称</label><input type="text" id="sv-name" placeholder="输入音色名称"></div>'
-      + '<div class="form-group mt-8"><label class="form-label">音色描述</label><input type="text" id="sv-desc" value="' + defDesc + '"></div>'
+      + '<div class="form-group mt-8"><label class="form-label">音色描述</label><input type="text" id="sv-desc" value="' + Util.escapeAttr(defDesc) + '"></div>'
       + '<div class="modal-actions"><button class="btn btn-secondary sv-cancel">取消</button><button class="btn btn-primary sv-confirm">保存</button></div></div>';
     document.body.appendChild(overlay);
     const close = () => overlay.remove();
     overlay.querySelector('.sv-cancel').addEventListener('click', close);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-    overlay.querySelector('.sv-confirm').addEventListener('click', async () => {
-      const btn = overlay.querySelector('.sv-confirm');
-      const name = document.getElementById('sv-name').value.trim();
-      const desc = document.getElementById('sv-desc').value.trim();
-      if (!name) { this._toast('请输入音色名称', true); return; }
-      btn.disabled = true; btn.textContent = '保存中(' + Math.round(blob.size/1024) + 'KB)...';
+    overlay.querySelector('.sv-confirm').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const nameInput = document.getElementById('sv-name');
+      const descInput = document.getElementById('sv-desc');
+      const name = nameInput.value.trim();
+      const desc = descInput.value.trim();
+      if (!name) { this._toast('请输入音色名称', true); nameInput.focus(); return; }
+      btn.disabled = true;
+      btn.textContent = '保存中(' + Math.round(blob.size / 1024) + 'KB)...';
+      const timer = setTimeout(() => { btn.textContent = '仍在保存...'; }, 5000);
       try {
-        const timer = setTimeout(() => { btn.textContent = '仍在保存...'; }, 5000);
         await API.addPreset(name, desc, new File([blob], name + '.wav', { type: 'audio/wav' }));
         clearTimeout(timer);
-        alert('已保存: ' + name);
         close();
-        this._loadPresets();
-      } catch(e) {
-        btn.disabled = false; btn.textContent = '保存';
-        this._toast('保存失败: ' + (e.message||'未知错误'), true);
+        this._toast('已保存到音色库：' + name);
+        this._loadPresets(true);
+      } catch (err) {
+        clearTimeout(timer);
+        btn.disabled = false;
+        btn.textContent = '保存';
+        this._toast('保存失败：' + (err.message || '未知错误'), true);
       }
     });
+  },
+
+  /** 生成结果统一处理：去掉多余的 Blob 拷贝，只改 MIME 类型 */
+  _acceptResult(mode, blob) {
+    this._blobs[mode] = blob.slice(0, blob.size, 'audio/wav');
+    const panel = document.getElementById('studio-' + mode + '-result');
+    const saveBtn = document.getElementById('studio-' + mode + '-save');
+    if (panel) panel.style.display = '';
+    if (saveBtn) saveBtn.disabled = false;
   },
 
   async _generateDesign() {
     const text = document.getElementById('studio-design-text').value.trim();
     if (!text) return this._sErr('design', '请输入音色描述');
     const style = document.getElementById('studio-design-style').value;
-    const cfg = parseInt(document.getElementById('studio-design-cfg').value)/10;
+    const cfg = parseInt(document.getElementById('studio-design-cfg').value) / 10;
     const steps = parseInt(document.getElementById('studio-design-steps').value);
     const btn = document.getElementById('studio-design-generate');
     btn.disabled = true; btn.textContent = '生成中...';
@@ -140,12 +159,10 @@ const StudioModule = {
     try {
       const r = await API.generateDesign(text, style, cfg, steps);
       if (r.blob) {
-        this._blobs.design = new Blob([await r.blob.arrayBuffer()], {type:'audio/wav'});
+        this._acceptResult('design', r.blob);
         await this._players.design.load(r.blob);
-        document.getElementById('studio-design-result').style.display = '';
-        document.getElementById('studio-design-save').disabled = false;
       }
-    } catch(e) { this._sErr('design', e.message==='Failed to fetch'?'无法连接服务器':e.message); }
+    } catch (e) { this._sErr('design', e.message); }
     finally { btn.disabled = false; btn.textContent = '生成试听'; }
   },
 
@@ -155,7 +172,7 @@ const StudioModule = {
     const refFile = document.getElementById('studio-clone-ref').files[0];
     if (!refFile) return this._sErr('clone', '请上传参考音频');
     const style = document.getElementById('studio-clone-style').value;
-    const cfg = parseInt(document.getElementById('studio-clone-cfg').value)/10;
+    const cfg = parseInt(document.getElementById('studio-clone-cfg').value) / 10;
     const steps = parseInt(document.getElementById('studio-clone-steps').value);
     const btn = document.getElementById('studio-clone-generate');
     btn.disabled = true; btn.textContent = '生成中...';
@@ -163,12 +180,10 @@ const StudioModule = {
     try {
       const r = await API.generateClone(text, style, cfg, steps, refFile, '');
       if (r.blob) {
-        this._blobs.clone = new Blob([await r.blob.arrayBuffer()], {type:'audio/wav'});
+        this._acceptResult('clone', r.blob);
         await this._players.clone.load(r.blob);
-        document.getElementById('studio-clone-result').style.display = '';
-        document.getElementById('studio-clone-save').disabled = false;
       }
-    } catch(e) { this._sErr('clone', e.message==='Failed to fetch'?'无法连接服务器':e.message); }
+    } catch (e) { this._sErr('clone', e.message); }
     finally { btn.disabled = false; btn.textContent = '生成试听'; }
   },
 
@@ -179,7 +194,7 @@ const StudioModule = {
     const pt = document.getElementById('studio-hifi-prompt-text').value.trim();
     if (!pf || !pt) return this._sErr('hifi', '请提供 Prompt 音频和文本');
     const ref = document.getElementById('studio-hifi-ref-audio').files[0];
-    const cfg = parseInt(document.getElementById('studio-hifi-cfg').value)/10;
+    const cfg = parseInt(document.getElementById('studio-hifi-cfg').value) / 10;
     const steps = parseInt(document.getElementById('studio-hifi-steps').value);
     const btn = document.getElementById('studio-hifi-generate');
     btn.disabled = true; btn.textContent = '生成中...';
@@ -187,26 +202,33 @@ const StudioModule = {
     try {
       const r = await API.generateHifi(text, pf, pt, ref || undefined, cfg, steps);
       if (r.blob) {
-        this._blobs.hifi = new Blob([await r.blob.arrayBuffer()], {type:'audio/wav'});
+        this._acceptResult('hifi', r.blob);
         await this._players.hifi.load(r.blob);
-        document.getElementById('studio-hifi-result').style.display = '';
-        document.getElementById('studio-hifi-save').disabled = false;
       }
-    } catch(e) { this._sErr('hifi', e.message==='Failed to fetch'?'无法连接服务器':e.message); }
+    } catch (e) { this._sErr('hifi', e.message); }
     finally { btn.disabled = false; btn.textContent = '生成试听'; }
   },
 
-  async _loadPresets() {
-    try { this._presets = await API.getPresets(); this._renderStyleOptions(); } catch(e){}
+  async _loadPresets(force) {
+    if (!force && this._presets.length && Date.now() - this._presetsLoadedAt < 30000) return;
+    try {
+      this._presets = await API.getPresets();
+      this._presetsLoadedAt = Date.now();
+      this._renderStyleOptions();
+    } catch (e) { /* 下拉框留空即可，不打断主流程 */ }
   },
 
   _renderStyleOptions() {
-    const opts = this._presets.map(p => '<option value="' + p.name + '">' + p.name + '</option>').join('');
-    ['studio-design-style','studio-clone-style'].forEach(id => {
+    const opts = this._presets
+      .map(p => '<option value="' + Util.escapeAttr(p.name) + '">' + Util.escapeHtml(p.name) + '</option>')
+      .join('');
+    ['studio-design-style', 'studio-clone-style'].forEach(id => {
       const sel = document.getElementById(id);
       if (sel) sel.innerHTML = opts;
     });
   },
 
-  onActivate() { this._loadPresets(); }
+  onActivate() { this._loadPresets(false); }
 };
+
+Object.assign(StudioModule, ToastMixin);

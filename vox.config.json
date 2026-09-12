@@ -1,0 +1,8 @@
+{
+  "serverDir": "D:\\Voxcpm2",
+  "serverScript": "server.py",
+  "pythonPath": "python",
+  "serverPort": 8000,
+  "autoStartServer": true,
+  "serverStartTimeoutMs": 180000
+}

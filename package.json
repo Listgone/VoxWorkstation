@@ -2,6 +2,8 @@
   "name": "vox-workstation",
   "version": "1.0.0",
   "description": "VoxCPM2 AI Voice Workstation",
+  "author": "VoxWorkstation",
+  "license": "MIT",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -17,9 +19,9 @@
     "files": [
       "main.js",
       "preload.js",
+      "vox.config.json",
       "renderer/**/*",
-      "assets/**/*",
-      "node_modules/**/*"
+      "assets/**/*"
     ],
     "win": {
       "target": "nsis",
@@ -27,7 +29,10 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "VoxWorkstation"
     }
   },
   "devDependencies": {

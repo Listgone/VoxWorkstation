@@ -1,4 +1,4 @@
-﻿/* ========================================
+/* ========================================
    VoxWorkstation — Design System v3
    Apple-inspired, no backdrop-filter, 2 themes
    ======================================== */
@@ -363,18 +363,6 @@ input[type="file"]::file-selector-button:hover { background:var(--border); }
 .history-item .hi-actions { display:flex; gap:2px; opacity:0; transition:opacity var(--transition); }
 .history-item:hover .hi-actions { opacity:1; }
 
-/* --- Comparison Slots ------------------------------ */
-.compare-slots { display:flex; flex-direction:column; gap:6px; }
-.compare-slot {
-  display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-elevated);
-  border:1px solid var(--border); border-radius:var(--radius); cursor:pointer; transition:all var(--transition);
-}
-.compare-slot:hover { border-color:var(--text-muted); }
-.compare-slot.active { border-color:var(--accent); background:var(--accent-muted); }
-.compare-slot .cs-wav { flex:1; height:24px; position:relative; background:var(--bg-input); border-radius:3px; overflow:hidden; }
-.compare-slot .cs-wav canvas { position:absolute; inset:0; width:100%; height:100%; }
-.compare-slot .cs-label { font-size:10px; color:var(--text-muted); min-width:50px; text-align:right; }
-
 /* --- Messages -------------------------------------- */
 .error-msg {
   font-size:12px; color:var(--danger); margin-top:8px; padding:7px 12px;
@@ -430,3 +418,42 @@ input[type="file"]::file-selector-button:hover { background:var(--border); }
 ::-webkit-scrollbar-track { background:transparent; }
 ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
 ::-webkit-scrollbar-thumb:hover { background:var(--text-muted); }
+
+/* --- Toast ----------------------------------------- */
+#toast-host {
+  position:fixed; left:50%; bottom:48px; transform:translateX(-50%);
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  z-index:900; pointer-events:none;
+}
+.toast {
+  pointer-events:auto; cursor:pointer;
+  max-width:min(560px, 76vw); padding:10px 16px;
+  background:var(--bg-surface); color:var(--text);
+  border:1px solid var(--border); border-left:3px solid var(--success);
+  border-radius:var(--radius-lg); box-shadow:var(--shadow-lg);
+  font-size:12.5px; line-height:1.5; white-space:pre-wrap; word-break:break-word;
+  opacity:0; transform:translateY(10px);
+  transition:opacity var(--transition), transform var(--transition);
+}
+.toast.show { opacity:1; transform:translateY(0); }
+.toast-error { border-left-color:var(--danger); }
+
+/* --- Loading diagnostics --------------------------- */
+#loading-elapsed { font-size:11px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+#loading-log {
+  width:min(560px, 80vw); max-height:56px; overflow:hidden;
+  font-family:ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size:10.5px; line-height:1.5; color:var(--text-muted);
+  text-align:left; white-space:pre-wrap; word-break:break-all;
+}
+#loading-overlay.is-error .loading-spinner { border-top-color:var(--danger); animation:none; }
+#loading-overlay.is-error #loading-text { color:var(--danger); animation:none; }
+#loading-retry { display:none; }
+#loading-overlay.is-error #loading-retry { display:inline-flex; }
+#loading-overlay.is-error .loading-progress { display:none; }
+
+/* --- Audio player ---------------------------------- */
+.audio-player .ap-waveform { display:block; }
+.audio-player .ap-progress-fill { transition:none; }
+.audio-player .ap-play-btn[data-state="playing"] { color:var(--accent); }
+.ap-actions .btn:disabled { opacity:.45; cursor:not-allowed; }

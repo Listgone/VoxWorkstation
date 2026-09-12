@@ -5,6 +5,9 @@
 const API = (() => {
   let baseUrl = 'http://127.0.0.1:8000';
 
+  // 快速请求（读配置/状态）的超时；生成类请求不设超时（可能跑几分钟）
+  const QUICK_TIMEOUT = 15000;
+
   async function init() {
     if (window.electronAPI) {
       baseUrl = await window.electronAPI.getServerUrl();
@@ -12,13 +15,36 @@ const API = (() => {
   }
 
   async function request(path, options = {}) {
+    const { timeoutMs = 0, ...init } = options;
     const url = `${baseUrl}${path}`;
-    const resp = await fetch(url, options);
+
+    let timer = null;
+    if (timeoutMs > 0) {
+      const controller = new AbortController();
+      timer = setTimeout(() => controller.abort(), timeoutMs);
+      init.signal = controller.signal;
+    }
+
+    let resp;
+    try {
+      resp = await fetch(url, init);
+    } catch (e) {
+      if (e.name === 'AbortError') throw new Error('请求超时，后端无响应');
+      if (e instanceof TypeError) throw new Error('无法连接后端服务');
+      throw e;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+
     if (!resp.ok) {
       let msg = `HTTP ${resp.status}`;
-      try { const err = await resp.json(); msg = err.error || msg; } catch {}
+      try {
+        const err = await resp.json();
+        msg = err.error || err.detail || msg;   // 后端两种错误体：{"error":..} / {"detail":..}
+      } catch {}
       throw new Error(msg);
     }
+
     const ct = resp.headers.get('content-type') || '';
     if (ct.includes('application/json')) return resp.json();
     if (ct.includes('audio/') || ct.includes('application/zip') || ct.includes('video/')) {
@@ -33,7 +59,7 @@ const API = (() => {
 
     // ── Presets ──
     async getPresets() {
-      const data = await request('/api/presets', { method: 'POST' });
+      const data = await request('/api/presets', { method: 'POST', timeoutMs: QUICK_TIMEOUT });
       return data.presets || [];
     },
     async addPreset(name, desc, voiceFile) {
@@ -110,23 +136,23 @@ const API = (() => {
       return request('/api/generate/batch', { method: 'POST', body: fd });
     },
 
-    // ── History ──
+    // ── History（后端已持久化，前端不再自己存 blob）──
     async getHistory(mode) {
-      return request(`/api/history/${mode}`);
+      return request(`/api/history/${mode}`, { timeoutMs: QUICK_TIMEOUT });
     },
     getAudioUrl(filename) {
-      return `${baseUrl}/api/audio/${filename}`;
+      return `${baseUrl}/api/audio/${encodeURIComponent(filename)}`;
     },
     getDownloadUrl(filename) {
-      return `${baseUrl}/api/download/${filename}`;
+      return `${baseUrl}/api/download/${encodeURIComponent(filename)}`;
     },
 
     // ── GPU ──
     async getGpuMemory() {
-      return request('/api/gpu/memory');
+      return request('/api/gpu/memory', { timeoutMs: 5000 });
     },
 
-    // ── Tools ──
+    // ── Tools（后端已就绪，暂未接入 UI，保留接口）──
     async convertAudio(file, format, sampleRate, bitrate) {
       const fd = new FormData();
       fd.append('file', file);
