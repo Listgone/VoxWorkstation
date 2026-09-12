@@ -58,6 +58,9 @@ const VoicesPage = {
       return App.go('voices');
     }
 
+    // 每次都要重建：页面重渲染后 #v-player 是新的空节点
+    this._player = AudioPlayer.create('v-player');
+
     el.querySelector('#v-q')?.addEventListener('input', Util.debounce((e) => {
       this._q = e.target.value; App.go('voices');
     }, 250));

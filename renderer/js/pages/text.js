@@ -13,12 +13,15 @@ const TextPage = {
     const d = this._draft || (this._draft = {
       original: ep.scriptOriginal || '',
       processed: ep.script || '',
+      background: ep.episode.background || '',
       lines: (ep.lines || []).map(l => ({ ...l }))
     });
     const chars = (d.processed || '').length;
+    const roles = [...new Set(d.lines.map(l => l.role).filter(Boolean))];
 
     return App.head('文本处理', '把原始文本变成可以直接配音的台词',
-        '<span class="pill">' + Util.fmtNum(chars) + ' 字 · ' + d.lines.length + ' 句</span>')
+        '<span class="pill">' + Util.fmtNum(chars) + ' 字 · ' + d.lines.length + ' 句'
+        + (roles.length ? ' · ' + roles.length + ' 个角色' : '') + '</span>')
       + '<div class="wrap">'
 
       + '<div class="card"><h2>导入 <span class="n">粘贴后点「作为原文」</span></h2>'
@@ -31,7 +34,10 @@ const TextPage = {
       + '<div class="action-row mt-8">'
       + '<button class="btn btn-sm" data-act="use-import">作为原文</button>'
       + '<button class="btn btn-sm btn-ghost" data-act="clear-all">清空</button>'
-      + '</div></div>'
+      + '</div>'
+      + '<p class="text-sm text-muted mt-8" style="margin-bottom:0">推荐格式：<code>背景：一句话交代场景与语气</code> 换行后逐行写 <code>角色：台词</code>。'
+      + '没有角色前缀时会全部归给「旁白」。</p>'
+      + '</div>'
 
       + '<div class="card"><h2>对照 <span class="n">原文永不改动，处理结果只写右栏</span></h2>'
       + '<div class="duo">'
@@ -44,23 +50,33 @@ const TextPage = {
       + Util.escapeHtml(d.processed) + '</textarea></div>'
       + '</div></div>'
 
+      + (d.background
+        ? '<div class="card"><h2>背景 <span class="n">作为 AI 处理的上下文，不参与配音</span></h2>'
+          + '<div class="bg-line"><span class="pill pill-p">背景</span>'
+          + '<span class="bg-text">' + Util.escapeHtml(d.background) + '</span>'
+          + '<button class="btn btn-sm btn-ghost" data-act="edit-bg">改</button></div></div>'
+        : '')
+
       + '<div class="card"><h2>处理 <span class="n" id="tx-ai-state">'
       + (Store.hasApiKey ? 'AI 已配置' : 'AI 未配置 —— 本地规则仍可用') + '</span></h2>'
       + '<div class="action-row">'
+      + '<button class="btn btn-ai" data-act="script">✦ 整理成剧本格式</button>'
       + '<button class="btn btn-ai" data-act="tn">✦ 本地规范化</button>'
-      + '<button class="btn" data-act="split">按标点断句</button>'
+      + '<button class="btn" data-act="split">按角色 / 标点分句</button>'
       + '<button class="btn" data-act="ai-proc">✦ AI 处理…</button>'
       + '<button class="btn btn-ghost" data-act="reset-proc">恢复为原文</button>'
       + '</div>'
-      + '<p class="text-sm text-muted mt-8" style="margin-bottom:0">「本地规范化」不联网，处理数字、日期、百分比、常见缩写；'
-      + '「AI 处理」需要先在设置里配置服务商。</p></div>'
+      + '<p class="text-sm text-muted mt-8" style="margin-bottom:0">'
+      + '「整理成剧本格式」把整段文本拆成 <code>背景：…</code> + <code>角色：台词</code>；'
+      + '「本地规范化」不联网；「AI 处理…」需要先配置服务商。</p></div>'
 
-      + '<div class="card"><h2>分句 <span class="n">' + d.lines.length + ' 句</span></h2>'
+      + '<div class="card"><h2>分句 <span class="n">' + d.lines.length + ' 句'
+      + (roles.length ? ' · ' + roles.map(r => Util.escapeHtml(r)).join(' / ') : '') + '</span></h2>'
       + (d.lines.length
         ? '<table><tr><th style="width:36px">#</th><th style="width:96px">角色</th><th>台词</th>'
-          + '<th style="width:64px">字数</th><th style="width:78px">状态</th></tr>'
+          + '<th style="width:64px">字数</th><th style="width:110px">音色</th><th style="width:60px">状态</th></tr>'
           + d.lines.map((l, i) => this._lineRow(l, i)).join('') + '</table>'
-        : '<p class="text-sm text-muted" style="margin:0">还没有分句。先填原文，再点上面的「按标点断句」。</p>')
+        : '<p class="text-sm text-muted" style="margin:0">还没有分句。先填原文，再点「按角色 / 标点分句」。</p>')
       + '</div>'
 
       + '<div class="action-row" style="justify-content:flex-end">'
@@ -82,14 +98,28 @@ const TextPage = {
   },
 
   _lineRow(l, i) {
-    const dur = l.audio ? '<span class="pill pill-ok">✓</span>' : '<span class="text-muted">·</span>';
-    const role = l.role || '旁白';
-    const voice = l.voice || '—';
+    const st = l.audio ? '<span class="pill pill-ok">✓</span>' : '<span class="text-muted">·</span>';
     return '<tr><td class="num">' + (i + 1) + '</td>'
-      + '<td><span class="pill">' + Util.escapeHtml(role) + '</span></td>'
+      + '<td><span class="pill">' + Util.escapeHtml(l.role || '旁白') + '</span></td>'
       + '<td class="tx">' + Util.escapeHtml(l.text || '') + '</td>'
       + '<td class="num">' + (l.text || '').length + '</td>'
-      + '<td>' + dur + ' <span class="text-sm text-muted">' + Util.escapeHtml(voice) + '</span></td></tr>';
+      + '<td class="text-sm text-muted">' + Util.escapeHtml(l.voice || '—') + '</td>'
+      + '<td>' + st + '</td></tr>';
+  },
+
+  _applyParsed(parsed) {
+    const p = Store.currentProject || {};
+    const voiceFor = (role) => {
+      const hit = (p.roles || []).find(r => r.name === role);
+      return (hit && hit.voice) || p.fallbackVoice || '';
+    };
+    this._draft.background = parsed.background || '';
+    this._draft.lines = parsed.lines.map(l => ({
+      text: l.text, role: l.role || '旁白', voice: voiceFor(l.role || '旁白'),
+      audio: '', error: ''
+    }));
+    this._draft.processed = (parsed.background ? '背景：' + parsed.background + '\n' : '')
+      + parsed.lines.map(l => (l.role || '旁白') + '：' + l.text).join('\n');
   },
 
   async mount(el) {
@@ -144,11 +174,22 @@ const TextPage = {
       const src = this._draft.processed || this._draft.original;
       if (!src.trim()) { Toast.error('没有可分句的文本', true); return; }
       const maxLen = (Store.currentProject.defaults || {}).maxLineLen || 25;
-      const lines = TextTools.split(src, maxLen).map(t => ({ text: t, role: '', voice: '', audio: '', error: '' }));
-      this._draft.lines = lines;
+      const parsed = TextTools.parseScript(src, maxLen);
+      this._applyParsed(parsed);
       App.go('text');
-      Toast.success('已切成 ' + lines.length + ' 句');
+      const roleList = [...new Set(parsed.lines.map(l => l.role))];
+      Toast.success('已切成 ' + parsed.lines.length + ' 句 · ' + roleList.length + ' 个角色'
+        + (parsed.background ? ' · 含背景' : ''));
     });
+
+    el.querySelector('[data-act="edit-bg"]')?.addEventListener('click', async () => {
+      const v = await Modal.prompt({ title: '编辑背景', label: '背景（场景 / 语气 / 用途）', value: this._draft.background || '' });
+      if (v === null) return;
+      this._draft.background = v;
+      App.go('text');
+    });
+
+    el.querySelector('[data-act="script"]')?.addEventListener('click', () => this._makeScript());
 
     el.querySelector('[data-act="ai-proc"]')?.addEventListener('click', () => this._aiPanel());
 
@@ -162,6 +203,7 @@ const TextPage = {
         lines,
         episode: {
           ...Store.currentEpisode.episode,
+          background: this._draft.background || '',
           chars,
           lineCount: lines.length,
           doneCount: lines.filter(l => l.audio).length,
@@ -181,14 +223,51 @@ const TextPage = {
     el.querySelector('[data-act="save-go"]')?.addEventListener('click', () => doSave(true));
   },
 
+  /** 整理成剧本格式：有 Key 走 AI，没 Key 用本地规则 */
+  async _makeScript() {
+    const src = this._draft.processed || this._draft.original;
+    if (!src.trim()) { Toast.error('没有可整理的文本', true); return; }
+    const maxLen = (Store.currentProject.defaults || {}).maxLineLen || 25;
+
+    if (!Store.hasApiKey) {
+      const parsed = TextTools.parseScript(src, maxLen);
+      this._applyParsed(parsed);
+      App.go('text');
+      Toast.show('已用本地规则整理（未配置 AI）· ' + parsed.lines.length + ' 句');
+      return;
+    }
+
+    const btn = document.querySelector('[data-act="script"]');
+    const restore = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.textContent = '整理中…'; }
+    try {
+      const proj = Store.currentProject || {};
+      const r = await window.electronAPI.ai.process('script', src, {
+        maxLen,
+        projectPrompt: (proj.ai && proj.ai.prompt) || '',
+        dict: proj.dict || []
+      });
+      if (!r.ok) throw new Error(r.message);
+      const parsed = TextTools.parseScript(r.text, maxLen);
+      this._applyParsed(parsed);
+      App.go('text');
+      Toast.success('已整理成剧本 · ' + parsed.lines.length + ' 句 · '
+        + [...new Set(parsed.lines.map(l => l.role))].length + ' 个角色');
+    } catch (e) {
+      Toast.error('整理失败：' + (e.message || e), true);
+      if (btn) { btn.disabled = false; btn.innerHTML = restore; }
+    }
+  },
+
   _aiPanel() {
     const ai = Store.settings.ai || {};
     const proj = Store.currentProject || {};
-    const DEFAULT_TASKS = ['normalize', 'split', 'tone', 'roles'];
+    const DEFAULT_TASKS = ['script', 'normalize', 'split', 'tone', 'roles'];
     // 注意：空数组是 truthy，必须判 length，否则项目没配 features 时一个都不勾
     const saved = (proj.ai && Array.isArray(proj.ai.features)) ? proj.ai.features : [];
     const on = saved.length ? saved : DEFAULT_TASKS;
     const TASKS = [
+      ['script', '整理成剧本格式', '拆成「背景：…」+「角色：台词」，先做这一步效果最好'],
       ['normalize', '文本规范化', '数字 / 日期 / 百分比 / 单位 / 英文缩写 → 口语读法'],
       ['split', '智能断句', '按语义切分，每句不超过 ' + ((proj.defaults || {}).maxLineLen || 25) + ' 字'],
       ['tone', '语气标注', '自动插入 [laughing] / [sigh] 等 VoxCPM2 标记'],
@@ -263,8 +342,18 @@ const TextPage = {
 
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
-      const label = { normalize: '规范化', split: '断句', tone: '语气标注', roles: '角色分离' }[task];
+      const label = { script: '剧本格式', normalize: '规范化', split: '断句', tone: '语气标注', roles: '角色分离' }[task];
       say('[' + (i + 1) + '/' + tasks.length + '] ' + label + ' 处理中…');
+
+      // 剧本格式：走 parseScript，一次拿到背景 + 带角色的分句
+      if (task === 'script') {
+        const src = this._draft.original || this._draft.processed;
+        const r = await window.electronAPI.ai.process('script', src, opts);
+        if (!r.ok) throw new Error(label + '：' + r.message);
+        if (r.usage) { tokenTotal.prompt_tokens += r.usage.prompt_tokens || 0; tokenTotal.completion_tokens += r.usage.completion_tokens || 0; }
+        this._applyParsed(TextTools.parseScript(r.text, opts.maxLen));
+        continue;
+      }
 
       if (task === 'roles') {
         const src = this._draft.processed || this._draft.original;
@@ -362,6 +451,39 @@ const TextTools = {
     t = t.replace(/「/g, '“').replace(/」/g, '”');
     t = t.replace(/[ \t]+/g, ' ');
     return { text: t, hits };
+  },
+
+  /**
+   * 解析剧本格式：
+   *   背景：一句话交代场景与语气
+   *   角色：台词
+   * 没有角色前缀的行归给「旁白」，过长的再按标点切。
+   */
+  parseScript(text, maxLen = 25) {
+    const src = String(text || '').replace(/\r\n/g, '\n');
+    let background = '';
+    const lines = [];
+
+    for (const raw of src.split('\n')) {
+      const s = raw.trim();
+      if (!s) continue;
+
+      const bg = s.match(/^背景\s*[：:]\s*(.+)$/);
+      if (bg) { background = bg[1].trim(); continue; }
+
+      const m = s.match(/^([^：:\n]{1,10})\s*[：:]\s*(.+)$/);
+      if (m) {
+        const role = m[1].trim();
+        const body = m[2].trim();
+        // 角色名不能像句子（含标点就当成普通文本）
+        if (role && !/[。！？，,；;.!?]/.test(role)) {
+          for (const piece of this.split(body, maxLen)) lines.push({ role, text: piece });
+          continue;
+        }
+      }
+      for (const piece of this.split(s, maxLen)) lines.push({ role: '旁白', text: piece });
+    }
+    return { background, lines };
   },
 
   /** 按标点断句，长句再按逗号切 */

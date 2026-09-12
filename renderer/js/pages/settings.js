@@ -2,6 +2,33 @@
    设置 —— 软件层面的配置（11 个分组）
    ══════════════════════════════════════════ */
 
+/* OpenAI 兼容服务商预设 —— 换服务商只改这里的 baseURL 与模型 */
+const AI_PROVIDERS = [
+  { id: 'deepseek', name: 'DeepSeek',    sub: '中文最准 · 便宜 · 国内直连',
+    base: 'https://api.deepseek.com/v1',
+    models: ['deepseek-chat', 'deepseek-reasoner'] },
+  { id: 'qwen',     name: '通义千问',    sub: '阿里云 DashScope',
+    base: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    models: ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long'] },
+  { id: 'kimi',     name: 'Kimi',        sub: '超长上下文 · 长剧本',
+    base: 'https://api.moonshot.cn/v1',
+    models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k', 'kimi-latest'] },
+  { id: 'zhipu',    name: '智谱 GLM',    sub: '清华系',
+    base: 'https://open.bigmodel.cn/api/paas/v4',
+    models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'] },
+  { id: 'silicon',  name: '硅基流动',    sub: '聚合多家开源模型',
+    base: 'https://api.siliconflow.cn/v1',
+    models: ['deepseek-ai/DeepSeek-V3', 'Qwen/Qwen2.5-72B-Instruct', 'Qwen/Qwen2.5-7B-Instruct'] },
+  { id: 'openai',   name: 'OpenAI',      sub: '需要能访问境外',
+    base: 'https://api.openai.com/v1',
+    models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'] },
+  { id: 'ollama',   name: '本地 Ollama', sub: '数据不出网 · 需先 ollama pull',
+    base: 'http://127.0.0.1:11434/v1',
+    models: ['qwen2.5:7b', 'qwen2.5:14b', 'llama3.1:8b'] },
+  { id: 'custom',   name: '自定义',      sub: '任意 OpenAI 兼容端点',
+    base: '', models: [] }
+];
+
 const SettingsPage = {
   _sec: 'appearance',
 
@@ -73,26 +100,29 @@ const SettingsPage = {
 
   _ai(s) {
     const ai = s.ai || {};
-    const providers = [
-      ['deepseek', 'DeepSeek', '中文最准 · 便宜', 'https://api.deepseek.com/v1', 'deepseek-chat'],
-      ['qwen', '通义千问', 'Qwen-Max', 'https://dashscope.aliyuncs.com/compatible-mode/v1', 'qwen-max'],
-      ['kimi', 'Kimi', '超长剧本', 'https://api.moonshot.cn/v1', 'moonshot-v1-8k'],
-      ['zhipu', '智谱 GLM', '—', 'https://open.bigmodel.cn/api/paas/v4', 'glm-4'],
-      ['ollama', '本地 Ollama', '数据不出网', 'http://127.0.0.1:11434/v1', 'qwen2.5:7b'],
-      ['custom', '自定义', '任意兼容端点', '', '']
-    ];
+    const cur = AI_PROVIDERS.find(x => x.id === ai.provider) || AI_PROVIDERS[0];
+    const models = cur.models || [];
+    const isCustomModel = !!ai.model && models.length > 0 && !models.includes(ai.model);
     return '<div class="card"><h2>AI 服务 <span class="n">'
       + (Store.hasApiKey ? '已配置 Key' + (Store.keyEncrypted ? '（加密存储）' : '（未加密）') : '未配置 Key')
       + '</span></h2>'
+      + '<p class="text-sm text-muted" style="margin:-6px 0 10px">'
+      + '所有服务商都走 OpenAI 兼容接口。选一个会自动填好地址与模型，也可以手改。</p>'
       + '<div class="themes" style="flex-wrap:wrap;margin-bottom:6px">'
-      + providers.map(([id, name, sub]) =>
-          '<div class="th' + (ai.provider === id ? ' on' : '') + '" data-provider="' + id + '" style="width:158px">'
-          + '<b>' + name + '</b><span>' + sub + '</span></div>').join('')
+      + AI_PROVIDERS.map(p =>
+          '<div class="th' + (ai.provider === p.id ? ' on' : '') + '" data-provider="' + p.id + '" style="width:164px">'
+          + '<b>' + p.name + '</b><span>' + p.sub + '</span></div>').join('')
       + '</div>'
-      + this._row('接口地址', 'OpenAI 兼容 baseURL，换服务商只改这里',
-          '<input type="text" id="ai-base" value="' + Util.escapeAttr(ai.baseURL || '') + '" style="width:320px">')
-      + this._row('模型', '规范化 / 断句 / 语气标注用',
-          '<input type="text" id="ai-model" value="' + Util.escapeAttr(ai.model || '') + '" style="width:220px">')
+      + this._row('接口地址', 'OpenAI 兼容 baseURL，末尾不用带 /chat/completions',
+          '<input type="text" id="ai-base" value="' + Util.escapeAttr(ai.baseURL || cur.base) + '" style="width:340px">')
+      + this._row('模型', '列出的为该服务商常用模型，可选「自定义」手填',
+          '<select id="ai-model-sel" style="width:230px">'
+          + models.map(m => '<option value="' + Util.escapeAttr(m) + '"'
+              + (!isCustomModel && ai.model === m ? ' selected' : '') + '>' + Util.escapeHtml(m) + '</option>').join('')
+          + '<option value="__custom__"' + (isCustomModel || !models.length ? ' selected' : '') + '>自定义…</option>'
+          + '</select>'
+          + '<input type="text" id="ai-model" value="' + Util.escapeAttr(ai.model || '') + '" style="width:230px;'
+          + (isCustomModel || !models.length ? '' : 'display:none') + '" placeholder="手填模型名">')
       + this._row('视觉模型（OCR）', '图片取字用，留空则关闭该功能',
           '<input type="text" id="ai-vision" value="' + Util.escapeAttr(ai.visionModel || '') + '" placeholder="如 qwen-vl-max" style="width:220px">')
       + this._row('API Key', '用系统凭据加密存储，不落明文',
@@ -104,6 +134,7 @@ const SettingsPage = {
       + this._row('单次处理上限', '超长文本自动分段调用，避免超上下文',
           '<input type="number" id="ai-max" value="' + (ai.maxCharsPerCall || 4000) + '" style="width:96px"><span class="text-sm text-muted">字</span>')
       + '<div class="action-row mt-12"><button class="btn btn-primary" data-act="save-ai">保存</button>'
+      + '<button class="btn" data-act="test2">测试连接</button>'
       + '<span class="text-sm text-muted" id="ai-test-result"></span></div>'
       + '</div>';
   },
@@ -256,23 +287,61 @@ const SettingsPage = {
     toggle('toggle-onlycur',  v => save({ privacy: { ...s.privacy, onlyCurrentParagraph: v } }));
     toggle('toggle-diff',     v => save({ privacy: { ...s.privacy, keepDiffHistory: v } }));
 
-    /* 服务商选择 → 自动填地址和模型 */
-    const PRESETS = {
-      deepseek: ['https://api.deepseek.com/v1', 'deepseek-chat'],
-      qwen:     ['https://dashscope.aliyuncs.com/compatible-mode/v1', 'qwen-max'],
-      kimi:     ['https://api.moonshot.cn/v1', 'moonshot-v1-8k'],
-      zhipu:    ['https://open.bigmodel.cn/api/paas/v4', 'glm-4'],
-      ollama:   ['http://127.0.0.1:11434/v1', 'qwen2.5:7b'],
-      custom:   ['', '']
-    };
+    /* 服务商选择 → 自动填地址和模型下拉 */
     let pickedProvider = (s.ai || {}).provider || 'deepseek';
+    const fillProvider = (id) => {
+      const p = AI_PROVIDERS.find(x => x.id === id) || AI_PROVIDERS[0];
+      const baseEl = el.querySelector('#ai-base');
+      if (baseEl && p.base) baseEl.value = p.base;
+      const sel = el.querySelector('#ai-model-sel');
+      const inp = el.querySelector('#ai-model');
+      if (!sel || !inp) return;
+      sel.innerHTML = (p.models || []).map(m =>
+          '<option value="' + Util.escapeAttr(m) + '">' + Util.escapeHtml(m) + '</option>').join('')
+        + '<option value="__custom__">自定义…</option>';
+      if ((p.models || []).length) {
+        sel.value = p.models[0];
+        inp.value = p.models[0];
+        inp.style.display = 'none';
+      } else {
+        sel.value = '__custom__';
+        inp.style.display = '';
+        inp.value = '';
+      }
+    };
     el.querySelectorAll('[data-provider]').forEach(b =>
       b.addEventListener('click', () => {
         pickedProvider = b.dataset.provider;
         el.querySelectorAll('[data-provider]').forEach(x => x.classList.toggle('on', x === b));
-        const [base, model] = PRESETS[pickedProvider] || ['', ''];
-        if (base) { el.querySelector('#ai-base').value = base; el.querySelector('#ai-model').value = model; }
+        fillProvider(pickedProvider);
       }));
+
+    el.querySelector('#ai-model-sel')?.addEventListener('change', (e) => {
+      const inp = el.querySelector('#ai-model');
+      if (e.target.value === '__custom__') { inp.style.display = ''; inp.focus(); }
+      else { inp.style.display = 'none'; inp.value = e.target.value; }
+    });
+    el.querySelector('#ai-model')?.addEventListener('input', (e) => {
+      const sel = el.querySelector('#ai-model-sel');
+      if (sel && ![...sel.options].some(o => o.value === e.target.value)) sel.value = '__custom__';
+    });
+
+    const doTest = async (btn) => {
+      const out = el.querySelector('#ai-test-result');
+      const old = btn.textContent;
+      btn.disabled = true; btn.textContent = '测试中…';
+      if (out) out.textContent = '';
+      try {
+        const r = await window.electronAPI.ai.test();
+        if (out) out.textContent = (r.ok ? '✓ ' : '✕ ') + r.message + (r.reply ? '（' + r.reply + '）' : '');
+        if (r.ok) Toast.success('AI 连接正常'); else Toast.error('连接失败：' + r.message, true);
+      } catch (e) {
+        if (out) out.textContent = '✕ ' + e.message;
+        Toast.error('连接失败：' + e.message, true);
+      } finally { btn.disabled = false; btn.textContent = old; }
+    };
+    el.querySelector('[data-act="test"]')?.addEventListener('click', (e) => doTest(e.currentTarget));
+    el.querySelector('[data-act="test2"]')?.addEventListener('click', (e) => doTest(e.currentTarget));
 
     el.querySelector('[data-act="save-ai"]')?.addEventListener('click', async () => {
       const key = el.querySelector('#ai-key').value.trim();
@@ -296,7 +365,7 @@ const SettingsPage = {
       }, 'AI 设置已保存');
     });
 
-    el.querySelector('[data-act="test"]')?.addEventListener('click', async (e) => {
+    el.querySelector('[data-act="test-old"]')?.addEventListener('click', async (e) => {
       const out = el.querySelector('#ai-test-result');
       e.currentTarget.disabled = true;
       if (out) out.textContent = '正在测试…';

@@ -28,7 +28,7 @@ const DubPage = {
       + '<div class="card"><h2>台词 <span class="n">来自文本处理页</span></h2>'
       + (lines.length
         ? '<table><tr><th style="width:34px">#</th><th style="width:64px">角色</th><th>台词</th>'
-          + '<th style="width:96px">音色</th><th style="width:92px">状态</th><th style="width:74px"></th></tr>'
+          + '<th style="width:96px">音色</th><th style="width:92px">状态</th><th style="width:124px"></th></tr>'
           + lines.map((l, i) => this._row(l, i)).join('') + '</table>'
         : '<p class="text-sm text-muted" style="margin:0">还没有台词。先去「文本处理」把文本切好句。</p>')
       + '</div>'
@@ -102,14 +102,17 @@ const DubPage = {
     const [stLabel, stCls] = l.error ? ['失败', 'pill-err']
       : l.audio ? ['✓ ' + Util.fmtDuration(l.durationMs || 0), 'pill-ok']
       : ['· 待生成', ''];
-    const pad = Store.currentProject.padWidth || 2;
     return '<tr><td class="num">' + (i + 1) + '</td>'
       + '<td><span class="pill">' + Util.escapeHtml(l.role || '旁白') + '</span></td>'
       + '<td class="tx">' + Util.escapeHtml(l.text || '') + '</td>'
       + '<td class="text-sm text-muted">' + Util.escapeHtml(l.voice || '—') + '</td>'
       + '<td><span class="pill ' + stCls + '">' + stLabel + '</span></td>'
-      + '<td><button class="btn btn-sm btn-ghost" data-act="gen-one" data-i="' + i + '" title="只生成这一句">生成</button></td>'
-      + '</tr>';
+      + '<td class="row-acts">'
+      + (l.audio
+          ? '<button class="btn btn-sm btn-play" data-act="play-one" data-i="' + i + '" title="试听这一句">▶</button>'
+          : '')
+      + '<button class="btn btn-sm btn-gen" data-act="gen-one" data-i="' + i + '" title="重新生成这一句">生成</button>'
+      + '</td></tr>';
   },
 
   async mount(el) {
@@ -121,7 +124,9 @@ const DubPage = {
     const ep = Store.currentEpisode;
     if (!p || !ep) return;
 
-    if (!this._player) this._player = AudioPlayer.create('dub-player');
+    // 每次渲染都要重建播放器：App.go() 会重建 #dub-player 的 DOM，
+    // 复用旧实例会指向已被移除的节点，导致点了播放没反应
+    this._player = AudioPlayer.create('dub-player');
 
     ['cfg', 'steps'].forEach(k => {
       const sl = el.querySelector('#dub-' + k);
@@ -142,6 +147,24 @@ const DubPage = {
     });
     el.querySelectorAll('[data-act="gen-one"]').forEach(b =>
       b.addEventListener('click', () => this._generate([Number(b.dataset.i)])));
+
+    // 逐句试听：从集文件夹里读回音频再播
+    el.querySelectorAll('[data-act="play-one"]').forEach(b =>
+      b.addEventListener('click', async () => {
+        const i = Number(b.dataset.i);
+        const line = (Store.currentEpisode.lines || [])[i];
+        if (!line || !line.audio) return;
+        b.disabled = true;
+        try {
+          const r = await window.electronAPI.audio.read(Store.currentProjectId, Store.currentEpisodeNo, line.audio);
+          if (!r.ok) throw new Error(r.message || '读取失败');
+          await this._player.load(Util.b64ToBlob(r.base64, 'audio/wav'), null, line.audio);
+          this._player.play();
+          const now = el.querySelector('#dub-now');
+          if (now) now.textContent = '第 ' + (i + 1) + ' 句 · ' + (line.voice || '默认');
+        } catch (e) { Toast.error('试听失败：' + e.message, true); }
+        finally { b.disabled = false; }
+      }));
 
     el.querySelectorAll('[data-act="bind-role"]').forEach(b =>
       b.addEventListener('click', () => this._bindRole(b.dataset.role)));

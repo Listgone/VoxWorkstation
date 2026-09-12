@@ -514,6 +514,34 @@ code{background:var(--bg-elev);padding:1px 6px;border-radius:4px;font-size:11.5p
 .check-txt b{display:block;font-size:12.5px;font-weight:600;color:var(--text)}
 .check-txt i{font-style:normal;font-size:11px;color:var(--text-mute);line-height:1.55}
 
+/* --- 下拉菜单（面包屑 / 选择器）---------------------- */
+.popmenu{position:fixed;z-index:800;min-width:200px;max-width:360px;max-height:60vh;overflow-y:auto;
+  background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-lg);padding:5px;animation:scaleIn .14s cubic-bezier(.2,.8,.3,1)}
+[data-theme="glass"] .popmenu{
+  background:rgba(255,255,255,.72);
+  -webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9), var(--shadow-lg)}
+.popmenu-item{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--radius);
+  cursor:pointer;font-size:12.5px}
+.popmenu-item:hover{background:var(--bg-elev)}
+.popmenu-item.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.pm-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pm-sub{font-size:10.5px;color:var(--text-mute);font-weight:400;white-space:nowrap}
+
+/* --- 配音台词行操作 -------------------------------- */
+.row-acts{display:flex;gap:5px;justify-content:flex-end;white-space:nowrap}
+.btn-gen{
+  background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600;
+  min-width:44px}
+.btn-gen:hover:not(:disabled){background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn-play{min-width:28px;padding:0 6px}
+
+/* --- 剧本背景行 ------------------------------------- */
+.bg-line{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:var(--radius);
+  background:var(--purple-soft);border:1px solid rgba(130,80,223,.28)}
+.bg-text{flex:1;font-size:12.5px;line-height:1.7;color:var(--text)}
+
 /* --- 焦点 / 滚动条 / 降级 --------------------------- */
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 ::-webkit-scrollbar{width:8px;height:8px}

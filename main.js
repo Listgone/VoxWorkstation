@@ -200,6 +200,17 @@ function currentAI() {
 
 /* 每个任务一套 system prompt —— 都强调"只输出结果，不要解释" */
 const AI_TASKS = {
+  script: {
+    label: '整理成剧本格式',
+    system: '你是配音剧本整理引擎。把输入文本整理成下面这种格式：\n'
+      + '第一行固定输出「背景：<一句话概括场景、语气与用途>」；\n'
+      + '从第二行开始，每行输出「角色名：台词」。\n'
+      + '规则：原文若已有角色标记就沿用；没有角色标记时统一用「旁白」；'
+      + '如果原文里能看出说话人（如「他说」「小明问」），提炼成角色名。'
+      + '台词保持原措辞，不要改写、不要翻译、不要加标点之外的内容。'
+      + '每句台词尽量不超过指定字数，过长时在语义完整处断开成多行，角色名照抄。\n'
+      + '只输出这些行，不要编号，不要解释，不要用 markdown。'
+  },
   normalize: {
     label: '文本规范化',
     system: '你是中文 TTS 文本规范化引擎。把输入文本里的阿拉伯数字、日期、百分比、单位、'
@@ -254,7 +265,7 @@ async function aiRun(task, text, options = {}) {
   if (!spec) return { ok: false, message: '未知任务：' + task };
 
   let system = spec.system;
-  if (task === 'split') system += '\n每句不超过 ' + (options.maxLen || 25) + ' 字。';
+  if (task === 'split' || task === 'script') system += '\n每句台词不超过 ' + (options.maxLen || 25) + ' 字。';
   if (options.projectPrompt) system += '\n项目背景：' + options.projectPrompt;
   if (options.dict && options.dict.length) {
     system += '\n必须遵守的读音约定：' + options.dict.map(d => d.word + ' 读作 ' + d.reading).join('；') + '。';

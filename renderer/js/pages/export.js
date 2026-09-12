@@ -77,6 +77,9 @@ const ExportPage = {
     if (!p || !ep) return;
     const id = Store.currentProjectId, no = ep.episode.no;
 
+    // 每次渲染都重建播放器（DOM 已被 App.go 换掉）
+    this._player = AudioPlayer.create('exp-player');
+
     el.querySelector('[data-act="open-audio"]')?.addEventListener('click', () => {
       window.electronAPI.path.reveal(ep.dir + '\\audio');
     });
@@ -105,7 +108,6 @@ const ExportPage = {
       const r = await window.electronAPI.audio.read(id, no, first.audio);
       if (!r.ok) { Toast.error('读取音频失败', true); return; }
       const blob = Util.b64ToBlob(r.base64, 'audio/wav');
-      if (!this._player) this._player = AudioPlayer.create('exp-player');
       await this._player.load(blob, null, first.audio);
       this._player.play();
     });

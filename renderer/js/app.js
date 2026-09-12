@@ -83,13 +83,13 @@ const App = {
       + '<span class="sp"></span>' + (right || '') + '</div>';
   },
 
-  /* ── 顶部面包屑 ───────────────────────────── */
+  /* ── 顶部面包屑（可点开直接切换项目 / 集）───── */
   _syncChrome() {
     const crumb = document.getElementById('crumb');
     if (!crumb) return;
     const p = Store.currentProject;
     if (!p) {
-      crumb.innerHTML = '<span class="seg">未选择项目</span>';
+      crumb.innerHTML = '<span class="seg" data-act="pick-project">未选择项目 ▾</span>';
     } else {
       const ep = Store.currentEpisode ? Store.currentEpisode.episode : null;
       crumb.innerHTML =
@@ -98,18 +98,62 @@ const App = {
               + Util.escapeHtml('第' + String(ep.no).padStart(p.padWidth || 2, '0') + '集'
               + (ep.title ? ' · ' + ep.title : '')) + ' ▾</span>' : '');
     }
-    crumb.querySelector('[data-act="pick-project"]')?.addEventListener('click', () => this.go('projects'));
-    crumb.querySelector('[data-act="pick-episode"]')?.addEventListener('click', () => this.go('episodes'));
+    crumb.querySelector('[data-act="pick-project"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._menu(e.currentTarget, Store.projects.map(pp => ({
+        label: pp.name, value: pp.id, active: pp.id === Store.currentProjectId,
+        sub: pp.episodeCount + ' 集'
+      })), async (id) => {
+        await Store.openProject(id);
+        await App.go(this.current === 'dash' ? 'episodes' : this.current);
+      });
+    });
+    crumb.querySelector('[data-act="pick-episode"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!Store.episodes.length) { Toast.show('这个项目还没有集'); return; }
+      this._menu(e.currentTarget, Store.episodes.map(ep => ({
+        label: '第' + String(ep.no).padStart(p.padWidth || 2, '0') + '集' + (ep.title ? ' · ' + ep.title : ''),
+        value: ep.no, active: ep.no === Store.currentEpisodeNo,
+        sub: (Util.epStatus(ep.status) || [''])[0]
+      })), async (no) => {
+        const r = await Store.openEpisode(no);
+        if (r && r.ok) await App.go(this.current);
+      });
+    });
 
     // 导航角标
     const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v || ''; };
     set('nav-proj-count', Store.projects.length || '');
     set('nav-ep-count', Store.episodes.length || '');
     set('nav-line-count', Store.currentEpisode ? (Store.currentEpisode.lines || []).length : '');
-    set('nav-voice-count', '');
+    set('nav-voice-count', window.__voiceCount || '');
 
     const ai = document.getElementById('status-ai');
     if (ai) ai.textContent = Store.hasApiKey ? '✦ AI 已配置' : '✦ AI 未配置';
+  },
+
+  /** 轻量下拉菜单 */
+  _menu(anchor, items, onPick) {
+    document.querySelectorAll('.popmenu').forEach(m => m.remove());
+    if (!items.length) return;
+    const r = anchor.getBoundingClientRect();
+    const menu = document.createElement('div');
+    menu.className = 'popmenu';
+    menu.innerHTML = items.map(it =>
+      '<div class="popmenu-item' + (it.active ? ' on' : '') + '" data-v="' + Util.escapeAttr(String(it.value)) + '">'
+      + '<span class="pm-label">' + Util.escapeHtml(it.label) + '</span>'
+      + (it.sub ? '<span class="pm-sub">' + Util.escapeHtml(it.sub) + '</span>' : '')
+      + '</div>').join('');
+    document.body.appendChild(menu);
+    const mw = menu.offsetWidth, mh = menu.offsetHeight;
+    menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - mw - 8)) + 'px';
+    menu.style.top = Math.min(r.bottom + 5, window.innerHeight - mh - 8) + 'px';
+
+    const close = () => { menu.remove(); document.removeEventListener('mousedown', onDoc, true); };
+    const onDoc = (ev) => { if (!menu.contains(ev.target)) close(); };
+    setTimeout(() => document.addEventListener('mousedown', onDoc, true), 0);
+    menu.querySelectorAll('.popmenu-item').forEach(it =>
+      it.addEventListener('click', () => { close(); onPick(it.dataset.v); }));
   },
 
   _syncStatus(text, mid) {

@@ -375,15 +375,27 @@ const ProjectSettingsPage = {
 
   async _editRole(role, index) {
     const p = Store.currentProject;
-    const voices = (window.__voices || []);
+    let voices = [];
+    try { voices = await API.getPresets(); } catch (e) { voices = []; }
+    const cur = role ? (role.voice || '') : '';
+    const opts = (list) => ['<option value="">（不绑定）</option>']
+      .concat(list.map(v => '<option value="' + Util.escapeAttr(v.name) + '"'
+        + (v.name === cur ? ' selected' : '') + '>' + Util.escapeHtml(v.name)
+        + (v.desc ? ' — ' + Util.escapeHtml(String(v.desc).slice(0, 14)) : '') + '</option>'))
+      .join('');
+
     const overlay = Modal.open({
       title: index >= 0 ? '编辑角色' : '添加角色',
-      width: 460,
+      width: 470,
       body:
         '<div class="form-group"><label class="form-label">角色名</label>'
         + '<input type="text" id="r-name" value="' + Util.escapeAttr(role ? role.name : '') + '" placeholder="例如：旁白"></div>'
         + '<div class="form-group mt-12"><label class="form-label">绑定音色</label>'
-        + '<input type="text" id="r-voice" value="' + Util.escapeAttr(role ? (role.voice || '') : '') + '" placeholder="音色名（留空则不绑定）"></div>'
+        + (voices.length
+            ? '<select id="r-voice">' + opts(voices) + '</select>'
+            : '<input type="text" id="r-voice" value="' + Util.escapeAttr(cur) + '" placeholder="音色库是空的，先手动填或去音色库新建">'
+              + '<span class="form-hint">音色库读取失败或为空</span>')
+        + '</div>'
         + '<div class="form-group mt-12"><label class="form-label">说明</label>'
         + '<input type="text" id="r-desc" value="' + Util.escapeAttr(role ? (role.desc || '') : '') + '" placeholder="例如：全片主叙述"></div>'
         + '<div class="form-group mt-12"><label class="form-label">稳定性覆盖（留空继承默认）</label>'
@@ -407,7 +419,7 @@ const ProjectSettingsPage = {
       if (index >= 0) roles[index] = item; else roles.push(item);
       Modal.close();
       const r = await Store.saveProject({ roles });
-      if (r && r.ok) { Toast.success('已保存角色'); App.go('project-settings'); }
+      if (r && r.ok) { Toast.success('已保存角色：' + name); App.go('project-settings'); }
       else Toast.error(r && r.message || '保存失败', true);
     });
   }
