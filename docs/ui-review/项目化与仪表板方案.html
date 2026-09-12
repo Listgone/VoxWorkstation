@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>VoxCPM2 工作站 · 项目化 + 仪表板</title>
+<style>
+  body{margin:0;padding:32px 36px 80px;background:#f4f4f2;color:#1d1d1b;
+       font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.75}
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-size:24px;font-weight:600;margin:0 0 8px}
+  .sub{font-size:13.5px;color:#6e6e67;margin-bottom:26px}
+  h2{font-size:17px;font-weight:600;margin:36px 0 13px;padding-bottom:8px;border-bottom:1px solid #dededa}
+  h3{font-size:14px;font-weight:600;margin:20px 0 7px}
+  p{margin:0 0 11px;font-size:13.5px;color:#3a3a36}
+  ul,ol{margin:0 0 13px;padding-left:22px;font-size:13.5px;color:#3a3a36}
+  li{margin-bottom:6px}
+  b,strong{color:#1d1d1b}
+  code{background:#e8e6e1;padding:1px 6px;border-radius:4px;font-size:12.5px;font-family:Consolas,monospace}
+  .shot{background:#fff;border:1px solid #e0e0dc;border-radius:10px;padding:14px;margin:14px 0}
+  .shot .cap{font-size:12.5px;color:#6e6e67;margin-bottom:9px}
+  .shot img{width:100%;display:block;border:1px solid #e8e8e4;border-radius:6px}
+  table{border-collapse:collapse;width:100%;font-size:13px;margin:12px 0 20px}
+  th,td{border:1px solid #e0e0dc;padding:8px 12px;text-align:left;vertical-align:top}
+  th{background:#eceae5;font-weight:600;font-size:12.5px}
+  .card{background:#fff;border:1px solid #e0e0dc;border-radius:10px;padding:16px 20px;margin:16px 0}
+  .warn{background:#fff8e6;border-color:#f0e0b0}
+  .good{background:#f0f8f2;border-color:#c8e6d0}
+  .purple{background:#f6f2ff;border-color:#dcd0f5}
+  .id{font-family:Consolas,monospace;font-weight:600;color:#0969da;white-space:nowrap;width:46px}
+  .pick{width:104px;white-space:nowrap;font-size:12px}
+  .star{color:#9a6700;font-weight:700}
+  .mid{color:#6e6e67}
+  .tree{font-family:Consolas,monospace;font-size:12.5px;line-height:1.85;color:#3a3a36;
+        background:#fafaf8;border:1px solid #e0e0dc;border-radius:8px;padding:14px 18px;
+        white-space:pre;overflow-x:auto;margin:12px 0}
+  .tree .d{color:#0969da;font-weight:600}
+  .tree .c{color:#8c959f}
+  .tree .hl{background:rgba(9,105,218,.09);border-radius:3px;padding:0 4px}
+  .navdemo{display:inline-block;background:#fff;border:1px solid #e0e0dc;border-radius:10px;
+           padding:14px 20px;font-size:13px;line-height:2.1;min-width:180px}
+  .navdemo .g{font-size:10px;letter-spacing:.14em;color:#a0a09a;font-weight:600}
+  .navdemo .i{color:#3a3a36}
+  .navdemo .i.on{color:#0969da;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>项目化组织 + 数据仪表板</h1>
+  <div class="sub">你提的"集"说明是剧集式生产，我按 <b>项目（系列）→ 集</b> 两层来设计。下面是落盘结构、两个新页面、以及我补充的功能清单。</div>
+
+  <h2>一、核心：项目 = 一个文件夹</h2>
+  <p>这是整个需求的地基。<b>切到第 2 集，所有产出自动落进 <code>第02集\</code></b>，不用每次手动选目录。</p>
+
+  <div class="tree"><span class="d">D:\VoxOutput\纪录片旁白\</span>            <span class="c">← 项目根（一部片子 / 一个系列）</span>
+├── <b>project.voxproj</b>              <span class="c">项目配置：角色→音色分配 / 参数 / 状态</span>
+├── <span class="d">第01集\</span>  <span class="c">文明的起点</span>
+│   ├── <b>script.original.txt</b>        <span class="c">原文备份，永不改动</span>
+│   ├── <b>script.txt</b>                 <span class="c">AI 处理后的台词</span>
+│   ├── <b>lines.json</b>                 <span class="c">分句 + 角色 + 生成状态（可断点续做）</span>
+│   ├── <span class="d">audio\</span>  <b>0001_旁白_温柔女声.wav</b> …
+│   ├── <span class="d">output\</span> <b>第01集_整轨.wav</b> · <b>第01集.srt</b> · <b>逐句.zip</b>
+│   └── <b>export-log.json</b>            <span class="c">导出记录</span>
+├── <span class="d">第02集\</span>  <span class="hl">← 当前编辑中，一切自动存这里</span>
+├── <span class="d">第03集\</span> …
+└── <span class="d">_shared\</span>
+    ├── <span class="d">voices\</span>                    <span class="c">本项目专用音色（区别于全局音色库）</span>
+    └── <b>dict.json</b>                  <span class="c">项目级发音词典</span></div>
+
+  <p>如果你不做剧集，一个项目放一集就行，结构完全一样 —— <b>"集"是可选的层级，不是强制的</b>。</p>
+
+  <div class="card purple">
+    <h3 style="margin-top:0">标题栏永远显示当前上下文</h3>
+    <p style="margin-bottom:0"><code>纪录片旁白 ▾ / 第 2 集·技术的渗透 ▾ &nbsp;✓ 已自动保存到项目文件夹</code><br>
+    两个下拉都能直接切换项目 / 切集。切换时若当前集有未生成的内容，会提示"是否保留队列"。</p>
+  </div>
+
+  <h2>二、两个新页面</h2>
+
+  <div class="shot">
+    <div class="cap"><b>① 集管理</b> —— 项目信息 + 集列表（进度/状态/一键继续）+ 文件落盘规则说明</div>
+    <img src="pd-1-projects.png" alt="集管理">
+  </div>
+
+  <div class="shot">
+    <div class="cap"><b>② 仪表板</b> —— 5 个 KPI + 每集进度 / 角色占比 / 音色分布 / 生成趋势 + 最近编辑</div>
+    <img src="pd-2-dashboard.png" alt="仪表板">
+  </div>
+
+  <h2>三、更新后的导航（7 个页面）</h2>
+  <div style="display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap;margin:16px 0">
+    <div class="navdemo">
+      <div class="g">工作流</div>
+      <div class="i">▸ 文本处理</div>
+      <div class="i">▸ 配音</div>
+      <div class="i">▸ 导出</div>
+      <div class="g" style="margin-top:10px">项目</div>
+      <div class="i on">▸ 集管理</div>
+      <div class="i">▸ 仪表板</div>
+      <div class="g" style="margin-top:10px">资产</div>
+      <div class="i">▸ 音色库</div>
+      <div class="i" style="color:#a0a09a;margin-top:8px">▸ 设置</div>
+    </div>
+    <div style="flex:1;min-width:330px">
+      <p style="margin-top:0">新增 <b>项目</b> 分组，把"管理片子"和"干活"分开。
+      集管理与仪表板职责也能分清楚：</p>
+      <ul>
+        <li><b>集管理</b> —— 我要做哪一集（操作）</li>
+        <li><b>仪表板</b> —— 我做到哪了（数据）</li>
+      </ul>
+      <p style="margin-bottom:0">如果你觉得 7 个菜单偏多，可以把仪表板做成集管理页顶部的一个折叠区，但那样"看数据"就要先进"管片子"的页面，不够干净。</p>
+    </div>
+  </div>
+
+  <h2>四、我补充的功能（报编号）</h2>
+  <p><span class="star">★</span> = 强烈建议 &nbsp;·&nbsp; <span class="mid">○</span> = 可选</p>
+
+  <h3>P. 项目管理</h3>
+  <table>
+    <tr><th class="id">编号</th><th>功能</th><th class="pick">建议</th></tr>
+    <tr><td class="id">P1</td><td><b>从模板新建集</b>：继承上一集的音色分配、参数、词典，新集直接开干</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">P2</td><td><b>集状态流转</b>：草稿 → 文本处理中 → 配音中 → 已完成 → 已交付</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">P3</td><td>跨集搜索台词（"这句在第几集说过"）</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">P4</td><td>跨集批量导出（整个项目一次导出全部）</td><td class="pick"><span class="mid">○</span></td></tr>
+    <tr><td class="id">P5</td><td><b>版本快照与回滚</b>：每集文本/音频保留历史版本</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">P6</td><td><b>交付包导出</b>：音频 + 字幕 + 脚本 + 统计报表打成一个 zip 给后期</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">P7</td><td>自动备份（每天快照一份 .voxproj）</td><td class="pick"><span class="mid">○</span></td></tr>
+    <tr><td class="id">P8</td><td>项目归档 / 完成的项目折叠收起</td><td class="pick"><span class="mid">○</span></td></tr>
+    <tr><td class="id">P9</td><td><b>移到别的项目</b>：把某一集挪到另一个项目里</td><td class="pick"><span class="mid">○</span></td></tr>
+  </table>
+
+  <h3>S. 仪表板</h3>
+  <table>
+    <tr><th class="id">编号</th><th>功能</th><th class="pick">建议</th></tr>
+    <tr><td class="id">S1</td><td>项目整体 / 单集切换 · 时间范围筛选</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">S2</td><td>核心 KPI：集数 / 总时长 / 总字数 / 总句数 / 完成率</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">S3</td><td>每集进度柱状图 · 角色台词占比环图 · 音色使用分布</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">S4</td><td>生成趋势折线（近 14 天 / 30 天）</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">S5</td><td><b>成本与耗时统计</b>：AI token 消耗、TTS 累计生成时长、平均每句耗时</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">S6</td><td><b>异常提醒</b>：哪一集卡住了 / 有生成失败的句子 / 长时间没动</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">S7</td><td>导出报表 CSV</td><td class="pick"><span class="mid">○</span></td></tr>
+    <tr><td class="id">S8</td><td>字数/时长预估：给一段文本估算生成耗时与成品时长</td><td class="pick"><span class="mid">○</span></td></tr>
+  </table>
+
+  <h3>T. 生产辅助（我另外想到的）</h3>
+  <table>
+    <tr><th class="id">编号</th><th>功能</th><th class="pick">建议</th></tr>
+    <tr><td class="id">T1</td><td><b>整集时间轴预览</b>：一条长波形 + 每句的标记块，点一下跳到那句，直观看到停顿与节奏</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">T2</td><td><b>字幕对轴检查</b>：导入已有 SRT，和生成结果比对时间差，标出偏差大的句子</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">T3</td><td>跨集角色/术语一致性：同一角色在所有集里必须用同一个音色</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">T4</td><td>全局搜索（台词 / 音色 / 集）</td><td class="pick"><span class="mid">○</span></td></tr>
+    <tr><td class="id">T5</td><td>断点续做：关掉软件再打开，队列和进度原样恢复</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">T6</td><td>快捷键：Ctrl+Enter 生成 · 空格播放 · ↑↓ 切句 · Ctrl+S 存档</td><td class="pick"><span class="star">★</span></td></tr>
+  </table>
+
+  <h2>五、需要你拍板</h2>
+  <table>
+    <tr><th style="width:36%">问题</th><th>我的建议</th></tr>
+    <tr><td>「集」这层是必须的吗？</td><td>做成可选——不做剧集时一集装一部片子，结构不变</td></tr>
+    <tr><td>输出根目录放哪？</td><td>默认 <code>D:\VoxOutput\</code>，可在设置里改；每个项目一个子文件夹</td></tr>
+    <tr><td>音色库是全局还是项目级？</td><td><b>两级都要</b>：全局音色库跨项目复用，项目内 <code>_shared\voices\</code> 放本片专用音色</td></tr>
+    <tr><td>7 个菜单会不会太多？</td><td>不多（VS Code 更多）。真要精简就把仪表板并进集管理</td></tr>
+    <tr><td>先做哪些？</td><td>P1 P2 P3 P5 T5 + S1 S2 S3 S4 先上，其余随后</td></tr>
+  </table>
+
+  <div class="card warn">
+    <h3 style="margin-top:0">现状</h3>
+    <p style="margin-bottom:0">设计稿，<code>renderer/</code> 里的代码没动。这些方案（文本处理页、配音页、5 页拆分、项目化、仪表板）
+    目前<b>都还只是图纸</b>，等你确认范围我就开始按批次改代码。</p>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>VoxCPM2 工作站 · 分页面设计</title>
+<style>
+  body{margin:0;padding:32px 36px 80px;background:#f4f4f2;color:#1d1d1b;
+       font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.75}
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-size:24px;font-weight:600;margin:0 0 8px}
+  .sub{font-size:13.5px;color:#6e6e67;margin-bottom:26px}
+  h2{font-size:17px;font-weight:600;margin:36px 0 13px;padding-bottom:8px;border-bottom:1px solid #dededa}
+  h3{font-size:14px;font-weight:600;margin:20px 0 7px}
+  p{margin:0 0 11px;font-size:13.5px;color:#3a3a36}
+  ul,ol{margin:0 0 13px;padding-left:22px;font-size:13.5px;color:#3a3a36}
+  li{margin-bottom:6px}
+  b,strong{color:#1d1d1b}
+  code{background:#e8e6e1;padding:1px 6px;border-radius:4px;font-size:12.5px;font-family:Consolas,monospace}
+  .shot{background:#fff;border:1px solid #e0e0dc;border-radius:10px;padding:14px;margin:14px 0}
+  .shot .cap{font-size:12.5px;color:#6e6e67;margin-bottom:9px}
+  .shot img{width:100%;display:block;border:1px solid #e8e8e4;border-radius:6px}
+  table{border-collapse:collapse;width:100%;font-size:13px;margin:12px 0 20px}
+  th,td{border:1px solid #e0e0dc;padding:8px 12px;text-align:left;vertical-align:top}
+  th{background:#eceae5;font-weight:600;font-size:12.5px}
+  .card{background:#fff;border:1px solid #e0e0dc;border-radius:10px;padding:16px 20px;margin:16px 0}
+  .warn{background:#fff8e6;border-color:#f0e0b0}
+  .good{background:#f0f8f2;border-color:#c8e6d0}
+  .purple{background:#f6f2ff;border-color:#dcd0f5}
+  .tag{display:inline-block;font-size:10.5px;padding:1px 7px;border-radius:10px;
+       background:#e8e6e1;color:#55554f;margin-left:6px;vertical-align:1px}
+  .tag.have{background:#dff0e3;color:#1a7f37}
+  .tag.new{background:#e4ecfb;color:#0969da}
+  .tag.cut{background:#fbe4e2;color:#cf222e}
+  /* 导航示意 */
+  .navdemo{display:inline-block;background:#fff;border:1px solid #e0e0dc;border-radius:10px;
+           padding:14px 20px;font-size:13px;line-height:2.1;min-width:190px}
+  .navdemo .g{font-size:10px;letter-spacing:.14em;color:#a0a09a;font-weight:600}
+  .navdemo .i{color:#3a3a36}
+  .navdemo .i.on{color:#0969da;font-weight:600}
+  .navdemo .sep{height:1px;background:#eaeef2;margin:8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>VoxCPM2 工作站 · 分页面设计</h1>
+  <div class="sub">按你说的拆成独立页面：配音就是配音，文本处理就是文本处理。下面是 5 个页面 + 我的取舍说明。</div>
+
+  <h2>一、为什么是这 5 个页面</h2>
+  <p>页面划分的唯一标准是<b>「这一页只干一件事」</b>。整条链是
+  <code>文本 → 配音 → 导出</code>，加上两个不属于流程的东西：<b>音色资产</b>和<b>配置</b>。</p>
+
+  <div style="display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap;margin:16px 0">
+    <div class="navdemo">
+      <div class="g">工作流</div>
+      <div class="i on">▸ 文本处理</div>
+      <div class="i">▸ 配音</div>
+      <div class="i">▸ 导出</div>
+      <div class="g" style="margin-top:10px">资产</div>
+      <div class="i">▸ 音色库</div>
+      <div class="sep"></div>
+      <div class="i">▸ 设置</div>
+    </div>
+    <div style="flex:1;min-width:340px">
+      <table style="margin-top:0">
+        <tr><th style="width:96px">页面</th><th>唯一职责</th><th style="width:96px">产出</th></tr>
+        <tr><td><b>文本处理</b></td><td>把原始文本变成可以直接配音的台词</td><td>干净分句</td></tr>
+        <tr><td><b>配音</b></td><td>把台词变成音频</td><td>音频片段</td></tr>
+        <tr><td><b>导出</b></td><td>把音频变成可交付的文件</td><td>成品文件</td></tr>
+        <tr><td><b>音色库</b></td><td>管理音色资产</td><td>可复用音色</td></tr>
+        <tr><td><b>设置</b></td><td>一切配置</td><td>—</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <p>侧边栏按 <b>工作流 / 资产 / 配置</b> 三段分组 —— 让用户一眼看出"前三个是有顺序的，第四个是随时用的，最后一个是配置"。</p>
+
+  <h2>二、五个页面</h2>
+
+  <div class="shot">
+    <div class="cap"><b>① 文本处理</b> —— 导入（5 种来源）· 原文⇄处理后对照 · AI 工具条 · 分句表。底部一个「保存并前往配音 →」把结果交出去</div>
+    <img src="pg-1-text.png" alt="文本处理">
+  </div>
+
+  <div class="shot">
+    <div class="cap"><b>② 配音</b> —— 角色配声（旁白→温柔女声，小明→少年音）· 台词表带逐句状态 · 右栏试听/参数/队列/多版本对比</div>
+    <img src="pg-2-voice.png" alt="配音">
+  </div>
+
+  <div class="shot">
+    <div class="cap"><b>③ 导出</b> —— 本次成品（整轨/逐句/SRT/工程）· 导出选项 · <b>导出记录</b>（能找回上次导出的东西）</div>
+    <img src="pg-3-export.png" alt="导出">
+  </div>
+
+  <div class="shot">
+    <div class="cap"><b>④ 音色库</b> —— 波形缩略图 + 行内试听 + 「用于 旁白」标记（一眼看出哪个音色正被哪个角色用着）</div>
+    <img src="pg-4-lib.png" alt="音色库">
+  </div>
+
+  <div class="shot">
+    <div class="cap"><b>⑤ 设置</b> —— AI 服务商 / 发音词典 / TTS 后端 / 外观 / 诊断，五个分组各管一摊</div>
+    <img src="pg-5-setting.png" alt="设置">
+  </div>
+
+  <h2>三、我替你做的几个决定</h2>
+
+  <div class="card purple">
+    <h3 style="margin-top:0">1. 「导出」单独成页，而不是塞在配音页里</h3>
+    <p>你说要单一性，那导出就不该只是配音页的一个按钮。单独成页后它能承担三件事：
+    <b>本次成品</b>（四种产出）、<b>导出选项</b>（格式/停顿/字幕/存档）、
+    <b>导出记录</b>（昨天导的那版在哪，一键打开目录）。第三件是塞在弹层里做不到的。</p>
+    <p style="margin-bottom:0">页与页之间用「保存并前往配音 →」「前往导出 →」这种明确的交接按钮串起来，
+    而不是靠用户自己想去哪。</p>
+  </div>
+
+  <div class="card purple">
+    <h3 style="margin-top:0">2. 「发音词典」放进设置，不单独成页</h3>
+    <p style="margin-bottom:0">它本质是一份配置数据（词 → 读法），不是每天都编辑的东西。放在设置的独立分组里，
+    文本处理页点「多音字校正」时把新词条写进来，两边共用同一份数据。</p>
+  </div>
+
+  <div class="card purple">
+    <h3 style="margin-top:0">3. 「新建音色」放进音色库页，不做独立页面</h3>
+    <p style="margin-bottom:0">音色设计 / 可控克隆 / 极致克隆 是<b>获得音色的三种手段</b>，
+    结果都落到同一个音色库里。放在音色库页做弹层，比做成第三个平级页面更符合"单一性"
+    —— 因为它的产出物归属音色库。顺带修掉现在"必须先存才能听"的问题：<b>先试听，满意再保存</b>。</p>
+  </div>
+
+  <div class="card warn">
+    <h3 style="margin-top:0">4. 「音乐」从导航里拿掉 <span class="tag cut">建议删除</span></h3>
+    <p style="margin-bottom:0">后端 <code>server.py</code> 里至今<b>没有任何音乐相关接口</b>，
+    那个页面从第一天起按钮就是灰的。占一个一级入口会让整个导航不可信。
+    接上了再加回来，或者放到设置里当实验功能。</p>
+  </div>
+
+  <h2>四、功能归属表</h2>
+  <p>之前给你的 A–H 功能清单，现在按页面重新归位：</p>
+  <table>
+    <tr><th style="width:110px">页面</th><th>包含的功能</th></tr>
+    <tr><td><b>文本处理</b></td>
+      <td>A1 粘贴 · A2 导入 SRT · A3 Word/PDF · A4 图片 OCR<br>
+          B1 规范化 TN · B2 智能断句 · B3 语气标注 · B4 角色分离 · B5 多音字校正 · B6 口语化改写 · B7 翻译 · B8 术语一致性<br>
+          分句预览与手工微调</td></tr>
+    <tr><td><b>配音</b></td>
+      <td>C1 逐句生成 + 队列 · C2 批量生成 · C3 重生成失败句 · C4 多角色分配音色 · C5 句间停顿 · C6 多版本 A/B 对比<br>
+          试听播放器 · 参数（稳定性 / 质量）</td></tr>
+    <tr><td><b>导出</b></td>
+      <td>C7 整轨拼接 · D1 整轨 WAV/MP3/FLAC · D2 逐句打包 · D3 SRT 字幕 · D4 工程存档 · 导出记录</td></tr>
+    <tr><td><b>音色库</b></td>
+      <td>E1 音色管理 + 波形 + 试听 · E2 生成结果存档为音色 · E3 标签搜索 · E4 音色包导入导出 · E5 新建音色（三模式 + 先试听后保存）</td></tr>
+    <tr><td><b>设置</b></td>
+      <td>H1 AI 服务商 · H2 API Key 加密存储 · H3 TTS 后端（已有） · H4 导出默认值<br>
+          G1 发音词典 · G4 诊断与日志 · 外观主题</td></tr>
+    <tr><td><b>全局</b></td>
+      <td>F1 多项目（标题栏切换） · F2 自动保存 · G2 快捷键</td></tr>
+  </table>
+
+  <h2>五、技术要点（没变）</h2>
+  <div class="card good">
+    <p style="margin-bottom:0"><b>AI 统一走 OpenAI 兼容接口</b>。DeepSeek、通义千问、Kimi、智谱、本地 Ollama
+    都提供 <code>/v1/chat/completions</code>，只实现一个客户端，把
+    <code>baseURL + model + key</code> 做成设置项。<b>换服务商不用改代码</b>，断网切本地，
+    某家涨价换别家。</p>
+  </div>
+
+  <h2>六、需要你拍板</h2>
+  <table>
+    <tr><th style="width:36%">问题</th><th>我的建议</th></tr>
+    <tr><td>这 5 个页面认可吗？</td><td>认可就按这个动手</td></tr>
+    <tr><td>「导出」单独成页 vs 塞回配音页？</td><td>单独成页（能承载导出记录）</td></tr>
+    <tr><td>音乐模块删还是留？</td><td>删（后端没接口）</td></tr>
+    <tr><td>先做哪几个页面？</td><td><b>文本处理 + 配音</b>先跑通链路，再补导出/音色库/设置</td></tr>
+  </table>
+
+  <div class="card warn">
+    <h3 style="margin-top:0">现状</h3>
+    <p style="margin-bottom:0">这是设计稿，<code>renderer/</code> 里的代码没有动。
+    当前应用跑的还是「左侧文字侧边栏 + 明亮现代 / 黑白水墨双主题」那一版。</p>
+  </div>
+
+</div>
+</body>
+</html>

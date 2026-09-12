@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>VoxCPM2 配音工作站 · 重设计方案</title>
+<style>
+  body{margin:0;padding:30px 34px 70px;background:#f4f4f2;color:#1d1d1b;
+       font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.75}
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-size:23px;font-weight:600;margin:0 0 8px}
+  .sub{font-size:13.5px;color:#6e6e67;margin-bottom:26px}
+  h2{font-size:16px;font-weight:600;margin:34px 0 12px;padding-bottom:7px;border-bottom:1px solid #dededa}
+  h3{font-size:13.5px;font-weight:600;margin:18px 0 6px}
+  p{margin:0 0 10px;font-size:13.5px;color:#3a3a36}
+  ol,ul{margin:0 0 12px;padding-left:22px;font-size:13.5px;color:#3a3a36}
+  li{margin-bottom:7px}
+  b,strong{color:#1d1d1b}
+  code{background:#e8e6e1;padding:1px 6px;border-radius:4px;font-size:12.5px;
+       font-family:Consolas,monospace}
+  .shot{background:#fff;border:1px solid #e0e0dc;border-radius:10px;padding:14px;margin:16px 0}
+  .shot .cap{font-size:12.5px;color:#6e6e67;margin-bottom:10px}
+  .shot img{width:100%;display:block;border:1px solid #e8e8e4;border-radius:6px}
+  table{border-collapse:collapse;width:100%;font-size:13px;margin:12px 0 18px}
+  th,td{border:1px solid #e0e0dc;padding:8px 12px;text-align:left;vertical-align:top}
+  th{background:#eceae5;font-weight:600;font-size:12.5px}
+  td code{font-size:12px}
+  .card{background:#fff;border:1px solid #e0e0dc;border-radius:10px;padding:16px 20px;margin:14px 0}
+  .warn{background:#fff8e6;border-color:#f0e0b0}
+  .good{background:#f0f8f2;border-color:#c8e6d0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>VoxCPM2 配音工作站 · 重设计方案</h1>
+  <div class="sub">抛开现有实现，从模型能力出发重新推导骨架。配色沿用你选的「明亮现代」，同一套骨架也适配「黑白水墨」。</div>
+
+  <h2>一、先把领域事实摆出来</h2>
+  <p>布局应该由模型的物理约束决定，而不是由"我们有哪几个接口"决定。VoxCPM2 有五条硬约束：</p>
+  <ol>
+    <li><b>推理慢且 GPU 串行</b> —— 一次只能跑一个，用户必然要等。等待必须<b>可见</b>，不能是一个卡住的按钮。</li>
+    <li><b>音色是最重要的资产</b> —— 会反复试听、挑选、复用。它不该藏在二级页面里。</li>
+    <li><b>迭代方式是 A/B</b> —— 改稳定性/文本→再生成→对比两条。这是核心循环，应该内建。</li>
+    <li><b>真实用途是配音，不是单句 TTS</b> —— 后端已经有 <code>/api/generate/batch</code>，但现有 UI 完全没暴露。</li>
+    <li><b>三种克隆方式不是三个页面</b> —— 音色设计/可控克隆/极致克隆都是"获得一个音色"的手段。</li>
+  </ol>
+
+  <div class="card warn">
+    <h3 style="margin-top:0">现有骨架的核心问题</h3>
+    <p style="margin-bottom:0">现在把 <b>配音 / 音色库 / 克隆源 / 音乐 / 设置</b> 五个模块做成平级导航，这是
+    <b>按数据表分类</b>，不是按工作流分类。用户真实的动作顺序是
+    <b>选音色 → 写台词 → 生成试听</b>，而这三件事被拆在三个平级页面里来回跳。</p>
+  </div>
+
+  <h2>二、设计</h2>
+  <p>骨架 = <b>音色 | 台词 | 试听</b> 三栏。左中右分别回答：<b>用什么声音 / 说什么 / 出来什么</b>。</p>
+
+  <div class="shot">
+    <div class="cap">① 主界面 —— 左：音色库（带波形缩略图，可直接试听）；中：台词与分句；右：试听台 + 参数 + 本次生成</div>
+    <img src="re-design-main.png" alt="主界面">
+  </div>
+
+  <h3>三个关键结构决策</h3>
+
+  <p><b>1. 音色库常驻左栏，不再是二级页面。</b>每个音色带一条<b>波形缩略图</b>和独立试听按钮，
+  不用点进去就能听。底部署名该音色是"有声纹"还是"设计"来的。</p>
+
+  <p><b>2. 台词按句组织，直接吃后端已有的 batch 能力。</b>文本框下面自动分句，
+  每句有独立状态（<code>✓ 0:04</code> / <code>生成中 62%</code> / <code>· 待生成</code>），
+  可以单句重生成，也可以"生成全部"。语气标记 <code>[laughing]</code> 在文本里高亮成 chip，
+  在分句列表里同样可见 —— 不再是一串需要背下来的魔法字符串。</p>
+
+  <p><b>3. 右侧是"试听台"而不是"参数面板"。</b>核心是<b>本次生成列表</b>：
+  同一句话的多个版本并排躺着，可以逐条试听、并排对比、挑一条导出。
+  这才是调参时真正需要的界面。</p>
+
+  <div class="shot">
+    <div class="cap">② 新建音色 —— 三种模式收进一个弹层的三个 Tab；关键是<b>先试听、满意再保存</b></div>
+    <img src="re-design-creating.png" alt="新建音色">
+  </div>
+
+  <p>现在必须先存进音色库才能听到效果，不满意就删掉再建 —— 这个循环很折磨人。
+  弹层里直接给试听结果和"重新试听"，名字最后才填。</p>
+
+  <div class="shot">
+    <div class="cap">③ 生成中 —— 逐句进度条 + 队列计数，等待是可见的</div>
+    <img src="re-design-generating.png" alt="生成中">
+  </div>
+
+  <p>GPU 串行的现实下，"生成中"必须是一个<b>有进度、可离开、可继续编辑其他句</b>的状态，
+  而不是锁死整个界面。状态栏同步显示 <code>队列 2/3 · 第 2 句生成中</code>。</p>
+
+  <h2>三、现有功能点 → 新位置</h2>
+  <table>
+    <tr><th style="width:30%">现有功能</th><th style="width:34%">原位置</th><th>新位置</th></tr>
+    <tr><td>配音（单句生成）</td><td>顶部导航「配音」</td><td>中间主区 —— 升格为默认工作区，且扩成多句</td></tr>
+    <tr><td>音色库（增删改查）</td><td>顶部导航「音色库」</td><td>左栏常驻，加波形缩略图与行内试听</td></tr>
+    <tr><td>克隆源（设计/克隆/极致）</td><td>顶部导航「克隆源」三个 Tab</td><td>左栏「＋新建」弹层，三个 Tab 保留，加先试听后保存</td></tr>
+    <tr><td>生成参数（稳定性/质量）</td><td>右栏裸滑块</td><td>右栏，<b>加效果说明</b>（越高越贴文本 / 每 +5 约多 40% 耗时）</td></tr>
+    <tr><td>语气标记</td><td>文本框右下角小 chips</td><td>独立工具条 + 文本内高亮 + 分句列表可见</td></tr>
+    <tr><td>生成历史</td><td>右栏列表（10 条上限）</td><td>拆成「本次生成」（A/B 对比用）与项目级历史</td></tr>
+    <tr><td>GPU 显存</td><td>状态栏文字</td><td>状态栏 + 右栏底部<b>进度条</b>，接近上限变色</td></tr>
+    <tr><td>音乐生成</td><td>顶部导航「音乐」（纯占位，按钮永远是灰的）</td><td><b>移出主导航</b>，降级为设置里的实验功能</td></tr>
+    <tr><td>设置</td><td>顶部导航「设置」</td><td>左下角（与引擎状态同区）</td></tr>
+  </table>
+
+  <div class="card good">
+    <h3 style="margin-top:0">为什么音乐模块要移出主导航</h3>
+    <p style="margin-bottom:0">后端 <code>server.py</code> 里<b>没有任何音乐相关接口</b>，
+    这个模块的按钮从第一天起就是 <code>disabled</code> 的。占一个和「配音」平级的一级入口，
+    会让整个导航显得不可信。先收起来，接上了再放出来。</p>
+  </div>
+
+  <h2>四、和现有实现的关系</h2>
+  <p>这是<b>提案</b>，没有动 <code>renderer/</code> 里的代码。当前应用跑的是上一轮的
+  「左侧文字侧边栏 + 明亮现代 / 黑白水墨双主题」。</p>
+  <p>要落地的话，改动集中在：<code>index.html</code> 的骨架、<code>dub.js</code> 拆成
+  <code>voices.js</code>（左栏）/ <code>script.js</code>（中栏）/ <code>takes.js</code>（右栏），
+  以及新增 <code>voice-create.js</code>（弹层）。后端除了把 batch 接口接上，其余不用动。</p>
+
+</div>
+</body>
+</html>

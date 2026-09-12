@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>VoxWorkstation · 项目化 + 仪表板</title>
+<style>
+:root{
+  --bg:#f6f8fa; --side:#ffffff; --card:#ffffff; --elev:#f1f3f5;
+  --line:#d0d7de; --line-soft:#eaeef2;
+  --ink:#1f2328; --dim:#656d76; --mute:#8c959f;
+  --blue:#0969da; --blue-soft:rgba(9,105,218,.09); --blue-line:rgba(9,105,218,.35);
+  --ok:#1a7f37; --ok-soft:rgba(26,127,55,.10);
+  --warn:#9a6700; --warn-soft:rgba(154,103,0,.10);
+  --purple:#8250df; --purple-soft:rgba(130,80,223,.10);
+  --r:6px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:13px;line-height:1.5;color:var(--ink);background:var(--bg);
+  display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+
+/* 标题栏：把项目上下文放在最显眼处 */
+.titlebar{height:38px;min-height:38px;display:flex;align-items:center;padding-left:16px;gap:8px;
+  background:var(--side);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-right:6px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--blue)}
+.crumb{display:flex;align-items:center;gap:6px;font-size:12.5px}
+.crumb .seg{padding:3px 10px;border:1px solid var(--line);border-radius:20px;color:var(--dim)}
+.crumb .seg.cur{background:var(--blue-soft);border-color:var(--blue-line);color:var(--blue);font-weight:600}
+.crumb .sl{color:var(--mute);font-size:11px}
+.saved{margin-left:4px;font-size:11px;color:var(--ok);display:flex;align-items:center;gap:4px}
+.winbtns{display:flex;height:100%;margin-left:auto}
+.winbtns i{width:42px;height:100%;display:flex;align-items:center;justify-content:center;
+  color:var(--mute);font-style:normal;font-size:12px}
+
+.shell{flex:1;display:flex;overflow:hidden}
+.rail{width:208px;min-width:208px;background:var(--side);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;padding:12px 10px 10px}
+.grp{font-size:10px;font-weight:600;letter-spacing:.14em;color:var(--mute);padding:10px 10px 6px}
+.nav{position:relative;display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;
+  border-radius:var(--r);color:var(--dim);font-size:13px;margin-bottom:1px;cursor:pointer}
+.nav svg{flex-shrink:0;opacity:.85}
+.nav:hover{background:var(--elev)}
+.nav.on{background:var(--blue-soft);color:var(--blue);font-weight:600}
+.nav.on::before{content:'';position:absolute;left:-10px;top:7px;bottom:7px;width:3px;
+  background:var(--blue);border-radius:0 3px 3px 0}
+.nav .badge{margin-left:auto;font-size:10px;background:var(--elev);color:var(--dim);
+  padding:1px 6px;border-radius:10px;font-weight:500}
+.rail-foot{margin-top:auto;padding-top:8px;border-top:1px solid var(--line-soft)}
+.engine{font-size:10.5px;color:var(--mute);padding:8px 10px 0;line-height:1.6}
+
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.phead{display:flex;align-items:center;gap:12px;padding:15px 24px 12px;border-bottom:1px solid var(--line-soft)}
+.phead h1{font-size:16px;font-weight:600}
+.phead .desc{font-size:12px;color:var(--mute)}
+.phead .sp{flex:1}
+.pbody{flex:1;overflow-y:auto;padding:18px 24px 28px}
+.wrap{max-width:1120px;margin:0 auto}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:15px 17px;margin-bottom:13px}
+.card h2{font-size:12.5px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;
+  justify-content:space-between;gap:10px}
+.card h2 .n{font-size:11.5px;font-weight:400;color:var(--mute)}
+
+.btn{height:29px;padding:0 12px;border:1px solid var(--line);border-radius:var(--r);
+  background:var(--elev);color:var(--ink);font-size:12.5px;font-weight:500;font-family:inherit;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;white-space:nowrap}
+.btn.pri{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--dim)}
+.btn.sm{height:25px;padding:0 9px;font-size:11.5px}
+.pill{font-size:10.5px;padding:2px 8px;border-radius:20px;background:var(--elev);color:var(--dim);white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.run{background:var(--blue-soft);color:var(--blue)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.p{background:var(--purple-soft);color:var(--purple)}
+
+/* 项目头卡 */
+.projhead{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.projhead .path{font-family:Consolas,monospace;font-size:11.5px;color:var(--dim);
+  background:var(--bg);border:1px solid var(--line-soft);border-radius:var(--r);padding:7px 11px;margin-top:8px}
+.projhead .stats{display:flex;gap:26px;flex-wrap:wrap}
+.projhead .stats div{font-size:11px;color:var(--mute)}
+.projhead .stats b{display:block;font-size:19px;font-weight:600;color:var(--ink);
+  font-variant-numeric:tabular-nums;line-height:1.25}
+
+/* 表格 */
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{background:var(--elev);font-size:11px;font-weight:600;color:var(--dim);text-align:left;
+  padding:8px 11px;border-bottom:1px solid var(--line)}
+td{padding:9px 11px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--bg)}
+.num{font-variant-numeric:tabular-nums;color:var(--dim)}
+.tt{font-weight:600}
+.pbar{width:86px;height:5px;border-radius:3px;background:var(--line);overflow:hidden;display:inline-block;
+  vertical-align:middle;margin-right:7px}
+.pbar i{display:block;height:100%;background:var(--blue);border-radius:3px}
+.pbar i.done{background:var(--ok)}
+
+/* 文件夹结构 */
+.tree{font-family:Consolas,"Courier New",monospace;font-size:12px;line-height:1.85;color:var(--dim);
+  background:var(--bg);border:1px solid var(--line-soft);border-radius:var(--r);padding:12px 14px;
+  white-space:pre;overflow-x:auto}
+.tree .d{color:var(--blue);font-weight:600}
+.tree .f{color:var(--ink)}
+.tree .c{color:var(--mute);font-size:11px}
+.tree .hl{background:var(--blue-soft);border-radius:3px;padding:0 4px}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:11px;margin-bottom:13px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:13px 15px}
+.kpi .lb{font-size:11px;color:var(--mute);margin-bottom:3px}
+.kpi .vl{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2}
+.kpi .sub{font-size:10.5px;color:var(--mute);margin-top:3px}
+.kpi .sub.up{color:var(--ok)}
+
+.charts{display:grid;grid-template-columns:1.25fr 1fr;gap:13px;margin-bottom:13px}
+.charts .card{margin-bottom:0}
+.charts.eq{grid-template-columns:1fr 1fr}
+svg{display:block}
+
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:11.5px;color:var(--dim)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:0}
+.hbars{display:flex;flex-direction:column;gap:9px}
+.hbar{display:flex;align-items:center;gap:10px;font-size:12px}
+.hbar .nm{width:88px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hbar .tr{flex:1;height:16px;border-radius:4px;background:var(--bg);overflow:hidden}
+.hbar .tr i{display:block;height:100%;border-radius:4px;background:var(--blue)}
+.hbar .vv{width:62px;text-align:right;color:var(--mute);font-variant-numeric:tabular-nums;font-size:11.5px}
+
+.recent{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line-soft)}
+.recent:last-child{border-bottom:none}
+
+.statusbar{height:28px;min-height:28px;background:var(--side);border-top:1px solid var(--line);
+  display:flex;align-items:center;gap:16px;padding:0 16px;font-size:11px;color:var(--mute)}
+.statusbar .r{margin-left:auto;display:flex;align-items:center;gap:14px}
+.gpubar{width:66px;height:6px;border-radius:3px;background:var(--line);overflow:hidden;
+  display:inline-block;vertical-align:middle;margin:0 5px}
+.gpubar i{display:block;height:100%;width:33%;background:var(--blue);border-radius:3px}
+.aiok{color:var(--purple)}
+
+.page{display:none}
+body[data-page="proj"] #p-proj,
+body[data-page="dash"] #p-dash{display:block}
+</style>
+</head>
+<body data-page="proj">
+
+<div class="titlebar">
+  <div class="brand"><span class="dot"></span> VoxWorkstation</div>
+  <div class="crumb">
+    <span class="seg">纪录片旁白 ▾</span>
+    <span class="sl">/</span>
+    <span class="seg cur">第 2 集 · 技术的渗透 ▾</span>
+    <span class="saved">✓ 已自动保存到项目文件夹</span>
+  </div>
+  <div class="winbtns"><i>─</i><i>□</i><i>✕</i></div>
+</div>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="grp">工作流</div>
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/></svg>文本处理</div>
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>配音<span class="badge">58 句</span></div>
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>导出</div>
+
+    <div class="grp">项目</div>
+    <div class="nav on" data-go="proj">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>集管理<span class="badge">8</span></div>
+    <div class="nav" data-go="dash">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>仪表板</div>
+
+    <div class="grp">资产</div>
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>音色库</div>
+
+    <div class="rail-foot">
+      <div class="nav"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>设置</div>
+      <div class="engine">VoxCPM2 引擎 · 已就绪<br>显存 8.0G / 24.0G</div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- ═════ 集管理 ═════ -->
+    <div class="page" id="p-proj">
+      <div class="phead">
+        <h1>集管理</h1><span class="desc">一个项目 = 一个文件夹，每集独立归档</span>
+        <span class="sp"></span>
+        <button class="btn">从模板新建集</button>
+        <button class="btn pri">＋ 新建集</button>
+      </div>
+      <div class="pbody"><div class="wrap">
+
+        <div class="card">
+          <div class="projhead">
+            <div style="flex:1;min-width:300px">
+              <div style="display:flex;align-items:center;gap:9px">
+                <b style="font-size:15px">纪录片旁白</b>
+                <span class="pill">进行中</span>
+                <button class="btn sm ghost">项目设置</button>
+              </div>
+              <div class="path">D:\VoxOutput\纪录片旁白\</div>
+            </div>
+            <div class="stats">
+              <div><b>8</b>集</div>
+              <div><b>42:16</b>总时长</div>
+              <div><b>12,480</b>总字数</div>
+              <div><b>476</b>总句数</div>
+              <div><b>86%</b>完成率</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>集列表 <span class="n">点任意一行进入该集</span></h2>
+          <table>
+            <tr><th style="width:34px">#</th><th>标题</th><th style="width:70px">字数</th><th style="width:60px">句数</th>
+                <th style="width:64px">时长</th><th style="width:150px">配音进度</th><th style="width:84px">状态</th><th style="width:130px"></th></tr>
+            <tr><td class="num">1</td><td class="tt">文明的起点</td><td class="num">1,820</td><td class="num">62</td><td class="num">6:24</td>
+                <td><span class="pbar"><i class="done" style="width:100%"></i></span><span class="num">62/62</span></td>
+                <td><span class="pill ok">已完成</span></td><td><button class="btn sm">打开</button></td></tr>
+            <tr><td class="num">2</td><td class="tt">技术的渗透 &nbsp;<span class="pill run">当前</span></td><td class="num">1,640</td><td class="num">58</td><td class="num">5:48</td>
+                <td><span class="pbar"><i style="width:72%"></i></span><span class="num">42/58</span></td>
+                <td><span class="pill run">配音中</span></td><td><button class="btn sm pri">继续</button></td></tr>
+            <tr><td class="num">3</td><td class="tt">转折点</td><td class="num">1,510</td><td class="num">54</td><td class="num">5:12</td>
+                <td><span class="pbar"><i style="width:18%"></i></span><span class="num">10/54</span></td>
+                <td><span class="pill warn">文本处理中</span></td><td><button class="btn sm">打开</button></td></tr>
+            <tr><td class="num">4</td><td class="tt">未来已来</td><td class="num">980</td><td class="num">36</td><td class="num">3:20</td>
+                <td><span class="pbar"><i style="width:0%"></i></span><span class="num">0/36</span></td>
+                <td><span class="pill">草稿</span></td><td><button class="btn sm">打开</button></td></tr>
+            <tr><td class="num">5</td><td class="tt">回声</td><td class="num">1,240</td><td class="num">48</td><td class="num">4:36</td>
+                <td><span class="pbar"><i class="done" style="width:100%"></i></span><span class="num">48/48</span></td>
+                <td><span class="pill ok">已交付</span></td><td><button class="btn sm">打开</button></td></tr>
+          </table>
+        </div>
+
+        <div class="card">
+          <h2>文件落盘规则 <span class="n">不用手动选目录，切到哪集就存哪集</span></h2>
+          <div class="tree">
+<span class="d">D:\VoxOutput\纪录片旁白\</span>
+├── <span class="f">project.voxproj</span>            <span class="c">项目配置：音色分配 / 参数 / 状态</span>
+├── <span class="d">第01集\</span>  <span class="c">文明的起点</span>
+│   ├── <span class="f">script.original.txt</span>    <span class="c">原文备份，永不改动</span>
+│   ├── <span class="f">script.txt</span>             <span class="c">AI 处理后的台词</span>
+│   ├── <span class="f">lines.json</span>             <span class="c">分句 + 角色 + 生成状态</span>
+│   ├── <span class="d">audio\</span>  <span class="f">0001_旁白_温柔女声.wav</span> …
+│   └── <span class="d">output\</span> <span class="f">第01集_整轨.wav</span> · <span class="f">第01集.srt</span> · <span class="f">逐句.zip</span>
+├── <span class="d">第02集\</span>  <span class="hl">← 当前正在编辑，所有产出自动存这里</span>
+└── <span class="d">_shared\</span>
+    ├── <span class="d">voices\</span>                <span class="c">本项目专用音色</span>
+    └── <span class="f">dict.json</span>              <span class="c">项目级发音词典</span>
+          </div>
+        </div>
+
+      </div></div>
+    </div>
+
+    <!-- ═════ 仪表板 ═════ -->
+    <div class="page" id="p-dash">
+      <div class="phead">
+        <h1>仪表板</h1>
+        <span class="desc">项目整体与单集数据</span>
+        <span class="sp"></span>
+        <select class="btn" style="padding:0 10px"><option>整个项目（8 集）</option><option>仅第 2 集</option></select>
+        <select class="btn" style="padding:0 10px"><option>近 30 天</option><option>全部时间</option></select>
+        <button class="btn">导出报表 CSV</button>
+      </div>
+      <div class="pbody"><div class="wrap">
+
+        <div class="kpis">
+          <div class="kpi"><div class="lb">总集数</div><div class="vl">8</div><div class="sub">5 已完成 · 3 进行中</div></div>
+          <div class="kpi"><div class="lb">总时长</div><div class="vl">42:16</div><div class="sub up">本周 +5:48</div></div>
+          <div class="kpi"><div class="lb">总字数</div><div class="vl">12,480</div><div class="sub">平均 25.9 字/句</div></div>
+          <div class="kpi"><div class="lb">总句数</div><div class="vl">476</div><div class="sub">已生成 410 · 待生成 66</div></div>
+          <div class="kpi"><div class="lb">完成率</div><div class="vl">86%</div><div class="sub up">较上周 +12%</div></div>
+        </div>
+
+        <div class="charts">
+          <div class="card">
+            <h2>每集配音进度 <span class="n">单位：句</span></h2>
+            <svg viewBox="0 0 520 190" width="100%" height="190">
+              <line x1="42" y1="160" x2="510" y2="160" stroke="#d0d7de"/>
+              <line x1="42" y1="120" x2="510" y2="120" stroke="#eaeef2"/>
+              <line x1="42" y1="80"  x2="510" y2="80"  stroke="#eaeef2"/>
+              <line x1="42" y1="40"  x2="510" y2="40"  stroke="#eaeef2"/>
+              <text x="34" y="164" font-size="9" fill="#8c959f" text-anchor="end">0</text>
+              <text x="34" y="124" font-size="9" fill="#8c959f" text-anchor="end">25</text>
+              <text x="34" y="84"  font-size="9" fill="#8c959f" text-anchor="end">50</text>
+              <text x="34" y="44"  font-size="9" fill="#8c959f" text-anchor="end">75</text>
+              <!-- 每集：底=总数，上=已完成 -->
+              <g>
+                <rect x="60"  y="61"  width="34" height="99"  rx="3" fill="#eaeef2"/><rect x="60"  y="61"  width="34" height="99"  rx="3" fill="#1a7f37"/>
+                <rect x="116" y="67"  width="34" height="93"  rx="3" fill="#eaeef2"/><rect x="116" y="92"  width="34" height="68"  rx="3" fill="#0969da"/>
+                <rect x="172" y="74"  width="34" height="86"  rx="3" fill="#eaeef2"/><rect x="172" y="145" width="34" height="15"  rx="3" fill="#9a6700"/>
+                <rect x="228" y="102" width="34" height="58"  rx="3" fill="#eaeef2"/>
+                <rect x="284" y="83"  width="34" height="77"  rx="3" fill="#eaeef2"/><rect x="284" y="83"  width="34" height="77"  rx="3" fill="#1a7f37"/>
+                <rect x="340" y="79"  width="34" height="81"  rx="3" fill="#eaeef2"/><rect x="340" y="100" width="34" height="60"  rx="3" fill="#0969da"/>
+                <rect x="396" y="88"  width="34" height="72"  rx="3" fill="#eaeef2"/><rect x="396" y="132" width="34" height="28"  rx="3" fill="#0969da"/>
+                <rect x="452" y="94"  width="34" height="66"  rx="3" fill="#eaeef2"/>
+              </g>
+              <text x="77"  y="176" font-size="9.5" fill="#656d76" text-anchor="middle">1集</text>
+              <text x="133" y="176" font-size="9.5" fill="#0969da" text-anchor="middle" font-weight="600">2集</text>
+              <text x="189" y="176" font-size="9.5" fill="#656d76" text-anchor="middle">3集</text>
+              <text x="245" y="176" font-size="9.5" fill="#656d76" text-anchor="middle">4集</text>
+              <text x="301" y="176" font-size="9.5" fill="#656d76" text-anchor="middle">5集</text>
+              <text x="357" y="176" font-size="9.5" fill="#656d76" text-anchor="middle">6集</text>
+              <text x="413" y="176" font-size="9.5" fill="#656d76" text-anchor="middle">7集</text>
+              <text x="469" y="176" font-size="9.5" fill="#656d76" text-anchor="middle">8集</text>
+            </svg>
+            <div class="legend">
+              <span><i style="background:#0969da"></i>进行中</span>
+              <span><i style="background:#1a7f37"></i>已完成</span>
+              <span><i style="background:#eaeef2;border:1px solid #d0d7de"></i>未生成</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>角色台词占比 <span class="n">整个项目</span></h2>
+            <div style="display:flex;align-items:center;gap:22px">
+              <svg viewBox="0 0 120 120" width="150" height="150">
+                <circle cx="60" cy="60" r="42" fill="none" stroke="#eaeef2" stroke-width="18"/>
+                <circle cx="60" cy="60" r="42" fill="none" stroke="#0969da" stroke-width="18"
+                        stroke-dasharray="179.4 263.9" transform="rotate(-90 60 60)"/>
+                <circle cx="60" cy="60" r="42" fill="none" stroke="#8250df" stroke-width="18"
+                        stroke-dasharray="58.1 263.9" stroke-dashoffset="-179.4" transform="rotate(-90 60 60)"/>
+                <circle cx="60" cy="60" r="42" fill="none" stroke="#9a6700" stroke-width="18"
+                        stroke-dasharray="26.4 263.9" stroke-dashoffset="-237.5" transform="rotate(-90 60 60)"/>
+                <text x="60" y="57" font-size="19" font-weight="600" fill="#1f2328" text-anchor="middle">476</text>
+                <text x="60" y="73" font-size="10" fill="#8c959f" text-anchor="middle">总句数</text>
+              </svg>
+              <div class="hbars" style="flex:1">
+                <div class="hbar"><span class="nm">旁白</span><div class="tr"><i style="width:68%"></i></div><span class="vv">324 句</span></div>
+                <div class="hbar"><span class="nm">小明</span><div class="tr"><i style="width:22%;background:#8250df"></i></div><span class="vv">105 句</span></div>
+                <div class="hbar"><span class="nm">其他角色</span><div class="tr"><i style="width:10%;background:#9a6700"></i></div><span class="vv">47 句</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="charts eq">
+          <div class="card">
+            <h2>音色使用分布 <span class="n">按生成句数</span></h2>
+            <div class="hbars">
+              <div class="hbar"><span class="nm">温柔女声</span><div class="tr"><i style="width:100%"></i></div><span class="vv">324 句</span></div>
+              <div class="hbar"><span class="nm">少年音</span><div class="tr"><i style="width:32%"></i></div><span class="vv">105 句</span></div>
+              <div class="hbar"><span class="nm">沉稳男声</span><div class="tr"><i style="width:13%"></i></div><span class="vv">42 句</span></div>
+              <div class="hbar"><span class="nm">老者音</span><div class="tr"><i style="width:3%"></i></div><span class="vv">5 句</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>近 14 天生成量 <span class="n">句 / 天</span></h2>
+            <svg viewBox="0 0 520 150" width="100%" height="150">
+              <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#0969da" stop-opacity=".28"/>
+                <stop offset="1" stop-color="#0969da" stop-opacity="0"/></linearGradient></defs>
+              <line x1="30" y1="120" x2="512" y2="120" stroke="#d0d7de"/>
+              <line x1="30" y1="80"  x2="512" y2="80"  stroke="#eaeef2"/>
+              <line x1="30" y1="40"  x2="512" y2="40"  stroke="#eaeef2"/>
+              <text x="24" y="124" font-size="9" fill="#8c959f" text-anchor="end">0</text>
+              <text x="24" y="84"  font-size="9" fill="#8c959f" text-anchor="end">30</text>
+              <text x="24" y="44"  font-size="9" fill="#8c959f" text-anchor="end">60</text>
+              <path d="M40,104 L76,96 L112,108 L148,84 L184,74 L220,90 L256,58 L292,64 L328,44 L364,52 L400,36 L436,48 L472,40 L508,30 L508,120 L40,120 Z"
+                    fill="url(#g1)"/>
+              <polyline points="40,104 76,96 112,108 148,84 184,74 220,90 256,58 292,64 328,44 364,52 400,36 436,48 472,40 508,30"
+                        fill="none" stroke="#0969da" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+              <circle cx="508" cy="30" r="3.5" fill="#0969da"/>
+              <text x="40"  y="138" font-size="9" fill="#8c959f">14 天前</text>
+              <text x="508" y="138" font-size="9" fill="#8c959f" text-anchor="end">今天</text>
+            </svg>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>最近编辑</h2>
+          <div class="recent">
+            <span class="pill run">第 2 集</span>
+            <div style="flex:1"><b style="font-size:12.5px">技术的渗透</b>
+              <div style="font-size:11px;color:var(--mute)">配音到第 42/58 句 · 5 分钟前</div></div>
+            <button class="btn sm pri">继续配音</button>
+          </div>
+          <div class="recent">
+            <span class="pill warn">第 3 集</span>
+            <div style="flex:1"><b style="font-size:12.5px">转折点</b>
+              <div style="font-size:11px;color:var(--mute)">文本处理完成 · 2 小时前</div></div>
+            <button class="btn sm">去配音</button>
+          </div>
+          <div class="recent">
+            <span class="pill ok">第 5 集</span>
+            <div style="flex:1"><b style="font-size:12.5px">回声</b>
+              <div style="font-size:11px;color:var(--mute)">已导出整轨 + SRT · 昨天 21:40</div></div>
+            <button class="btn sm">打开目录</button>
+          </div>
+        </div>
+
+      </div></div>
+    </div>
+
+  </main>
+</div>
+
+<div class="statusbar">
+  <span id="st">就绪</span>
+  <span id="st2">当前项目：纪录片旁白 / 第 2 集</span>
+  <span class="r"><span class="aiok">✦ DeepSeek-V3 已连接</span>
+    <span>显存<span class="gpubar"><i></i></span>8.0 / 24.0 G</span></span>
+</div>
+
+<script>
+document.querySelectorAll('[data-go]').forEach(el=>{
+  el.addEventListener('click',()=>{
+    const p=el.dataset.go;
+    document.body.dataset.page=p;
+    document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('on',n.dataset.go===p));
+    document.getElementById('st').textContent = p==='dash' ? '统计完成' : '就绪';
+    document.getElementById('st2').textContent = p==='dash'
+      ? '范围：整个项目 · 近 30 天' : '当前项目：纪录片旁白 / 第 2 集';
+  });
+});
+</script>
+</body>
+</html>

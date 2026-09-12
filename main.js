@@ -1,8 +1,9 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, safeStorage, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const { spawn, execFile } = require('child_process');
+const { ProjectStore } = require('./project-store');
 
 /* ══════════════════════════════════════════════════════════
    配置：环境变量 > vox.config.json > 内置默认值
@@ -49,6 +50,93 @@ let serverState = 'idle';                 // idle | starting | ready | error
 let lastStatus = { status: 'starting', message: '正在启动 VoxCPM2 引擎...' };
 
 const logBuffer = [];
+
+/* ══════════════════════════════════════════════════════════
+   应用设置（主题 / AI 服务 / 输出 / 隐私 …）
+   API Key 用 safeStorage 加密，不落明文
+   ══════════════════════════════════════════════════════════ */
+const APP_SETTINGS_DEFAULTS = {
+  theme: 'light',
+  reduceMotion: false,
+  uiScale: 1,
+  language: 'zh-CN',
+  ai: {
+    provider: 'deepseek',
+    baseURL: 'https://api.deepseek.com/v1',
+    model: 'deepseek-chat',
+    visionModel: '',
+    timeoutSec: 60,
+    retries: 2,
+    maxCharsPerCall: 4000
+  },
+  tts: { autoStart: true, cfg: 2.0, steps: 10, vramWarnPct: 90 },
+  output: {
+    root: 'D:\\VoxOutput',
+    format: 'wav',
+    sampleRate: 44100,
+    pauseMs: 300,
+    naming: '{ep}_{role}_{voice}_{no}',
+    exportSrt: true
+  },
+  project: { autoSaveSec: 30, dailyBackup: true },
+  network: { useSystemProxy: false, proxy: '' },
+  privacy: { redact: false, onlyCurrentParagraph: true, keepDiffHistory: true },
+  notify: { onDone: true, onFail: true }
+};
+
+let appSettings = null;
+
+function settingsFile() { return path.join(app.getPath('userData'), 'app-settings.json'); }
+function keyFile() { return path.join(app.getPath('userData'), 'ai-key.bin'); }
+
+function loadAppSettings() {
+  const s = JSON.parse(JSON.stringify(APP_SETTINGS_DEFAULTS));
+  const saved = (() => { try { return JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch (e) { return null; } })();
+  if (saved) {
+    for (const k of Object.keys(s)) {
+      if (saved[k] && typeof saved[k] === 'object' && !Array.isArray(saved[k])) Object.assign(s[k], saved[k]);
+      else if (saved[k] !== undefined) s[k] = saved[k];
+    }
+  }
+  return s;
+}
+
+function saveAppSettings(patch) {
+  appSettings = appSettings || loadAppSettings();
+  for (const k of Object.keys(patch || {})) {
+    if (appSettings[k] && typeof appSettings[k] === 'object' && !Array.isArray(appSettings[k])) {
+      Object.assign(appSettings[k], patch[k]);
+    } else {
+      appSettings[k] = patch[k];
+    }
+  }
+  try { fs.writeFileSync(settingsFile(), JSON.stringify(appSettings, null, 2), 'utf8'); }
+  catch (e) { return { ok: false, message: e.message }; }
+  if (appSettings.output && appSettings.output.root && store) store.setRoot(appSettings.output.root);
+  return { ok: true, settings: appSettings };
+}
+
+function saveApiKey(key) {
+  try {
+    const payload = safeStorage.isEncryptionAvailable()
+      ? safeStorage.encryptString(String(key))
+      : Buffer.from(String(key), 'utf8');
+    fs.writeFileSync(keyFile(), payload);
+    return { ok: true, encrypted: safeStorage.isEncryptionAvailable() };
+  } catch (e) { return { ok: false, message: e.message }; }
+}
+
+function readApiKey() {
+  try {
+    const buf = fs.readFileSync(keyFile());
+    return safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : buf.toString('utf8');
+  } catch (e) { return ''; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   项目存储
+   ══════════════════════════════════════════════════════════ */
+let store = null;
 
 /* ══════════════════════════════════════════════════════════
    与渲染进程通信
@@ -263,6 +351,106 @@ ipcMain.handle('restart-server', async () => {
 });
 
 /* ══════════════════════════════════════════════════════════
+   项目 / 集 / 设置 IPC
+   ══════════════════════════════════════════════════════════ */
+const needStore = () => {
+  if (!store) {
+    appSettings = appSettings || loadAppSettings();
+    store = new ProjectStore(appSettings.output.root);
+  }
+  return store;
+};
+
+ipcMain.handle('vox:settings:get', () => {
+  appSettings = appSettings || loadAppSettings();
+  return {
+    settings: appSettings,
+    hasApiKey: !!readApiKey(),
+    keyEncrypted: safeStorage.isEncryptionAvailable(),
+    userData: app.getPath('userData')
+  };
+});
+ipcMain.handle('vox:settings:save', (_e, patch) => saveAppSettings(patch || {}));
+ipcMain.handle('vox:settings:setApiKey', (_e, key) => saveApiKey(key));
+ipcMain.handle('vox:settings:getApiKey', () => readApiKey());
+
+ipcMain.handle('vox:ai:test', async () => {
+  appSettings = appSettings || loadAppSettings();
+  const ai = appSettings.ai || {};
+  const key = readApiKey();
+  if (!key) return { ok: false, message: '未配置 API Key' };
+  const base = String(ai.baseURL || '').replace(/\/+$/, '');
+  if (!base) return { ok: false, message: '未配置接口地址' };
+
+  const body = JSON.stringify({
+    model: ai.model || 'deepseek-chat',
+    messages: [{ role: 'user', content: '回复两个字：正常' }],
+    max_tokens: 16, stream: false
+  });
+  return new Promise((resolve) => {
+    let url;
+    try { url = new URL(base + '/chat/completions'); }
+    catch (e) { return resolve({ ok: false, message: '接口地址格式不对' }); }
+    const req = http.request({
+      hostname: url.hostname, port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: url.pathname + url.search, method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key,
+                 'Content-Length': Buffer.byteLength(body) },
+      timeout: Math.min(30000, (ai.timeoutSec || 60) * 1000)
+    }, (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          let reply = '';
+          try { reply = JSON.parse(data).choices[0].message.content.trim(); } catch (e) {}
+          resolve({ ok: true, message: '连接正常', reply, status: res.statusCode });
+        } else {
+          resolve({ ok: false, message: `HTTP ${res.statusCode}：` + data.slice(0, 180), status: res.statusCode });
+        }
+      });
+    });
+    req.on('error', (err) => resolve({ ok: false, message: err.message }));
+    req.on('timeout', () => { req.destroy(); resolve({ ok: false, message: '请求超时' }); });
+    req.write(body);
+    req.end();
+  });
+});
+
+ipcMain.handle('vox:projects:list', () => needStore().listProjects());
+ipcMain.handle('vox:project:create', (_e, args) => needStore().createProject(args || {}));
+ipcMain.handle('vox:project:read', (_e, id) => needStore().readProject(id));
+ipcMain.handle('vox:project:save', (_e, { id, patch }) => needStore().saveProject(id, patch || {}));
+ipcMain.handle('vox:project:status', (_e, { id, status }) => needStore().setProjectStatus(id, status));
+ipcMain.handle('vox:project:delete', (_e, { id, toRecycle }) => needStore().deleteProject(id, { toRecycle }));
+ipcMain.handle('vox:project:reveal', (_e, id) => { shell.openPath(needStore().projectDir(id)); return { ok: true }; });
+
+ipcMain.handle('vox:episodes:list', (_e, { projectId }) => {
+  const st = needStore();
+  const p = st.readProject(projectId);
+  if (!p.ok) return [];
+  return st.listEpisodes(projectId, p.project.padWidth);
+});
+ipcMain.handle('vox:episode:create', (_e, args) => needStore().createEpisode(args.projectId, args));
+ipcMain.handle('vox:episode:read', (_e, { projectId, no }) => needStore().readEpisode(projectId, no));
+ipcMain.handle('vox:episode:write', (_e, { projectId, no, payload }) => needStore().writeEpisode(projectId, no, payload || {}));
+ipcMain.handle('vox:episode:delete', (_e, { projectId, no, toRecycle }) => needStore().deleteEpisode(projectId, no, { toRecycle }));
+ipcMain.handle('vox:episode:saveAudio', (_e, args) => needStore().saveAudio(args.projectId, args.no, args.filename, args.base64));
+ipcMain.handle('vox:episode:readAudio', (_e, args) => needStore().readAudio(args.projectId, args.no, args.filename));
+ipcMain.handle('vox:episode:listAudio', (_e, args) => needStore().listAudio(args.projectId, args.no));
+ipcMain.handle('vox:episode:listOutput', (_e, args) => needStore().listOutput(args.projectId, args.no));
+ipcMain.handle('vox:episode:logExport', (_e, args) => needStore().appendExportLog(args.projectId, args.no, args.entry || {}));
+ipcMain.handle('vox:episode:reveal', (_e, args) => { shell.openPath(needStore().episodePath(args.projectId, args.no)); return { ok: true }; });
+ipcMain.handle('vox:path:reveal', (_e, p) => { shell.openPath(String(p || '')); return { ok: true }; });
+ipcMain.handle('vox:path:pick', async (_e, { title, defaultPath }) => {
+  const r = await dialog.showOpenDialog(mainWindow, {
+    title: title || '选择目录', defaultPath: defaultPath || undefined,
+    properties: ['openDirectory', 'createDirectory']
+  });
+  return r.canceled ? { ok: false } : { ok: true, path: r.filePaths[0] };
+});
+
+/* ══════════════════════════════════════════════════════════
    生命周期（单实例：避免双击两次起两个后端抢端口）
    ══════════════════════════════════════════════════════════ */
 if (!app.requestSingleInstanceLock()) {
@@ -276,10 +464,13 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     CONFIG = loadConfig();
+    appSettings = loadAppSettings();
+    store = new ProjectStore(appSettings.output.root);
     console.log('[shell] 配置:', JSON.stringify({
       serverDir: CONFIG.serverDir,
       pythonPath: CONFIG.pythonPath,
-      serverPort: CONFIG.serverPort
+      serverPort: CONFIG.serverPort,
+      outputRoot: appSettings.output.root
     }));
 
     createWindow();

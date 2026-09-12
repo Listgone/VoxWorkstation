@@ -1,48 +1,161 @@
 /* ==========================================
-   App - Main application controller v5
-   骨架：左侧文字侧边栏 + 主内容
+   App —— 外壳、路由、项目上下文
    ========================================== */
 
 const App = {
-  _currentModule: 'dub',
-  _inited: new Set(),
-  _ready: false,
-  _modules: {
-    dub: DubModule,
-    library: LibraryModule,
-    studio: StudioModule,
-    music: MusicModule,
-    settings: SettingsModule
-  },
-
-  _pageMeta: {
-    dub:      ['配音工作台', '选择音色 · 输入文本 · 生成配音'],
-    library:  ['音色库',     '管理音色与声纹文件'],
-    studio:   ['克隆源',     '音色设计 · 可控克隆 · 极致克隆'],
-    music:    ['音乐生成',   'AI 音乐生成（后端未接入）'],
-    settings: ['设置',       '外观与后端配置']
+  current: 'dash',
+  _rendered: {},
+  _pages: {
+    dash:                () => DashPage,
+    projects:            () => ProjectsPage,
+    'project-settings':  () => ProjectSettingsPage,
+    episodes:            () => EpisodesPage,
+    text:                () => TextPage,
+    dub:                 () => DubPage,
+    export:              () => ExportPage,
+    voices:              () => VoicesPage,
+    settings:            () => SettingsPage
   },
 
   async init() {
-    // 主主题「明亮现代」；旧版本存的 dark/其他值一律回落到 light
-    const saved = localStorage.getItem('vox-theme');
-    document.documentElement.setAttribute('data-theme', saved === 'ink' ? 'ink' : 'light');
-    await API.init();
+    // 主题（在 Store 就绪前先用本地缓存，避免闪白）
+    const savedTheme = localStorage.getItem('vox-theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme === 'ink' ? 'ink' : 'light');
+
     this._setupWindowControls();
     this._setupThemeToggle();
     this._setupNav();
     this._setupServerStatus();
+
+    await API.init();
+    try { window.__voxConfig = await window.electronAPI.getConfig(); } catch (e) { window.__voxConfig = {}; }
+
+    await Store.init();
+
+    // 用设置里的主题 / 动效 / 缩放覆盖本地缓存
+    const st = Store.settings || {};
+    if (st.theme) document.documentElement.setAttribute('data-theme', st.theme === 'ink' ? 'ink' : 'light');
+    document.documentElement.setAttribute('data-reduce-motion', st.reduceMotion ? 'true' : 'false');
+    if (Number(st.uiScale) && Number(st.uiScale) !== 1) {
+      document.body.style.zoom = String(Number(st.uiScale));
+    }
+
+    Store.on(() => { this._syncChrome(); });
+    this._syncChrome();
   },
 
-  /* ── 后端启动状态 ─────────────────────────── */
+  /* ── 路由 ─────────────────────────────────── */
+  async go(page, opts = {}) {
+    const factory = this._pages[page];
+    if (!factory) return;
+    const mod = factory();
+    this.current = page;
+
+    document.querySelectorAll('#sidebar .nav-item').forEach(b =>
+      b.classList.toggle('active', b.dataset.page === page));
+    document.querySelectorAll('.page').forEach(p =>
+      p.classList.toggle('active', p.id === 'page-' + page));
+
+    const el = document.getElementById('page-' + page);
+    if (!el) return;
+
+    // 每次都重渲染：数据随时可能变，页面也不重，代价可接受
+    try {
+      el.innerHTML = mod.render ? mod.render() : '';
+      if (mod.mount) await mod.mount(el, opts);
+    } catch (e) {
+      console.error('页面渲染失败:', page, e);
+      el.innerHTML = '<div class="wrap"><div class="card"><h2>页面加载失败</h2>'
+        + '<p class="text-sm text-muted">' + Util.escapeHtml(e.message) + '</p></div></div>';
+      if (typeof Toast !== 'undefined') Toast.error('页面加载失败：' + e.message, true);
+    }
+
+    const sc = document.getElementById('page-scroll');
+    if (sc) sc.scrollTop = 0;
+    this._syncStatus();
+  },
+
+  /** 页头（标题 + 描述 + 右侧操作）*/
+  head(title, desc, right) {
+    return '<div class="phead"><h1>' + Util.escapeHtml(title) + '</h1>'
+      + (desc ? '<span class="desc">' + Util.escapeHtml(desc) + '</span>' : '')
+      + '<span class="sp"></span>' + (right || '') + '</div>';
+  },
+
+  /* ── 顶部面包屑 ───────────────────────────── */
+  _syncChrome() {
+    const crumb = document.getElementById('crumb');
+    if (!crumb) return;
+    const p = Store.currentProject;
+    if (!p) {
+      crumb.innerHTML = '<span class="seg">未选择项目</span>';
+    } else {
+      const ep = Store.currentEpisode ? Store.currentEpisode.episode : null;
+      crumb.innerHTML =
+        '<span class="seg" data-act="pick-project">' + Util.escapeHtml(p.name) + ' ▾</span>'
+        + (ep ? '<span class="sl">/</span><span class="seg cur" data-act="pick-episode">'
+              + Util.escapeHtml('第' + String(ep.no).padStart(p.padWidth || 2, '0') + '集'
+              + (ep.title ? ' · ' + ep.title : '')) + ' ▾</span>' : '');
+    }
+    crumb.querySelector('[data-act="pick-project"]')?.addEventListener('click', () => this.go('projects'));
+    crumb.querySelector('[data-act="pick-episode"]')?.addEventListener('click', () => this.go('episodes'));
+
+    // 导航角标
+    const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v || ''; };
+    set('nav-proj-count', Store.projects.length || '');
+    set('nav-ep-count', Store.episodes.length || '');
+    set('nav-line-count', Store.currentEpisode ? (Store.currentEpisode.lines || []).length : '');
+    set('nav-voice-count', '');
+
+    const ai = document.getElementById('status-ai');
+    if (ai) ai.textContent = Store.hasApiKey ? '✦ AI 已配置' : '✦ AI 未配置';
+  },
+
+  _syncStatus(text, mid) {
+    if (text) { const e = document.getElementById('status-text'); if (e) e.textContent = text; }
+    const m = document.getElementById('status-mid');
+    if (m) {
+      if (mid !== undefined) m.textContent = mid;
+      else if (Store.currentProject) {
+        const st = Store.stats();
+        m.textContent = Store.currentProject.name + ' · '
+          + (Store.currentEpisode ? '第 ' + Store.currentEpisodeNo + ' 集' : Store.episodes.length + ' 集')
+          + (st.lines ? ' · ' + st.doneLines + '/' + st.lines + ' 句已生成' : '');
+      } else m.textContent = '';
+    }
+  },
+
+  /* ── 主题 ─────────────────────────────────── */
+  _setupThemeToggle() {
+    const apply = (theme) => {
+      if (theme !== 'ink') theme = 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('vox-theme', theme);
+      window.dispatchEvent(new CustomEvent('vox:theme-changed', { detail: { theme } }));
+      if (Store.settings) Store.saveSettings({ theme });
+    };
+    this.applyTheme = apply;
+    document.getElementById('btn-theme')?.addEventListener('click', () => {
+      const cur = document.documentElement.getAttribute('data-theme');
+      apply(cur === 'ink' ? 'light' : 'ink');
+    });
+  },
+
+  /* ── 导航 ─────────────────────────────────── */
+  _setupNav() {
+    document.querySelectorAll('#sidebar .nav-item').forEach(btn => {
+      btn.addEventListener('click', () => this.go(btn.dataset.page));
+    });
+  },
+
+  /* ── 后端状态 ─────────────────────────────── */
   _setupServerStatus() {
     this._startLoadingTicker();
 
     if (!window.electronAPI) {
-      setTimeout(() => this._onServerReady(), 500);
+      setTimeout(() => this._onServerReady(), 400);
       return;
     }
-
     window.electronAPI.onServerLog?.((line) => this._appendLog(line));
     window.electronAPI.onServerStatus((data) => {
       if (!data) return;
@@ -55,42 +168,30 @@ const App = {
         this._setSideStatus('未连接');
       }
     });
-
     document.getElementById('loading-retry')?.addEventListener('click', async () => {
-      const overlay = document.getElementById('loading-overlay');
-      overlay?.classList.remove('is-error');
+      document.getElementById('loading-overlay')?.classList.remove('is-error');
       this._setLoadingText('正在重新启动 VoxCPM2 引擎...');
       this._appendLog('');
       this._startLoadingTicker();
       try {
         const res = await window.electronAPI.restartServer();
         if (res && res.ok === false) this._onServerError(res.message || '启动失败');
-      } catch (e) {
-        this._onServerError(e.message);
-      }
+      } catch (e) { this._onServerError(e.message); }
     });
   },
 
-  _setSideStatus(text) {
-    const el = document.getElementById('side-status');
-    if (el) el.textContent = text;
-  },
+  _setSideStatus(t) { const e = document.getElementById('side-status'); if (e) e.textContent = t; },
 
   _startLoadingTicker() {
     this._loadingStart = Date.now();
     clearInterval(this._loadingTimer);
     const el = document.getElementById('loading-elapsed');
-    const tick = () => {
-      if (el) el.textContent = '已等待 ' + Math.round((Date.now() - this._loadingStart) / 1000) + ' 秒';
-    };
+    const tick = () => { if (el) el.textContent = '已等待 ' + Math.round((Date.now() - this._loadingStart) / 1000) + ' 秒'; };
     tick();
     this._loadingTimer = setInterval(tick, 1000);
   },
 
-  _setLoadingText(text) {
-    const el = document.getElementById('loading-text');
-    if (el) el.textContent = text;
-  },
+  _setLoadingText(t) { const e = document.getElementById('loading-text'); if (e) e.textContent = t; },
 
   _appendLog(line) {
     this._logLines = (this._logLines || []).concat(line).slice(-4);
@@ -100,95 +201,33 @@ const App = {
 
   _onServerError(message) {
     clearInterval(this._loadingTimer);
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) overlay.classList.add('is-error');
+    document.getElementById('loading-overlay')?.classList.add('is-error');
     this._setLoadingText('启动失败：' + (message || '未知错误'));
-    this._appendLog('提示：可在 vox.config.json 里配置 serverDir / pythonPath');
+    this._appendLog('提示：可在设置 → TTS 引擎里检查路径');
   },
 
-  _onServerReady() {
+  async _onServerReady() {
     clearInterval(this._loadingTimer);
     this._setSideStatus('已就绪');
     if (this._ready) return;
     this._ready = true;
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) overlay.style.display = 'none';
+    const ov = document.getElementById('loading-overlay');
+    if (ov) ov.style.display = 'none';
     const shell = document.getElementById('app-shell');
     if (shell) shell.style.display = 'flex';
-    // 水墨主题：外壳出现时播一次墨晕化开
+
     const bloom = document.getElementById('ink-bloom');
-    if (bloom) {
-      bloom.classList.remove('play');
-      void bloom.offsetWidth;          // 强制重排，让动画能重播
-      bloom.classList.add('play');
-    }
-    this._switchModule('dub');
+    if (bloom) { bloom.classList.remove('play'); void bloom.offsetWidth; bloom.classList.add('play'); }
+
+    await this.go('dash');
     GpuMonitor.start();
-  },
-
-  /* ── 主题（明亮现代 ⇄ 黑白水墨）────────────── */
-  _setupThemeToggle() {
-    const apply = (theme) => {
-      if (theme !== 'ink') theme = 'light';
-      document.documentElement.setAttribute('data-theme', theme);
-      localStorage.setItem('vox-theme', theme);
-      window.dispatchEvent(new CustomEvent('vox:theme-changed', { detail: { theme } }));
-    };
-    this.applyTheme = apply;
-
-    document.getElementById('btn-theme')?.addEventListener('click', () => {
-      const cur = document.documentElement.getAttribute('data-theme');
-      apply(cur === 'ink' ? 'light' : 'ink');
-      const sel = document.getElementById('settings-theme');
-      if (sel) sel.value = document.documentElement.getAttribute('data-theme');
-    });
-  },
-
-  /* ── 侧边栏导航 ───────────────────────────── */
-  _setupNav() {
-    document.querySelectorAll('#sidebar .nav-item').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const m = btn.dataset.module;
-        if (!m || m === this._currentModule) return;
-        await this._switchModule(m);
-      });
-    });
-  },
-
-  async _switchModule(name) {
-    document.querySelectorAll('#sidebar .nav-item').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.module').forEach(m => m.classList.remove('active'));
-    document.querySelector('#sidebar .nav-item[data-module="' + name + '"]')?.classList.add('active');
-    document.getElementById('module-' + name)?.classList.add('active');
-
-    const module = this._modules[name];
-    if (module && !this._inited.has(name)) {
-      this._inited.add(name);
-      try {
-        await module.init(document.getElementById('module-' + name));
-      } catch (e) {
-        this._inited.delete(name);
-        console.error('模块初始化失败:', name, e);
-        if (typeof Toast !== 'undefined') Toast.error(this._moduleLabel(name) + ' 加载失败：' + e.message, true);
-      }
-    }
-    module?.onActivate?.();
-    this._currentModule = name;
-
-    const scroll = document.querySelector('.page-scroll');
-    if (scroll) scroll.scrollTop = 0;
-  },
-
-  _moduleLabel(name) {
-    return (this._pageMeta[name] || [name])[0];
   },
 
   /* ── 窗口按钮 ─────────────────────────────── */
   _setupWindowControls() {
     document.getElementById('btn-min')?.addEventListener('click', () => window.electronAPI?.minimize());
     document.getElementById('btn-max')?.addEventListener('click', async () => {
-      await window.electronAPI?.maximize();
-      this._updateMaxIcon();
+      await window.electronAPI?.maximize(); this._updateMaxIcon();
     });
     document.getElementById('btn-close')?.addEventListener('click', () => window.electronAPI?.close());
     window.addEventListener('resize', () => this._updateMaxIcon());

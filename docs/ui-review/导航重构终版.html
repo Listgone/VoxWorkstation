@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>VoxCPM2 工作站 · 导航重构终版</title>
+<style>
+  body{margin:0;padding:32px 36px 80px;background:#f4f4f2;color:#1d1d1b;
+       font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.75}
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-size:24px;font-weight:600;margin:0 0 8px}
+  .sub{font-size:13.5px;color:#6e6e67;margin-bottom:26px}
+  h2{font-size:17px;font-weight:600;margin:36px 0 13px;padding-bottom:8px;border-bottom:1px solid #dededa}
+  h3{font-size:14px;font-weight:600;margin:20px 0 7px}
+  p{margin:0 0 11px;font-size:13.5px;color:#3a3a36}
+  ul,ol{margin:0 0 13px;padding-left:22px;font-size:13.5px;color:#3a3a36}
+  li{margin-bottom:6px}
+  b,strong{color:#1d1d1b}
+  code{background:#e8e6e1;padding:1px 6px;border-radius:4px;font-size:12.5px;font-family:Consolas,monospace}
+  .shot{background:#fff;border:1px solid #e0e0dc;border-radius:10px;padding:14px;margin:14px 0}
+  .shot .cap{font-size:12.5px;color:#6e6e67;margin-bottom:9px}
+  .shot img{width:100%;display:block;border:1px solid #e8e8e4;border-radius:6px}
+  table{border-collapse:collapse;width:100%;font-size:13px;margin:12px 0 20px}
+  th,td{border:1px solid #e0e0dc;padding:8px 12px;text-align:left;vertical-align:top}
+  th{background:#eceae5;font-weight:600;font-size:12.5px}
+  .card{background:#fff;border:1px solid #e0e0dc;border-radius:10px;padding:16px 20px;margin:16px 0}
+  .warn{background:#fff8e6;border-color:#f0e0b0}
+  .good{background:#f0f8f2;border-color:#c8e6d0}
+  .purple{background:#f6f2ff;border-color:#dcd0f5}
+  .id{font-family:Consolas,monospace;font-weight:600;color:#0969da;white-space:nowrap;width:46px}
+  .pick{width:96px;white-space:nowrap;font-size:12px}
+  .star{color:#9a6700;font-weight:700}
+  .mid{color:#6e6e67}
+  .navdemo{display:inline-block;background:#fff;border:1px solid #e0e0dc;border-radius:10px;
+           padding:12px 18px;font-size:13px;line-height:2;min-width:176px;vertical-align:top}
+  .navdemo .g{font-size:10px;letter-spacing:.14em;color:#a0a09a;font-weight:600;margin-top:8px}
+  .navdemo .i{color:#3a3a36}
+  .navdemo .i.on{color:#0969da;font-weight:600}
+  .navdemo .bd{float:right;font-size:10px;background:#f1f3f5;color:#656d76;padding:0 6px;border-radius:9px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>导航重构终版</h1>
+  <div class="sub">仪表板置顶 · 项目组上移 · 项目/集两级管理 · 设置扩充到 11 组</div>
+
+  <h2>一、导航结构（按你的要求调整）</h2>
+
+  <div style="margin:16px 0">
+    <div class="navdemo">
+      <div class="i on">▦ 仪表板</div>
+      <div class="g">项目</div>
+      <div class="i">▸ 项目管理 <span class="bd">4</span></div>
+      <div class="i">▸ 集管理 <span class="bd">128</span></div>
+      <div class="g">工作流</div>
+      <div class="i">▸ 文本处理</div>
+      <div class="i">▸ 配音 <span class="bd">58</span></div>
+      <div class="i">▸ 导出</div>
+      <div class="g">资产</div>
+      <div class="i">▸ 音色库</div>
+      <div class="g" style="margin-top:10px">—</div>
+      <div class="i">▸ 设置</div>
+    </div>
+    <div style="display:inline-block;margin-left:26px;max-width:560px;vertical-align:top">
+      <p style="margin-top:0"><b>三处改动：</b></p>
+      <ol style="margin-bottom:0">
+        <li><b>仪表板置顶</b> —— 打开软件第一眼看到"我做到哪了"</li>
+        <li><b>项目组上移到工作流之上</b> —— 先确定"做哪个片子"，再进入"干活"</li>
+        <li><b>拆成项目管理 + 集管理两级</b> —— 项目少（卡片式），集多（列表式）</li>
+      </ol>
+      <p style="margin-top:12px;margin-bottom:0;font-size:13px;color:#6e6e67">
+        数字角标（4 / 128 / 58）让人一眼知道规模，不用点进去看。</p>
+    </div>
+  </div>
+
+  <h2>二、四张页面</h2>
+
+  <div class="shot">
+    <div class="cap"><b>① 仪表板（置顶）</b> —— 全部项目 KPI + <b>异常提醒</b>（失败/停滞/待处理）+ 四张图表 + 成本耗时</div>
+    <img src="fn-1-dash.png" alt="仪表板">
+  </div>
+
+  <div class="shot">
+    <div class="cap"><b>② 项目管理</b> —— 项目少所以用卡片：封面 / 集数 / 总时长 / 完成率 / 最近编辑 + 归档区</div>
+    <img src="fn-2-projects.png" alt="项目管理">
+  </div>
+
+  <div class="shot">
+    <div class="cap"><b>③ 集管理</b> —— 集多所以用列表：<b>按季分组</b> + 搜索/筛选/排序 + <b>批量操作</b> + 分页</div>
+    <img src="fn-3-eps.png" alt="集管理">
+  </div>
+
+  <div class="shot">
+    <div class="cap"><b>④ 设置</b> —— 左侧 11 个分组，右侧内容。<b>外观主题</b>（带预览缩略图）和 <b>AI 服务</b>（6 家 + 完整参数）都在</div>
+    <img src="fn-4-setting.png" alt="设置">
+  </div>
+
+  <h2>三、针对"项目少、集很多"的设计</h2>
+
+  <div class="card purple">
+    <h3 style="margin-top:0">项目少 → 卡片式，重"识别"</h3>
+    <p style="margin-bottom:0">卡片带封面、集数、总时长、完成率、最近编辑时间，一眼认出是哪个片子。
+    一排就能放下 4–5 个，不用滚动。已有项目直接点开，不需要搜索。</p>
+  </div>
+
+  <div class="card purple">
+    <h3 style="margin-top:0">集很多（128 集）→ 列表式，重"定位"</h3>
+    <p>这是真正的难点。128 集平铺会淹死人，所以：</p>
+    <ul style="margin-bottom:0">
+      <li><b>按季分组</b>（第一季 / 第二季…），每组可折叠 —— 也可以按卷 / 篇章分</li>
+      <li><b>搜索框同时搜标题和台词内容</b> —— "这句话在第几集说过"</li>
+      <li><b>状态筛选</b> —— 快速找出所有"卡住的"或"未开始"的</li>
+      <li><b>批量操作</b> —— 勾选多集 → 批量 AI 处理 / 批量配音 / 批量导出 / 转移到别的项目</li>
+      <li><b>分页</b>（显示 1–20 / 128），不做无限滚动以免找不到位置</li>
+      <li><b>集号自动补零</b>（01、02…）保证文件夹排序正确</li>
+    </ul>
+  </div>
+
+  <h2>四、我补充的功能清单（报编号）</h2>
+  <p><span class="star">★</span> = 强烈建议 &nbsp;·&nbsp; <span class="mid">○</span> = 可选</p>
+
+  <h3>E. 集管理（应对"集多"）</h3>
+  <table>
+    <tr><th class="id">编号</th><th>功能</th><th class="pick">建议</th></tr>
+    <tr><td class="id">E1</td><td>按季 / 卷 / 篇章分组，可折叠</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">E2</td><td>搜索标题 <b>+ 台词内容</b></td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">E3</td><td>状态筛选 + 多种排序（集号 / 更新时间 / 进度）</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">E4</td><td><b>批量操作</b>：勾选多集 → 批量 AI 处理 / 配音 / 导出 / 转移 / 删除</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">E5</td><td><b>批量导入</b>：一次拖入多个 txt，按文件名自动建集</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">E6</td><td>集号自动补零 + 手动重排</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">E7</td><td>配音页「上一集 / 下一集」快速切换</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">E8</td><td><b>跨集队列</b>：一次排队多集，通宵跑完</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">E9</td><td>列表密度切换（紧凑 / 舒适）</td><td class="pick"><span class="mid">○</span></td></tr>
+  </table>
+
+  <h3>P. 项目管理（应对"项目少"）</h3>
+  <table>
+    <tr><th class="id">编号</th><th>功能</th><th class="pick">建议</th></tr>
+    <tr><td class="id">P1</td><td>项目卡片（封面 / 集数 / 时长 / 完成率 / 最近编辑）</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">P2</td><td><b>项目级默认值</b>：音色分配、参数、词典，新建集直接继承</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">P3</td><td>从模板新建项目</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">P4</td><td>归档 / 恢复 / 删除（删除进回收站而非直接抹掉）</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">P5</td><td>项目间转移集</td><td class="pick"><span class="mid">○</span></td></tr>
+    <tr><td class="id">P6</td><td>导入项目（.voxproj + 文件夹一并拷入）</td><td class="pick"><span class="star">★</span></td></tr>
+  </table>
+
+  <h3>S. 仪表板</h3>
+  <table>
+    <tr><th class="id">编号</th><th>功能</th><th class="pick">建议</th></tr>
+    <tr><td class="id">S1</td><td>全部项目 / 单项目切换 · 时间范围筛选</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">S2</td><td>6 个 KPI：项目数 / 集数 / 总时长 / 总字数 / 总句数 / 完成率</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">S3</td><td>各项目进度 · 角色占比 · 生成趋势 · <b>成本与耗时</b></td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">S4</td><td><b>异常提醒</b>：生成失败 / 长期停滞 / 待处理堆积，直接给跳转按钮</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">S5</td><td>导出统计报表 CSV</td><td class="pick"><span class="mid">○</span></td></tr>
+  </table>
+
+  <h3>H. 设置（你要求补的 + 我补的）</h3>
+  <table>
+    <tr><th class="id">编号</th><th>功能</th><th class="pick">说明</th></tr>
+    <tr><td class="id">H1</td><td><b>外观与主题</b>：明亮现代 / 黑白水墨（带预览缩略图）</td><td class="pick"><span class="star">你要求</span></td></tr>
+    <tr><td class="id">H2</td><td>界面缩放 / 语言 / 减少动效</td><td class="pick"><span class="star">我补</span></td></tr>
+    <tr><td class="id">H3</td><td><b>AI 服务</b>：6 家服务商 + baseURL + 模型 + 视觉模型(OCR)</td><td class="pick"><span class="star">你要求</span></td></tr>
+    <tr><td class="id">H4</td><td>API Key（<code>safeStorage</code> 加密）+ 测试连接</td><td class="pick"><span class="star">我补</span></td></tr>
+    <tr><td class="id">H5</td><td>超时 / 重试 / 单次处理上限（超长文本自动分段）</td><td class="pick"><span class="star">我补</span></td></tr>
+    <tr><td class="id">H6</td><td><b>TTS 引擎</b>：自动启动、后端路径、默认参数、显存告警阈值</td><td class="pick"><span class="star">我补</span></td></tr>
+    <tr><td class="id">H7</td><td><b>音频输出</b>：根目录、格式、句间停顿、<b>文件命名规则</b></td><td class="pick"><span class="star">我补</span></td></tr>
+    <tr><td class="id">H8</td><td><b>项目与存储</b>：默认位置、自动保存间隔、每日备份、缓存清理</td><td class="pick"><span class="star">我补</span></td></tr>
+    <tr><td class="id">H9</td><td>发音词典</td><td class="pick"><span class="star">已定</span></td></tr>
+    <tr><td class="id">H10</td><td>快捷键自定义</td><td class="pick"><span class="mid">我补</span></td></tr>
+    <tr><td class="id">H11</td><td><b>网络与代理</b>：系统代理 / 自定义代理（访问境外 API 用）</td><td class="pick"><span class="star">我补</span></td></tr>
+    <tr><td class="id">H12</td><td>通知：生成完成提醒、失败提醒（系统通知 or 仅应用内）</td><td class="pick"><span class="mid">我补</span></td></tr>
+    <tr><td class="id">H13</td><td><b>数据与隐私</b>：AI 请求前脱敏、仅发送当前段落、本地保存 diff 历史</td><td class="pick"><span class="star">我补</span></td></tr>
+    <tr><td class="id">H14</td><td>诊断与关于：日志、诊断包、检查更新</td><td class="pick"><span class="star">我补</span></td></tr>
+  </table>
+
+  <h2>五、文件落盘（你强调的，已固化）</h2>
+  <p>音频、处理后的文本、分句状态、导出成品，<b>全部按集归档</b>，切到哪集就存哪集：</p>
+  <table>
+    <tr><th style="width:34%">内容</th><th>路径</th></tr>
+    <tr><td>原始文本（永不改动）</td><td><code>项目\第02集\script.original.txt</code></td></tr>
+    <tr><td>处理后的台词</td><td><code>项目\第02集\script.txt</code></td></tr>
+    <tr><td>分句 + 角色 + 生成状态</td><td><code>项目\第02集\lines.json</code></td></tr>
+    <tr><td>逐句音频</td><td><code>项目\第02集\audio\0001_旁白_温柔女声.wav</code></td></tr>
+    <tr><td>导出成品</td><td><code>项目\第02集\output\第02集_整轨.wav · .srt · 逐句.zip</code></td></tr>
+    <tr><td>导出记录</td><td><code>项目\第02集\export-log.json</code></td></tr>
+    <tr><td>项目级配置</td><td><code>项目\project.voxproj</code></td></tr>
+    <tr><td>项目专用音色 / 词典</td><td><code>项目\_shared\voices\ · dict.json</code></td></tr>
+  </table>
+
+  <h2>六、需要你拍板</h2>
+  <table>
+    <tr><th style="width:36%">问题</th><th>我的建议</th></tr>
+    <tr><td>这 8 项导航（含设置）定了吗？</td><td>定了就按这个动手</td></tr>
+    <tr><td>集按"季"分组，还是按"卷/篇章"？</td><td>做成可自定义的分组名，默认"第 N 季"</td></tr>
+    <tr><td>分页每页多少集？</td><td>20，可切换 50 / 100</td></tr>
+    <tr><td>删除项目/集要不要回收站？</td><td>要。误删一集可能损失几小时</td></tr>
+    <tr><td>先做哪几个页面？</td><td><b>仪表板 → 集管理 → 设置</b>（框架类），再补文本处理/配音</td></tr>
+  </table>
+
+  <div class="card warn">
+    <h3 style="margin-top:0">现状</h3>
+    <p style="margin-bottom:0">设计稿，<code>renderer/</code> 里的代码没动。累计 7 份设计稿都在
+    <code>docs\ui-review\</code>，你确认范围后我按批次改代码。</p>
+  </div>
+
+</div>
+</body>
+</html>

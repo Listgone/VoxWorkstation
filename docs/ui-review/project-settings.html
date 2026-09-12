@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>VoxWorkstation · 项目设置 & 季划分</title>
+<style>
+:root{
+  --bg:#f6f8fa; --side:#ffffff; --card:#ffffff; --elev:#f1f3f5;
+  --line:#d0d7de; --line-soft:#eaeef2;
+  --ink:#1f2328; --dim:#656d76; --mute:#8c959f;
+  --blue:#0969da; --blue-soft:rgba(9,105,218,.09); --blue-line:rgba(9,105,218,.35);
+  --ok:#1a7f37; --ok-soft:rgba(26,127,55,.10);
+  --warn:#9a6700; --warn-soft:rgba(154,103,0,.10);
+  --danger:#cf222e; --danger-soft:rgba(207,34,46,.10);
+  --purple:#8250df; --purple-soft:rgba(130,80,223,.10);
+  --r:6px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:13px;line-height:1.5;color:var(--ink);background:var(--bg);
+  display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+
+.titlebar{height:38px;min-height:38px;display:flex;align-items:center;padding-left:16px;gap:8px;
+  background:var(--side);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-right:6px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--blue)}
+.crumb{display:flex;align-items:center;gap:6px;font-size:12.5px}
+.crumb .seg{padding:3px 10px;border:1px solid var(--line);border-radius:20px;color:var(--dim)}
+.crumb .seg.cur{background:var(--blue-soft);border-color:var(--blue-line);color:var(--blue);font-weight:600}
+.crumb .sl{color:var(--mute);font-size:11px}
+.winbtns{display:flex;height:100%;margin-left:auto}
+.winbtns i{width:42px;height:100%;display:flex;align-items:center;justify-content:center;
+  color:var(--mute);font-style:normal;font-size:12px}
+
+.shell{flex:1;display:flex;overflow:hidden}
+.rail{width:208px;min-width:208px;background:var(--side);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;padding:10px;overflow-y:auto}
+.grp{font-size:10px;font-weight:600;letter-spacing:.14em;color:var(--mute);padding:12px 10px 6px}
+.nav{position:relative;display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;
+  border-radius:var(--r);color:var(--dim);font-size:13px;margin-bottom:1px}
+.nav svg{flex-shrink:0;opacity:.85}
+.nav.on{background:var(--blue-soft);color:var(--blue);font-weight:600}
+.nav.on::before{content:'';position:absolute;left:-10px;top:7px;bottom:7px;width:3px;
+  background:var(--blue);border-radius:0 3px 3px 0}
+.nav .badge{margin-left:auto;font-size:10px;background:var(--elev);color:var(--dim);
+  padding:1px 6px;border-radius:10px;font-weight:500}
+.rail-foot{margin-top:auto;padding-top:8px;border-top:1px solid var(--line-soft)}
+.engine{font-size:10.5px;color:var(--mute);padding:8px 10px 0;line-height:1.6}
+
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.phead{display:flex;align-items:center;gap:12px;padding:15px 24px 12px;border-bottom:1px solid var(--line-soft)}
+.phead h1{font-size:16px;font-weight:600}
+.phead .desc{font-size:12px;color:var(--mute)}
+.phead .sp{flex:1}
+.pbody{flex:1;overflow-y:auto;padding:18px 24px 28px}
+.wrap{max-width:1120px;margin:0 auto}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:15px 17px;margin-bottom:13px}
+.card h2{font-size:12.5px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;
+  justify-content:space-between;gap:10px}
+.card h2 .n{font-size:11.5px;font-weight:400;color:var(--mute)}
+.card.danger{border-color:rgba(207,34,46,.3)}
+
+.btn{height:29px;padding:0 12px;border:1px solid var(--line);border-radius:var(--r);
+  background:var(--elev);color:var(--ink);font-size:12.5px;font-weight:500;font-family:inherit;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;white-space:nowrap}
+.btn.pri{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--dim)}
+.btn.sm{height:25px;padding:0 9px;font-size:11.5px}
+.btn.danger{color:var(--danger);border-color:rgba(207,34,46,.3)}
+.pill{font-size:10.5px;padding:2px 8px;border-radius:20px;background:var(--elev);color:var(--dim);white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.run{background:var(--blue-soft);color:var(--blue)}
+.pill.p{background:var(--purple-soft);color:var(--purple)}
+.pill.d{background:var(--danger-soft);color:var(--danger)}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{background:var(--elev);font-size:11px;font-weight:600;color:var(--dim);text-align:left;
+  padding:8px 11px;border-bottom:1px solid var(--line)}
+td{padding:8px 11px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.num{font-variant-numeric:tabular-nums;color:var(--dim)}
+
+/* 设置型行 */
+.srow{display:flex;align-items:center;gap:14px;padding:11px 0;border-bottom:1px solid var(--line-soft)}
+.srow:last-child{border-bottom:none}
+.srow .l{flex:1;min-width:0}
+.srow .l b{display:block;font-size:12.5px;font-weight:600}
+.srow .l span{font-size:11px;color:var(--mute);line-height:1.55}
+input[type=text],input[type=password],input[type=number],select{height:31px;border:1px solid var(--line);
+  border-radius:var(--r);background:var(--bg);padding:0 11px;font-size:12.5px;font-family:inherit;
+  color:var(--ink);outline:none;max-width:360px}
+input[readonly]{background:transparent;border-color:var(--line-soft);color:var(--dim)}
+.sw{width:38px;height:21px;border-radius:12px;background:var(--blue);position:relative;flex-shrink:0}
+.sw::after{content:'';position:absolute;right:2px;top:2px;width:17px;height:17px;border-radius:50%;background:#fff}
+.sw.off{background:var(--line)}
+.sw.off::after{left:2px;right:auto}
+
+.setwrap{display:grid;grid-template-columns:172px minmax(0,1fr);gap:20px;max-width:1020px;margin:0 auto}
+.subnav{display:flex;flex-direction:column;gap:1px}
+.subnav a{display:flex;align-items:center;height:31px;padding:0 10px;border-radius:var(--r);
+  color:var(--dim);font-size:12.5px;text-decoration:none}
+.subnav a.on{background:var(--blue-soft);color:var(--blue);font-weight:600}
+
+/* 季划分 */
+.seasons{display:flex;flex-direction:column;gap:9px}
+.season{border:1px solid var(--line);border-radius:var(--r);padding:11px 13px;background:var(--bg)}
+.season .hd{display:flex;align-items:center;gap:10px}
+.season .hd b{font-size:13px}
+.season .rng{font-size:11.5px;color:var(--mute)}
+.season .bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:8px;display:flex}
+.season .bar i{display:block;height:100%}
+.season .ft{display:flex;gap:14px;margin-top:6px;font-size:11px;color:var(--mute)}
+
+/* 角色音色表 */
+.vw{width:52px;height:20px;display:inline-flex;align-items:center;gap:1px;vertical-align:middle}
+.vw i{flex:1;background:var(--blue);border-radius:1px;display:block}
+
+/* 集管理分组 */
+.seasonblock{margin-bottom:13px}
+.seasonhead{display:flex;align-items:center;gap:11px;padding:11px 15px;border:1px solid var(--line);
+  border-radius:8px 8px 0 0;background:var(--elev);font-size:12.5px}
+.seasonhead b{font-size:13px}
+.seasonblock table{border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;
+  background:var(--card);overflow:hidden}
+.toolrow{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:13px}
+.selbar{display:flex;align-items:center;gap:12px;padding:9px 13px;border-radius:var(--r);
+  background:var(--blue-soft);border:1px solid var(--blue-line);font-size:12.5px;margin-bottom:11px}
+.cb{width:14px;height:14px;border-radius:3px;border:1.5px solid var(--line);display:inline-block;vertical-align:-2px}
+.cb.on{background:var(--blue);border-color:var(--blue)}
+.pbar{width:72px;height:5px;border-radius:3px;background:var(--line);overflow:hidden;display:inline-block;
+  vertical-align:middle;margin-right:7px}
+.pbar i{display:block;height:100%;background:var(--blue);border-radius:3px}
+.pbar i.done{background:var(--ok)}
+
+.statusbar{height:28px;min-height:28px;background:var(--side);border-top:1px solid var(--line);
+  display:flex;align-items:center;gap:16px;padding:0 16px;font-size:11px;color:var(--mute)}
+.statusbar .r{margin-left:auto;display:flex;align-items:center;gap:14px}
+.gpubar{width:66px;height:6px;border-radius:3px;background:var(--line);overflow:hidden;
+  display:inline-block;vertical-align:middle;margin:0 5px}
+.gpubar i{display:block;height:100%;width:33%;background:var(--blue);border-radius:3px}
+.aiok{color:var(--purple)}
+
+.page{display:none}
+body[data-page="pset"] #p-pset,
+body[data-page="eps"] #p-eps{display:block}
+</style>
+</head>
+<body data-page="pset">
+
+<div class="titlebar">
+  <div class="brand"><span class="dot"></span> VoxWorkstation</div>
+  <div class="crumb">
+    <span class="seg">纪录片旁白 ▾</span><span class="sl">/</span>
+    <span class="seg cur">项目设置</span>
+  </div>
+  <div class="winbtns"><i>─</i><i>□</i><i>✕</i></div>
+</div>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>仪表板</div>
+    <div class="grp">项目</div>
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>项目管理<span class="badge">4</span></div>
+    <div class="nav" data-go="eps"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/></svg>集管理<span class="badge">128</span></div>
+    <div class="grp">工作流</div>
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>文本处理</div>
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>配音<span class="badge">58</span></div>
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/></svg>导出</div>
+    <div class="grp">资产</div>
+    <div class="nav"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>音色库</div>
+    <div class="rail-foot">
+      <div class="nav" data-go="pset" style="background:var(--blue-soft);color:var(--blue);font-weight:600"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>项目设置</div>
+      <div class="engine">VoxCPM2 引擎 · 已就绪<br>显存 8.0G / 24.0G</div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- ═════ 项目设置 ═════ -->
+    <div class="page" id="p-pset">
+      <div class="phead">
+        <h1>项目设置</h1>
+        <span class="desc">这个片子特有的配置 —— 所有集共用，与全局「设置」分工不同</span>
+        <span class="sp"></span>
+        <span class="pill ok">已保存</span>
+      </div>
+      <div class="pbody">
+        <div class="setwrap">
+          <nav class="subnav">
+            <a class="on">基本信息</a>
+            <a>季与集划分</a>
+            <a>角色与音色</a>
+            <a>默认参数</a>
+            <a>项目词典</a>
+            <a>AI 处理</a>
+            <a>输出</a>
+            <a>存储</a>
+            <a style="color:var(--danger)">危险操作</a>
+          </nav>
+
+          <div>
+            <div class="card">
+              <h2>基本信息</h2>
+              <div class="srow"><div class="l"><b>项目名称</b><span>决定文件夹名，改名会同步重命名文件夹</span></div>
+                <input type="text" value="纪录片旁白" style="width:220px"></div>
+              <div class="srow"><div class="l"><b>简介</b><span>给自己看的备注</span></div>
+                <input type="text" value="央视风格历史纪录片，共三季" style="width:320px"></div>
+              <div class="srow"><div class="l"><b>项目类型</b><span>影响新建集时的默认结构</span></div>
+                <select style="width:170px"><option>剧集（多集 + 季划分）</option><option>单集 / 单片</option><option>有声书（章节）</option></select></div>
+              <div class="srow"><div class="l"><b>状态</b><span>归档后不出现在主导航</span></div>
+                <span class="pill run">进行中</span> <button class="btn sm">归档项目</button></div>
+            </div>
+
+            <div class="card">
+              <h2>季与集划分 <span class="n">前 20 集为第一季，21–45 为第二季…</span></h2>
+              <div class="seasons">
+                <div class="season">
+                  <div class="hd"><b>第一季 · 文明的进程</b>
+                    <span class="rng">第 1 – 20 集 · 共 20 集</span>
+                    <span style="flex:1"></span>
+                    <button class="btn sm">重命名</button><button class="btn sm ghost">拆分</button></div>
+                  <div class="bar"><i style="width:90%;background:#1a7f37"></i><i style="width:10%;background:#eaeef2"></i></div>
+                  <div class="ft"><span>已完成 18 集</span><span>配音中 2 集</span><span>总时长 1:58:24</span></div>
+                </div>
+                <div class="season">
+                  <div class="hd"><b>第二季 · 技术的边界</b>
+                    <span class="rng">第 21 – 45 集 · 共 25 集</span>
+                    <span style="flex:1"></span>
+                    <button class="btn sm">重命名</button><button class="btn sm ghost">拆分</button></div>
+                  <div class="bar"><i style="width:24%;background:#1a7f37"></i><i style="width:16%;background:#0969da"></i><i style="width:60%;background:#eaeef2"></i></div>
+                  <div class="ft"><span>已完成 6 集</span><span>配音中 4 集</span><span>未开始 15 集</span></div>
+                </div>
+                <div class="season">
+                  <div class="hd"><b>第三季 · 未命名</b>
+                    <span class="rng">第 46 – 128 集 · 共 83 集</span>
+                    <span style="flex:1"></span>
+                    <button class="btn sm">重命名</button><button class="btn sm ghost">拆分</button></div>
+                  <div class="bar"><i style="width:3%;background:#0969da"></i><i style="width:97%;background:#eaeef2"></i></div>
+                  <div class="ft"><span>已完成 0 集</span><span>配音中 1 集</span><span>未开始 82 集</span></div>
+                </div>
+              </div>
+              <div class="srow" style="margin-top:12px"><div class="l"><b>＋ 新增一季</b>
+                <span>指定起止集号，中间插入新季会自动重排后面的季</span></div>
+                <input type="number" value="129" style="width:80px"> <span style="color:var(--mute)">起</span>
+                <button class="btn sm">添加</button></div>
+              <div class="srow"><div class="l"><b>集号格式</b><span>前导补零，保证文件夹排序正确</span></div>
+                <select style="width:150px"><option>第01集（补两位）</option><option>第001集（补三位）</option><option>第1集（不补）</option></select></div>
+              <div class="srow"><div class="l"><b>季是否建子文件夹</b><span>关闭则 128 集全部平铺在项目根目录下</span></div>
+                <span class="sw off"></span></div>
+            </div>
+
+            <div class="card">
+              <h2>角色与音色 <span class="n">跨 128 集保持一致的关键</span></h2>
+              <p style="font-size:12px;color:var(--mute);margin:-4px 0 10px">
+                这里定义一次，所有集共用。改这里 = 全项目该角色的音色统一换掉。</p>
+              <table>
+                <tr><th style="width:36px"></th><th style="width:110px">角色</th><th style="width:190px">绑定音色</th>
+                    <th>说明</th><th style="width:130px">参数覆盖</th><th style="width:70px"></th></tr>
+                <tr><td><span class="vw"><i style="height:14px"></i><i style="height:8px"></i><i style="height:18px"></i><i style="height:10px"></i><i style="height:15px"></i></span></td>
+                    <td><b>旁白</b></td><td>温柔女声 <span class="pill">有声纹</span></td>
+                    <td style="color:var(--mute)">全片主叙述 · 4,672 句</td><td class="num">稳定性 2.0</td>
+                    <td><button class="btn sm ghost">改</button></td></tr>
+                <tr><td><span class="vw"><i style="height:10px"></i><i style="height:16px"></i><i style="height:9px"></i><i style="height:18px"></i><i style="height:12px"></i></span></td>
+                    <td><b>小明</b></td><td>少年音 <span class="pill">设计</span></td>
+                    <td style="color:var(--mute)">主角 · 1,712 句</td><td class="num">稳定性 1.6</td>
+                    <td><button class="btn sm ghost">改</button></td></tr>
+                <tr><td><span class="vw"><i style="height:9px"></i><i style="height:12px"></i><i style="height:16px"></i><i style="height:9px"></i><i style="height:14px"></i></span></td>
+                    <td><b>老师</b></td><td>沉稳男声 <span class="pill">有声纹</span></td>
+                    <td style="color:var(--mute)">配角 · 420 句</td><td class="num">继承默认</td>
+                    <td><button class="btn sm ghost">改</button></td></tr>
+                <tr><td><span class="vw" style="opacity:.35"><i style="height:10px"></i><i style="height:12px"></i><i style="height:9px"></i><i style="height:13px"></i><i style="height:10px"></i></span></td>
+                    <td><b>其他</b></td><td colspan="2" style="color:var(--mute)">剧本里出现但未登记的角色，用兜底音色</td>
+                    <td class="num">电台女声</td><td><button class="btn sm ghost">改</button></td></tr>
+              </table>
+              <div style="margin-top:10px;display:flex;gap:8px">
+                <button class="btn sm">＋ 添加角色</button>
+                <button class="btn sm ghost">从某一集的台词里自动识别角色</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h2>默认参数 <span class="n">新建集时继承</span></h2>
+              <div class="srow"><div class="l"><b>稳定性 / 质量</b><span>个别集可在配音页单独覆盖</span></div>
+                <input type="number" value="2.0" step="0.1" style="width:72px">
+                <input type="number" value="10" style="width:72px"></div>
+              <div class="srow"><div class="l"><b>句间停顿</b><span>整轨拼接时每句前后的静音</span></div>
+                <input type="number" value="300" style="width:80px"> <span style="color:var(--mute)">ms</span></div>
+              <div class="srow"><div class="l"><b>目标句长</b><span>AI 断句时每句不超过多少字</span></div>
+                <input type="number" value="25" style="width:72px"> <span style="color:var(--mute)">字</span></div>
+            </div>
+
+            <div class="card">
+              <h2>项目词典 <span class="n">只在这个项目生效</span></h2>
+              <table>
+                <tr><th style="width:120px">词</th><th style="width:180px">读法</th><th>出现在</th><th style="width:64px"></th></tr>
+                <tr><td>良渚</td><td>liáng zhǔ</td><td style="color:var(--mute)">第 1、5、12 集</td><td><button class="btn sm ghost">删</button></td></tr>
+                <tr><td>二里头</td><td>èr lǐ tóu</td><td style="color:var(--mute)">第 3、8 集</td><td><button class="btn sm ghost">删</button></td></tr>
+                <tr><td>碳十四</td><td>tàn shí sì</td><td style="color:var(--mute)">第 7 集</td><td><button class="btn sm ghost">删</button></td></tr>
+              </table>
+              <button class="btn sm" style="margin-top:10px">＋ 添加词条</button>
+            </div>
+
+            <div class="card">
+              <h2>AI 处理 <span class="n">可覆盖全局设置</span></h2>
+              <div class="srow"><div class="l"><b>本项目用哪个服务商</b><span>历史纪录片术语多，可指定更强的模型</span></div>
+                <select style="width:180px"><option>跟随全局（DeepSeek）</option><option>Kimi（超长上下文）</option><option>通义千问</option></select></div>
+              <div class="srow"><div class="l"><b>项目提示词</b><span>每次 AI 处理都会带上，用于统一语气与术语</span></div>
+                <input type="text" value="这是一部严肃历史纪录片，语气庄重，术语需准确" style="width:380px"></div>
+              <div class="srow"><div class="l"><b>默认启用哪几项处理</b><span>新建集时自动勾选</span></div>
+                <span class="pill p">规范化</span> <span class="pill p">断句</span> <span class="pill p">语气标注</span> <span class="pill p">角色分离</span></div>
+            </div>
+
+            <div class="card">
+              <h2>输出</h2>
+              <div class="srow"><div class="l"><b>项目输出目录</b><span>D:\VoxOutput\纪录片旁白\</span></div>
+                <button class="btn sm">更改</button></div>
+              <div class="srow"><div class="l"><b>命名规则</b><span>逐句音频文件名</span></div>
+                <input type="text" value="{ep}_{role}_{voice}_{no}" style="width:240px"></div>
+              <div class="srow"><div class="l"><b>默认导出整轨 + SRT</b><span>每次导出自动带上</span></div>
+                <span class="sw"></span></div>
+            </div>
+
+            <div class="card">
+              <h2>存储</h2>
+              <div class="srow"><div class="l"><b>保留逐句音频</b><span>关闭则只留整轨成品，省空间</span></div>
+                <span class="sw"></span></div>
+              <div class="srow"><div class="l"><b>当前占用</b><span>音频 18.4 GB · 文本 12 MB · 快照 340 MB</span></div>
+                <button class="btn sm">清理旧快照</button></div>
+            </div>
+
+            <div class="card danger" style="margin-bottom:0">
+              <h2 style="color:var(--danger)">危险操作</h2>
+              <div class="srow"><div class="l"><b>导出项目包</b><span>打包整个项目文件夹，可换机器打开</span></div>
+                <button class="btn sm">导出 .voxproj + 文件夹</button></div>
+              <div class="srow"><div class="l"><b>重建集索引</b><span>文件夹被外部改动过时用，不会删音频</span></div>
+                <button class="btn sm">重建索引</button></div>
+              <div class="srow"><div class="l"><b>删除项目</b><span>移到回收站，30 天内可恢复</span></div>
+                <button class="btn sm danger">删除项目</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═════ 集管理（季划分版）═════ -->
+    <div class="page" id="p-eps">
+      <div class="phead">
+        <h1>集管理</h1><span class="desc">纪录片旁白 · 3 季 · 共 128 集</span>
+        <span class="sp"></span>
+        <button class="btn">批量导入 txt</button>
+        <button class="btn pri">＋ 新建集</button>
+      </div>
+      <div class="pbody"><div class="wrap">
+        <div class="toolrow">
+          <input type="text" placeholder="搜索集标题 / 台词内容…" style="width:280px">
+          <select style="width:150px"><option>全部季</option><option>第一季</option><option>第二季</option><option>第三季</option></select>
+          <select style="width:132px"><option>全部状态</option><option>草稿</option><option>配音中</option><option>已完成</option></select>
+          <select style="width:126px"><option>按集号</option><option>按更新时间</option></select>
+          <span style="flex:1"></span>
+          <span class="num" style="font-size:11.5px">显示 1–20 / 128</span>
+        </div>
+
+        <div class="selbar">
+          <span class="cb on"></span><b>已选 3 集</b><span style="flex:1"></span>
+          <button class="btn sm">批量导出</button><button class="btn sm">批量 AI 处理</button>
+          <button class="btn sm">批量配音</button><button class="btn sm">移到别季</button>
+          <button class="btn sm danger">删除</button>
+        </div>
+
+        <div class="seasonblock">
+          <div class="seasonhead">
+            <b>第一季 · 文明的进程</b>
+            <span class="pill">第 1 – 20 集</span>
+            <span class="num">已完成 18 · 配音中 2</span>
+            <span style="flex:1"></span>
+            <span class="num" style="font-size:11px">总时长 1:58:24</span>
+          </div>
+          <table>
+            <tr><th style="width:34px"></th><th style="width:58px">集号</th><th>标题</th>
+                <th style="width:64px">字数</th><th style="width:52px">句数</th><th style="width:58px">时长</th>
+                <th style="width:140px">配音进度</th><th style="width:78px">状态</th><th style="width:74px"></th></tr>
+            <tr><td><span class="cb"></span></td><td class="num">01</td><td>文明的起点</td>
+                <td class="num">1,820</td><td class="num">62</td><td class="num">6:24</td>
+                <td><span class="pbar"><i class="done" style="width:100%"></i></span><span class="num">62/62</span></td>
+                <td><span class="pill ok">已交付</span></td><td><button class="btn sm">打开</button></td></tr>
+            <tr style="background:var(--blue-soft)"><td><span class="cb"></span></td><td class="num">02</td><td><b>技术的渗透</b> <span class="pill run">当前</span></td>
+                <td class="num">1,640</td><td class="num">58</td><td class="num">5:48</td>
+                <td><span class="pbar"><i style="width:72%"></i></span><span class="num">42/58</span></td>
+                <td><span class="pill run">配音中</span></td><td><button class="btn sm pri">继续</button></td></tr>
+            <tr><td><span class="cb on"></span></td><td class="num">03</td><td>转折点</td>
+                <td class="num">1,510</td><td class="num">54</td><td class="num">5:12</td>
+                <td><span class="pbar"><i style="width:18%"></i></span><span class="num">10/54</span></td>
+                <td><span class="pill" style="background:var(--warn-soft);color:var(--warn)">文本处理中</span></td><td><button class="btn sm">打开</button></td></tr>
+            <tr><td><span class="cb on"></span></td><td class="num">04</td><td>未来已来</td>
+                <td class="num">980</td><td class="num">36</td><td class="num">3:20</td>
+                <td><span class="pbar"><i style="width:0%"></i></span><span class="num">0/36</span></td>
+                <td><span class="pill">草稿</span></td><td><button class="btn sm">打开</button></td></tr>
+            <tr><td><span class="cb on"></span></td><td class="num">05</td><td>回声</td>
+                <td class="num">1,240</td><td class="num">48</td><td class="num">4:36</td>
+                <td><span class="pbar"><i style="width:100%"></i></span><span class="num">48/48</span></td>
+                <td><span class="pill ok">已完成</span></td><td><button class="btn sm">打开</button></td></tr>
+          </table>
+        </div>
+
+        <div class="seasonblock">
+          <div class="seasonhead">
+            <b>第二季 · 技术的边界</b>
+            <span class="pill">第 21 – 45 集</span>
+            <span class="num">已完成 6 · 配音中 4 · 未开始 15</span>
+            <span style="flex:1"></span>
+            <span class="num" style="font-size:11px">总时长 32:18</span>
+          </div>
+          <table>
+            <tr><th style="width:34px"></th><th style="width:58px">集号</th><th>标题</th>
+                <th style="width:64px">字数</th><th style="width:52px">句数</th><th style="width:58px">时长</th>
+                <th style="width:140px">配音进度</th><th style="width:78px">状态</th><th style="width:74px"></th></tr>
+            <tr><td><span class="cb"></span></td><td class="num">21</td><td>边界的消失</td>
+                <td class="num">1,690</td><td class="num">60</td><td class="num">6:02</td>
+                <td><span class="pbar"><i class="done" style="width:100%"></i></span><span class="num">60/60</span></td>
+                <td><span class="pill ok">已交付</span></td><td><button class="btn sm">打开</button></td></tr>
+            <tr><td><span class="cb"></span></td><td class="num">27</td><td>算力的代价 <span class="pill d">3 句失败</span></td>
+                <td class="num">1,480</td><td class="num">52</td><td class="num">5:16</td>
+                <td><span class="pbar"><i style="width:94%"></i></span><span class="num">49/52</span></td>
+                <td><span class="pill d">失败待重试</span></td><td><button class="btn sm">重试</button></td></tr>
+          </table>
+        </div>
+
+      </div></div>
+    </div>
+
+  </main>
+</div>
+
+<div class="statusbar">
+  <span>就绪</span>
+  <span id="st2">当前项目：纪录片旁白 · 3 季 128 集</span>
+  <span class="r"><span class="aiok">✦ DeepSeek 已连接</span>
+    <span>显存<span class="gpubar"><i></i></span>8.0 / 24.0 G</span></span>
+</div>
+
+<script>
+document.querySelectorAll('[data-go]').forEach(el=>{
+  el.addEventListener('click',()=>{
+    document.body.dataset.page=el.dataset.go;
+    document.getElementById('st2').textContent = el.dataset.go==='eps'
+      ? '当前项目：纪录片旁白 · 3 季 128 集'
+      : '当前项目：纪录片旁白 · 项目设置';
+  });
+});
+document.querySelectorAll('.subnav a').forEach(a=>{
+  a.addEventListener('click',()=>{
+    document.querySelectorAll('.subnav a').forEach(x=>x.classList.remove('on'));
+    a.classList.add('on');
+  });
+});
+</script>
+</body>
+</html>

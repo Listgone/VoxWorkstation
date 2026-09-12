@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>VoxCPM2 工作站 · 完整生产链设计 + 功能清单</title>
+<style>
+  body{margin:0;padding:32px 36px 80px;background:#f4f4f2;color:#1d1d1b;
+       font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.75}
+  .wrap{max-width:1120px;margin:0 auto}
+  h1{font-size:24px;font-weight:600;margin:0 0 8px}
+  .sub{font-size:13.5px;color:#6e6e67;margin-bottom:28px}
+  h2{font-size:17px;font-weight:600;margin:38px 0 14px;padding-bottom:8px;border-bottom:1px solid #dededa}
+  h3{font-size:14px;font-weight:600;margin:22px 0 8px}
+  p{margin:0 0 11px;font-size:13.5px;color:#3a3a36}
+  ol,ul{margin:0 0 13px;padding-left:22px;font-size:13.5px;color:#3a3a36}
+  li{margin-bottom:7px}
+  b,strong{color:#1d1d1b}
+  code{background:#e8e6e1;padding:1px 6px;border-radius:4px;font-size:12.5px;font-family:Consolas,monospace}
+  .shot{background:#fff;border:1px solid #e0e0dc;border-radius:10px;padding:14px;margin:16px 0}
+  .shot .cap{font-size:12.5px;color:#6e6e67;margin-bottom:10px}
+  .shot img{width:100%;display:block;border:1px solid #e8e8e4;border-radius:6px}
+  table{border-collapse:collapse;width:100%;font-size:13px;margin:12px 0 20px}
+  th,td{border:1px solid #e0e0dc;padding:8px 12px;text-align:left;vertical-align:top}
+  th{background:#eceae5;font-weight:600;font-size:12.5px}
+  .id{font-family:Consolas,monospace;font-weight:600;color:#0969da;white-space:nowrap;width:44px}
+  .pick{width:110px;white-space:nowrap;font-size:12px}
+  .star{color:#9a6700;font-weight:700}
+  .mid{color:#6e6e67}
+  .card{background:#fff;border:1px solid #e0e0dc;border-radius:10px;padding:16px 20px;margin:16px 0}
+  .warn{background:#fff8e6;border-color:#f0e0b0}
+  .good{background:#f0f8f2;border-color:#c8e6d0}
+  .purple{background:#f6f2ff;border-color:#dcd0f5}
+  .tag{display:inline-block;font-size:10.5px;padding:1px 7px;border-radius:10px;
+       background:#e8e6e1;color:#55554f;margin-left:6px;vertical-align:1px}
+  .tag.have{background:#dff0e3;color:#1a7f37}
+  .tag.new{background:#e4ecfb;color:#0969da}
+  .tag.hard{background:#fbe4e2;color:#cf222e}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>VoxCPM2 工作站 · 完整生产链设计</h1>
+  <div class="sub">文本 → AI 处理 → 配音 → 输出 → 存档。下方是效果图与功能清单，看完报编号即可。</div>
+
+  <h2>一、核心判断：这个软件的价值在「文本处理」这一层</h2>
+  <p>TTS 模型本身只解决"把字念出来"。但成品质量的大头在<b>送进去之前</b>：</p>
+  <ul>
+    <li><code>2024年3月</code> 念成"二千零二十四年三月"而不是"二零二四年三月"</li>
+    <li><code>3.14%</code> 念成"三点一四百分号"而不是"百分之三点一四"</li>
+    <li><code>AI</code> 该念"A I"还是"人工智能" · <code>IDC</code> 该念字母还是全称</li>
+    <li>「银行」和「行走」的多音字 · 长句让模型韵律崩掉</li>
+  </ul>
+  <p><b>读错一个数字，比音色差十倍更毁成品。</b>而 VoxCPM2 还独有 <code>[laughing]</code>
+  <code>[sigh]</code> 这类语气标记 —— 让 LLM 通读台词自动标注，人工标一遍是很痛苦的。</p>
+
+  <div class="card purple">
+    <h3 style="margin-top:0">所以架构是：原文 ⇄ 处理后 双栏对照</h3>
+    <p style="margin-bottom:0">原文<b>永不改动</b>，AI 结果只写进右栏，逐处改动用颜色标出（红删绿增）。
+    你可以只接受一部分、手动再改。这比"一键替换然后就找不回来了"可靠得多。</p>
+  </div>
+
+  <h2>二、效果图</h2>
+
+  <div class="shot">
+    <div class="cap">① 主界面 —— 左：音色库/项目/词典；中：原文⇄处理后 双栏 + 分句表（角色/音色/状态）；右：生成与导出</div>
+    <img src="pipe-1-main.png" alt="主界面">
+  </div>
+
+  <div class="shot">
+    <div class="cap">② AI 文本处理面板 —— 服务商可切，8 项能力可勾选，每项标注实际改动数与细节</div>
+    <img src="pipe-2-ai.png" alt="AI 处理">
+  </div>
+
+  <div class="shot">
+    <div class="cap">③ 导出与存档 —— 整轨/分句/SRT/工程四种产出，并存档音色供下次复用</div>
+    <img src="pipe-3-export.png" alt="导出">
+  </div>
+
+  <h2>三、功能清单（报编号给我）</h2>
+  <p><span class="star">★</span> = 我强烈建议做 &nbsp;·&nbsp; <span class="mid">○</span> = 锦上添花，可以后加</p>
+
+  <h3>A. 输入与导入</h3>
+  <table>
+    <tr><th class="id">编号</th><th>功能</th><th class="pick">建议</th></tr>
+    <tr><td class="id">A1</td><td>粘贴 / 拖入 txt</td><td class="pick"><span class="star">★ 必做</span></td></tr>
+    <tr><td class="id">A2</td><td>导入 SRT / VTT 字幕（保留时间轴）<span class="tag">配音常用</span></td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">A3</td><td>导入 Word / PDF 提取文本</td><td class="pick"><span class="mid">○</span></td></tr>
+    <tr><td class="id">A4</td><td>图片 / 截图 OCR 取字</td><td class="pick"><span class="mid">○</span></td></tr>
+    <tr><td class="id">A5</td><td>从剪贴板一键识别</td><td class="pick"><span class="mid">○</span></td></tr>
+  </table>
+
+  <h3>B. AI 文本处理 <span class="tag new">本方案核心</span></h3>
+  <table>
+    <tr><th class="id">编号</th><th>功能</th><th class="pick">建议</th></tr>
+    <tr><td class="id">B1</td><td><b>文本规范化 TN</b>：数字/日期/百分比/单位/英文缩写 → 口语读法</td><td class="pick"><span class="star">★ 必做</span></td></tr>
+    <tr><td class="id">B2</td><td><b>智能断句</b>：按语义切分，可设目标句长</td><td class="pick"><span class="star">★ 必做</span></td></tr>
+    <tr><td class="id">B3</td><td><b>语气自动标注</b>：自动插入 <code>[laughing]</code> 等 VoxCPM2 标记</td><td class="pick"><span class="star">★ 必做</span></td></tr>
+    <tr><td class="id">B4</td><td><b>角色分离</b>：识别「小明：…」拆角色，批量分配音色</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">B5</td><td>多音字校正：标出易错词，确认后写入词典永久生效</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">B6</td><td>口语化改写：书面语 → 适合朗读</td><td class="pick"><span class="mid">○</span></td></tr>
+    <tr><td class="id">B7</td><td>翻译后配音（中↔英）</td><td class="pick"><span class="mid">○</span></td></tr>
+    <tr><td class="id">B8</td><td>术语一致性检查（人名/专名全文统一）</td><td class="pick"><span class="mid">○</span></td></tr>
+    <tr><td class="id">B9</td><td>错别字 / 敏感词检查</td><td class="pick"><span class="mid">○</span></td></tr>
+  </table>
+
+  <h3>C. 配音生产</h3>
+  <table>
+    <tr><th class="id">编号</th><th>功能</th><th class="pick">建议</th></tr>
+    <tr><td class="id">C1</td><td>逐句生成 + 可见队列（GPU 串行，等待必须看得见）</td><td class="pick"><span class="star">★ 必做</span></td></tr>
+    <tr><td class="id">C2</td><td>批量生成全部 <span class="tag have">后端已支持</span></td><td class="pick"><span class="star">★ 必做</span></td></tr>
+    <tr><td class="id">C3</td><td>单句重生成 / 只重生成失败句</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">C4</td><td>多音色分角色（一个剧本多角色）</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">C5</td><td>句间停顿控制（前后静音 ms）</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">C6</td><td>同句多版本 A/B 并排对比</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">C7</td><td>整轨拼接（N 句合成一条完整音轨）</td><td class="pick"><span class="star">★ 必做</span></td></tr>
+  </table>
+
+  <h3>D. 输出</h3>
+  <table>
+    <tr><th class="id">编号</th><th>功能</th><th class="pick">建议</th></tr>
+    <tr><td class="id">D1</td><td>整轨 WAV / MP3 / FLAC <span class="tag have">后端有 ffmpeg 工具</span></td><td class="pick"><span class="star">★ 必做</span></td></tr>
+    <tr><td class="id">D2</td><td>逐句单独文件（按序号命名，便于剪辑）</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">D3</td><td>导出 SRT 字幕（按真实时长生成时间轴）</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">D4</td><td>工程存档 <code>.voxproj</code>，下次打开只重生成改动过的句子</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">D5</td><td>复制音频到剪贴板</td><td class="pick"><span class="mid">○</span></td></tr>
+  </table>
+
+  <h3>E. 音色库</h3>
+  <table>
+    <tr><th class="id">编号</th><th>功能</th><th class="pick">建议</th></tr>
+    <tr><td class="id">E1</td><td>音色管理 + 波形缩略 + 行内试听</td><td class="pick"><span class="star">★ 必做</span></td></tr>
+    <tr><td class="id">E2</td><td><b>生成结果一键存档为音色</b>（你提到的复用）</td><td class="pick"><span class="star">★ 必做</span></td></tr>
+    <tr><td class="id">E3</td><td>标签 / 分组 / 搜索</td><td class="pick"><span class="mid">○</span></td></tr>
+    <tr><td class="id">E4</td><td>音色包导入导出（换机器迁移）</td><td class="pick"><span class="mid">○</span></td></tr>
+    <tr><td class="id">E5</td><td>新建音色时<b>先试听再保存</b>（现在必须先存才能听）</td><td class="pick"><span class="star">★</span></td></tr>
+  </table>
+
+  <h3>F. 项目与工程</h3>
+  <table>
+    <tr><th class="id">编号</th><th>功能</th><th class="pick">建议</th></tr>
+    <tr><td class="id">F1</td><td>多项目管理（一个项目 = 台词 + 音色分配 + 生成结果）</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">F2</td><td>自动保存 / 崩溃恢复</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">F3</td><td>历史版本回滚</td><td class="pick"><span class="mid">○</span></td></tr>
+  </table>
+
+  <h3>G. 效率</h3>
+  <table>
+    <tr><th class="id">编号</th><th>功能</th><th class="pick">建议</th></tr>
+    <tr><td class="id">G1</td><td>自定义发音词典（某个词永远读对）</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">G2</td><td>快捷键（Ctrl+Enter 生成 · 空格播放 · ↑↓ 切句）</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">G3</td><td>生成预设模板（音色+参数+文本存成模板）</td><td class="pick"><span class="mid">○</span></td></tr>
+    <tr><td class="id">G4</td><td>错误诊断面板（后端日志 / 显存 / 失败原因）</td><td class="pick"><span class="star">★</span></td></tr>
+  </table>
+
+  <h3>H. 设置</h3>
+  <table>
+    <tr><th class="id">编号</th><th>功能</th><th class="pick">建议</th></tr>
+    <tr><td class="id">H1</td><td>AI 服务商配置（多选一）</td><td class="pick"><span class="star">★ 必做</span></td></tr>
+    <tr><td class="id">H2</td><td>API Key 用主进程 <code>safeStorage</code> 加密存储（现在明文躺在 localStorage）</td><td class="pick"><span class="star">★</span></td></tr>
+    <tr><td class="id">H3</td><td>TTS 后端路径 / Python 环境</td><td class="pick"><span class="tag have">已有</span></td></tr>
+    <tr><td class="id">H4</td><td>导出默认格式与目录</td><td class="pick"><span class="mid">○</span></td></tr>
+  </table>
+
+  <h2>四、技术建议：AI 怎么接</h2>
+  <div class="card good">
+    <h3 style="margin-top:0">统一走「OpenAI 兼容接口」，一套代码通吃所有服务商</h3>
+    <p>DeepSeek、通义千问、Kimi、智谱、以及本地的 Ollama / vLLM，<b>全都提供 OpenAI 兼容的
+    <code>/v1/chat/completions</code> 端点</b>。所以只需要实现一个客户端，把
+    <code>baseURL + model + apiKey</code> 做成配置项即可，不用为每家写适配。</p>
+    <p style="margin-bottom:0">好处：服务商随时换；断网时切本地 Ollama；某家涨价就换另一家，代码不动。</p>
+  </div>
+
+  <h3>关于"识别最准"</h3>
+  <ul>
+    <li><b>纯中文文本处理</b>（规范化、断句、语气标注）→ <b>DeepSeek-V3</b> 综合最准且便宜，国内直连</li>
+    <li><b>超长剧本</b>（几万字一次处理）→ <b>Kimi</b> 长上下文更强</li>
+    <li><b>OCR 图片取字</b> → 需要多模态模型（通义千问-VL / 智谱 GLM-4V），或本地 PaddleOCR</li>
+    <li><b>不想出网</b> → 本地 Ollama 跑 Qwen2.5，效果略降但数据不出本机</li>
+  </ul>
+
+  <h2>五、需要你拍板的几件事</h2>
+  <table>
+    <tr><th style="width:34%">问题</th><th>我的建议</th></tr>
+    <tr><td>主用哪个 AI 服务商？</td><td>DeepSeek-V3（可后续在设置里随时换）</td></tr>
+    <tr><td>要不要做多角色配音？</td><td>要。这是"配音"和"朗读"的分界线，后端本来就支持多音色</td></tr>
+    <tr><td>音乐模块怎么办？</td><td>移出主导航，收进设置当实验功能（后端至今没有音乐接口）</td></tr>
+    <tr><td>改动量很大，怎么推进？</td><td>分两批：先做 <span class="star">★</span> 里的 <b>A1 A2 B1 B2 B3 C1 C2 C7 D1 E1 E2 H1</b>（能跑通完整链路），再补多角色和工程存档</td></tr>
+  </table>
+
+  <div class="card warn">
+    <h3 style="margin-top:0">现状说明</h3>
+    <p style="margin-bottom:0">这是<b>设计提案</b>，<code>renderer/</code> 里的代码没有动。当前应用跑的还是
+    「左侧文字侧边栏 + 明亮现代 / 黑白水墨双主题」那一版。</p>
+  </div>
+
+</div>
+</body>
+</html>
