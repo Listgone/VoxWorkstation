@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>VoxWorkstation · 水墨主题应用效果</title>
+<style>
+  body{margin:0;padding:26px 30px 60px;background:#f2f2f0;color:#1d1d1b;
+       font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  h1{font-size:20px;font-weight:600;margin:0 0 6px}
+  .sub{font-size:13px;color:#77776f;margin-bottom:8px;line-height:1.7}
+  code{background:#e7e5e0;padding:1px 6px;border-radius:4px;font-size:12px}
+  h2{font-size:15px;font-weight:600;margin:30px 0 12px;padding-bottom:6px;border-bottom:1px solid #ddd}
+  .shot{background:#fff;border:1px solid #e0e0dc;border-radius:10px;padding:12px;margin-bottom:16px}
+  .shot p{margin:0 0 10px;font-size:12.5px;color:#66665f}
+  img{width:100%;display:block;border:1px solid #e8e8e4;border-radius:6px}
+  .note{background:#fff8e6;border:1px solid #f0e0b0;border-radius:8px;padding:12px 16px;
+        font-size:12.5px;line-height:1.8;margin:18px 0 0}
+</style>
+</head>
+<body>
+  <h1>水墨主题 · 已全局应用</h1>
+  <div class="sub">
+    这是<strong>真实应用</strong>（不是设计稿）跑出来的截图，各页面均已应用。<br>
+    想亲眼看动效：在 <code>D:\VoxWorkstation</code> 下执行 <code>npm start</code>，
+    初始是「明亮现代」，点右上角 ☀ 图标切到「黑白水墨」。
+  </div>
+
+  <div class="note">
+    <strong>动效清单</strong>（水墨主题下启用，明亮现代下全部关闭）<br>
+    · 背景三层山水：远山 150s 横移 / 中景 110s 反向 / 近景 130s，形成视差<br>
+    · 云雾 70–88s 漂移 + 13–17s 呼吸明暗<br>
+    · 墨点 8 颗自下而上浮动（17–26s 随机周期）<br>
+    · 启动时一团墨晕化开（2.6s）<br>
+    · 侧边栏选中项用 <code>scaleY</code> 笔锋写出<br>
+    · 卡片墨滴化开：<code>blur(4px)</code> 聚焦，逐张错开 80ms<br>
+    · 全部在 <code>prefers-reduced-motion</code> 下自动停用
+  </div>
+
+  <h2>水墨主题</h2>
+  <div class="shot"><p>配音工作台</p><img src="app-ink-dub.png" alt="配音"></div>
+  <div class="shot"><p>音色库</p><img src="app-ink-library.png" alt="音色库"></div>
+  <div class="shot"><p>克隆源</p><img src="app-ink-studio.png" alt="克隆源"></div>
+  <div class="shot"><p>音乐生成</p><img src="app-ink-music.png" alt="音乐"></div>
+  <div class="shot"><p>设置</p><img src="app-ink-settings.png" alt="设置"></div>
+
+  <h2>明亮现代（主主题，无背景图、无动效）</h2>
+  <div class="shot"><p>配音工作台</p><img src="app-light-dub.png" alt="明亮现代配音"></div>
+</body>
+</html>

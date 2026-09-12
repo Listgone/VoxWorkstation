@@ -1,5 +1,6 @@
 /* ==========================================
-   App - Main application controller v4
+   App - Main application controller v5
+   骨架：左侧文字侧边栏 + 主内容
    ========================================== */
 
 const App = {
@@ -14,9 +15,18 @@ const App = {
     settings: SettingsModule
   },
 
+  _pageMeta: {
+    dub:      ['配音工作台', '选择音色 · 输入文本 · 生成配音'],
+    library:  ['音色库',     '管理音色与声纹文件'],
+    studio:   ['克隆源',     '音色设计 · 可控克隆 · 极致克隆'],
+    music:    ['音乐生成',   'AI 音乐生成（后端未接入）'],
+    settings: ['设置',       '外观与后端配置']
+  },
+
   async init() {
-    const savedTheme = localStorage.getItem('vox-theme') || 'dark';
-    document.documentElement.setAttribute('data-theme', savedTheme);
+    // 主主题「明亮现代」；旧版本存的 dark/其他值一律回落到 light
+    const saved = localStorage.getItem('vox-theme');
+    document.documentElement.setAttribute('data-theme', saved === 'ink' ? 'ink' : 'light');
     await API.init();
     this._setupWindowControls();
     this._setupThemeToggle();
@@ -29,7 +39,6 @@ const App = {
     this._startLoadingTicker();
 
     if (!window.electronAPI) {
-      // 浏览器里直接打开（无 Electron 壳）：给个兜底，方便单独调试 UI
       setTimeout(() => this._onServerReady(), 500);
       return;
     }
@@ -38,8 +47,13 @@ const App = {
     window.electronAPI.onServerStatus((data) => {
       if (!data) return;
       if (data.status === 'ready') this._onServerReady();
-      else if (data.status === 'starting') this._setLoadingText(data.message || '正在启动引擎...');
-      else if (data.status === 'error') this._onServerError(data.message);
+      else if (data.status === 'starting') {
+        this._setLoadingText(data.message || '正在启动引擎...');
+        this._setSideStatus('启动中…');
+      } else if (data.status === 'error') {
+        this._onServerError(data.message);
+        this._setSideStatus('未连接');
+      }
     });
 
     document.getElementById('loading-retry')?.addEventListener('click', async () => {
@@ -55,6 +69,11 @@ const App = {
         this._onServerError(e.message);
       }
     });
+  },
+
+  _setSideStatus(text) {
+    const el = document.getElementById('side-status');
+    if (el) el.textContent = text;
   },
 
   _startLoadingTicker() {
@@ -88,38 +107,46 @@ const App = {
   },
 
   _onServerReady() {
+    clearInterval(this._loadingTimer);
+    this._setSideStatus('已就绪');
     if (this._ready) return;
     this._ready = true;
-    clearInterval(this._loadingTimer);
     const overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.style.display = 'none';
     const shell = document.getElementById('app-shell');
     if (shell) shell.style.display = 'flex';
+    // 水墨主题：外壳出现时播一次墨晕化开
+    const bloom = document.getElementById('ink-bloom');
+    if (bloom) {
+      bloom.classList.remove('play');
+      void bloom.offsetWidth;          // 强制重排，让动画能重播
+      bloom.classList.add('play');
+    }
     this._switchModule('dub');
     GpuMonitor.start();
   },
 
-  /* ── 主题 ─────────────────────────────────── */
+  /* ── 主题（明亮现代 ⇄ 黑白水墨）────────────── */
   _setupThemeToggle() {
     const apply = (theme) => {
+      if (theme !== 'ink') theme = 'light';
       document.documentElement.setAttribute('data-theme', theme);
       localStorage.setItem('vox-theme', theme);
-      // 让波形等 canvas 重绘以取到新的 --accent
       window.dispatchEvent(new CustomEvent('vox:theme-changed', { detail: { theme } }));
     };
     this.applyTheme = apply;
 
     document.getElementById('btn-theme')?.addEventListener('click', () => {
-      const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-      apply(next);
+      const cur = document.documentElement.getAttribute('data-theme');
+      apply(cur === 'ink' ? 'light' : 'ink');
       const sel = document.getElementById('settings-theme');
-      if (sel) sel.value = next;
+      if (sel) sel.value = document.documentElement.getAttribute('data-theme');
     });
   },
 
-  /* ── 导航 ─────────────────────────────────── */
+  /* ── 侧边栏导航 ───────────────────────────── */
   _setupNav() {
-    document.querySelectorAll('.nav-btn').forEach(btn => {
+    document.querySelectorAll('#sidebar .nav-item').forEach(btn => {
       btn.addEventListener('click', async () => {
         const m = btn.dataset.module;
         if (!m || m === this._currentModule) return;
@@ -129,11 +156,10 @@ const App = {
   },
 
   async _switchModule(name) {
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#sidebar .nav-item').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.module').forEach(m => m.classList.remove('active'));
-    document.querySelector('.nav-btn[data-module="' + name + '"]')?.classList.add('active');
+    document.querySelector('#sidebar .nav-item[data-module="' + name + '"]')?.classList.add('active');
     document.getElementById('module-' + name)?.classList.add('active');
-    document.getElementById('side-panel')?.classList.toggle('visible', name === 'dub');
 
     const module = this._modules[name];
     if (module && !this._inited.has(name)) {
@@ -141,7 +167,6 @@ const App = {
       try {
         await module.init(document.getElementById('module-' + name));
       } catch (e) {
-        // 初始化失败不要留下半截 DOM，允许下次再试
         this._inited.delete(name);
         console.error('模块初始化失败:', name, e);
         if (typeof Toast !== 'undefined') Toast.error(this._moduleLabel(name) + ' 加载失败：' + e.message, true);
@@ -149,10 +174,13 @@ const App = {
     }
     module?.onActivate?.();
     this._currentModule = name;
+
+    const scroll = document.querySelector('.page-scroll');
+    if (scroll) scroll.scrollTop = 0;
   },
 
   _moduleLabel(name) {
-    return { dub: '配音工作台', library: '音色库', studio: '克隆源', music: '音乐生成', settings: '设置' }[name] || name;
+    return (this._pageMeta[name] || [name])[0];
   },
 
   /* ── 窗口按钮 ─────────────────────────────── */
@@ -171,8 +199,8 @@ const App = {
     if (!btn) return;
     const m = window.outerWidth >= screen.availWidth - 10 && window.outerHeight >= screen.availHeight - 10;
     btn.innerHTML = m
-      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="12" height="12"/><polyline points="8 16 4 16 4 4 16 4 16 8"/></svg>'
-      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16"/></svg>';
+      ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="8" width="12" height="12"/><polyline points="8 16 4 16 4 4 16 4 16 8"/></svg>'
+      : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16"/></svg>';
   }
 };
 

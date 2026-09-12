@@ -22,8 +22,9 @@ const AudioPlayer = {
       + '<div class="ap-controls">'
       + '<button class="btn-icon ap-play-btn" data-state="idle" title="播放"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>'
       + '<div class="ap-progress"><div class="ap-progress-fill"></div></div>'
-      + '<span class="ap-time">00:00 / 00:00</span></div>'
-      + '<div class="ap-actions"><button class="btn btn-sm btn-ghost ap-dl-btn">下载</button></div></div>';
+      + '<span class="ap-time">00:00 / 00:00</span>'
+      + '<button class="btn btn-sm btn-ghost ap-dl-btn" title="下载 WAV"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 下载</button>'
+      + '</div></div>';
 
     const el = container.querySelector('.audio-player');
     const canvas = el.querySelector('.ap-waveform');

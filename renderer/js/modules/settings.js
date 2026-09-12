@@ -7,7 +7,7 @@ const SettingsModule = {
 
   async init(container) {
     container.innerHTML = '<div class="card"><div class="section-title">外观</div>'
-      + '<div class="form-group"><label class="form-label">主题</label><select id="settings-theme"><option value="dark">暗色</option><option value="light">亮色</option></select></div></div>'
+      + '<div class="form-group"><label class="form-label">主题</label><select id="settings-theme"><option value="light">明亮现代</option><option value="ink">黑白水墨</option></select></div></div>'
       + '<div class="card"><div class="section-title">后端</div>'
       + '<div class="form-group"><label class="form-label">服务地址</label><input type="text" id="settings-server-url" readonly></div>'
       + '<div class="form-group mt-8"><label class="form-label">后端目录</label><input type="text" id="settings-server-dir" readonly></div>'

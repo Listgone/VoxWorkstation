@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>VoxWorkstation 配色方案预览</title>
+<style>
+  body{margin:0;padding:28px 32px 48px;background:#f4f4f2;color:#1d1d1b;
+       font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  h1{font-size:20px;font-weight:600;margin:0 0 6px}
+  .sub{font-size:13px;color:#77776f;margin-bottom:24px}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;max-width:1500px}
+  .item{background:#fff;border:1px solid #e3e3df;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+  .head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+  .name{font-size:16px;font-weight:600}
+  .desc{font-size:12px;color:#7c7c76}
+  img{width:100%;display:block;border:1px solid #e8e8e4;border-radius:6px}
+  .sw{display:flex;gap:14px;margin-top:14px;flex-wrap:wrap}
+  .s{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+  .chip{width:56px;height:30px;border-radius:5px;border:1px solid rgba(0,0,0,.16)}
+  .lb{font-size:10.5px;color:#8d8d86}
+  .hx{font-size:10.5px;color:#4a4a46;font-family:Consolas,monospace}
+  code{background:#eceae4;padding:1px 6px;border-radius:4px;font-size:12px}
+</style>
+</head>
+<body>
+  <h1>VoxWorkstation 配色方案 · 4 选 1</h1>
+  <div class="sub">骨架与内容完全一致，只有颜色不同。看完直接告诉我编号（V1 / V2 / V3 / V4）即可。</div>
+
+  <div class="grid">
+    <div class="item">
+      <div class="head"><span class="name">V1 宣纸</span><span class="desc">米黄底 + 朱砂红（当前实现）</span></div>
+      <img src="color-V1-paper.png" alt="V1">
+      <div class="sw">
+        <div class="s"><span class="chip" style="background:#efe9dc"></span><span class="lb">底色</span><span class="hx">#efe9dc</span></div>
+        <div class="s"><span class="chip" style="background:#faf7f0"></span><span class="lb">卡片</span><span class="hx">#faf7f0</span></div>
+        <div class="s"><span class="chip" style="background:#d9cfba"></span><span class="lb">边框</span><span class="hx">#d9cfba</span></div>
+        <div class="s"><span class="chip" style="background:#2b2620"></span><span class="lb">文字</span><span class="hx">#2b2620</span></div>
+        <div class="s"><span class="chip" style="background:#9e2b25"></span><span class="lb">强调</span><span class="hx">#9e2b25</span></div>
+      </div>
+    </div>
+
+    <div class="item">
+      <div class="head"><span class="name">V2 素笺</span><span class="desc">底子提到接近白，去掉土黄感</span></div>
+      <img src="color-V2-clean.png" alt="V2">
+      <div class="sw">
+        <div class="s"><span class="chip" style="background:#f7f4ed"></span><span class="lb">底色</span><span class="hx">#f7f4ed</span></div>
+        <div class="s"><span class="chip" style="background:#ffffff"></span><span class="lb">卡片</span><span class="hx">#ffffff</span></div>
+        <div class="s"><span class="chip" style="background:#e4ded1"></span><span class="lb">边框</span><span class="hx">#e4ded1</span></div>
+        <div class="s"><span class="chip" style="background:#2a2723"></span><span class="lb">文字</span><span class="hx">#2a2723</span></div>
+        <div class="s"><span class="chip" style="background:#9e2b25"></span><span class="lb">强调</span><span class="hx">#9e2b25</span></div>
+      </div>
+    </div>
+
+    <div class="item">
+      <div class="head"><span class="name">V3 青瓷</span><span class="desc">冷调青绿主色，不是红调</span></div>
+      <img src="color-V3-celadon.png" alt="V3">
+      <div class="sw">
+        <div class="s"><span class="chip" style="background:#eef2f0"></span><span class="lb">底色</span><span class="hx">#eef2f0</span></div>
+        <div class="s"><span class="chip" style="background:#ffffff"></span><span class="lb">卡片</span><span class="hx">#ffffff</span></div>
+        <div class="s"><span class="chip" style="background:#d5ded9"></span><span class="lb">边框</span><span class="hx">#d5ded9</span></div>
+        <div class="s"><span class="chip" style="background:#1f2a26"></span><span class="lb">文字</span><span class="hx">#1f2a26</span></div>
+        <div class="s"><span class="chip" style="background:#2f5d52"></span><span class="lb">强调</span><span class="hx">#2f5d52</span></div>
+      </div>
+    </div>
+
+    <div class="item">
+      <div class="head"><span class="name">V4 素墨</span><span class="desc">墨黑主色，朱砂只做小面积点缀</span></div>
+      <img src="color-V4-ink-black.png" alt="V4">
+      <div class="sw">
+        <div class="s"><span class="chip" style="background:#f6f6f4"></span><span class="lb">底色</span><span class="hx">#f6f6f4</span></div>
+        <div class="s"><span class="chip" style="background:#ffffff"></span><span class="lb">卡片</span><span class="hx">#ffffff</span></div>
+        <div class="s"><span class="chip" style="background:#e2e2de"></span><span class="lb">边框</span><span class="hx">#e2e2de</span></div>
+        <div class="s"><span class="chip" style="background:#1c1c1a"></span><span class="lb">文字</span><span class="hx">#1c1c1a</span></div>
+        <div class="s"><span class="chip" style="background:#26241f"></span><span class="lb">强调</span><span class="hx">#26241f</span></div>
+        <div class="s"><span class="chip" style="background:#9e2b25"></span><span class="lb">点缀</span><span class="hx">#9e2b25</span></div>
+      </div>
+    </div>
+  </div>
+
+  <p style="margin-top:26px;font-size:12.5px;color:#77776f">
+    想混搭也行，比如「V2 的底 + V4 的墨黑主色」，或者直接说哪一项不对：
+    <code>底色</code> <code>强调色</code> <code>文字</code> <code>边框</code>
+  </p>
+</body>
+</html>

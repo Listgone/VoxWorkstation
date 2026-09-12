@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="ink">
+<head>
+<meta charset="UTF-8">
+<title>VoxWorkstation · 水墨动态 UI 预览</title>
+<style>
+:root{
+  --paper:#f7f7f5; --side:#fbfbf9; --card:#ffffff; --elev:#f1f1ee;
+  --line:#dededa; --line-soft:#eaeae6;
+  --ink:#161614; --ink-dim:#55554f; --ink-mute:#93938c;
+  --accent:#1c1c1a; --accent-soft:rgba(22,22,20,.07);
+  --blue:#0969da; --blue-soft:rgba(9,105,218,.08);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:13px;line-height:1.5;color:var(--ink);background:var(--paper);
+  display:flex;flex-direction:column;position:relative;
+}
+
+/* ══════════ 水墨背景层（主题切换控制显隐）══════════ */
+.ink-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+  opacity:1;transition:opacity .5s ease}
+[data-theme="light"] .ink-bg{opacity:0}
+.ink-bg svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* 远山极慢横移 */
+@keyframes drift-far  { from{transform:translateX(0)}      to{transform:translateX(-60px)} }
+@keyframes drift-mid  { from{transform:translateX(0)}      to{transform:translateX(-110px)} }
+@keyframes drift-cloud{ from{transform:translateX(-8%)}    to{transform:translateX(8%)} }
+@keyframes cloudPuff  { 0%,100%{opacity:.55;transform:scale(1)} 50%{opacity:.85;transform:scale(1.06)} }
+@keyframes floatUp    { 0%{transform:translateY(0);opacity:0}
+                        15%{opacity:.5}
+                        85%{opacity:.5}
+                        100%{transform:translateY(-120px);opacity:0} }
+@keyframes inkBloom   { 0%{transform:scale(.25);opacity:.55}
+                        70%{opacity:.18}
+                        100%{transform:scale(2.4);opacity:0} }
+
+/* 墨点 */
+.specks i{position:absolute;display:block;border-radius:50%;background:#161614;opacity:0;
+  animation:floatUp linear infinite}
+.specks i:nth-child(1){left:12%;bottom:18%;width:3px;height:3px;animation-duration:17s;animation-delay:0s}
+.specks i:nth-child(2){left:26%;bottom:26%;width:2px;height:2px;animation-duration:21s;animation-delay:2.5s}
+.specks i:nth-child(3){left:41%;bottom:14%;width:4px;height:4px;animation-duration:19s;animation-delay:5s}
+.specks i:nth-child(4){left:58%;bottom:22%;width:2px;height:2px;animation-duration:24s;animation-delay:1.2s}
+.specks i:nth-child(5){left:71%;bottom:16%;width:3px;height:3px;animation-duration:18s;animation-delay:7s}
+.specks i:nth-child(6){left:84%;bottom:24%;width:2px;height:2px;animation-duration:22s;animation-delay:3.8s}
+.specks i:nth-child(7){left:33%;bottom:30%;width:2px;height:2px;animation-duration:26s;animation-delay:9s}
+.specks i:nth-child(8){left:66%;bottom:32%;width:3px;height:3px;animation-duration:20s;animation-delay:11s}
+
+/* 进场墨晕 */
+.bloom{position:fixed;left:50%;top:38%;width:520px;height:520px;margin:-260px 0 0 -260px;
+  border-radius:50%;pointer-events:none;z-index:0;
+  background:radial-gradient(circle,rgba(22,22,20,.16),rgba(22,22,20,.05) 45%,transparent 70%);
+  animation:inkBloom 2.6s cubic-bezier(.2,.8,.3,1) 1 both}
+[data-theme="light"] .bloom{display:none}
+
+/* ══════════ 界面 ══════════ */
+.titlebar{position:relative;z-index:2;height:36px;min-height:36px;display:flex;align-items:center;
+  background:var(--side);border-bottom:1px solid var(--line);padding-left:16px}
+.brand{flex:1;display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;letter-spacing:.04em}
+[data-theme="ink"] .brand{font-family:"Songti SC","SimSun",serif}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--ink)}
+.winbtns{display:flex;height:100%}
+.winbtns i{width:42px;height:100%;display:flex;align-items:center;justify-content:center;
+  color:var(--ink-mute);font-style:normal;font-size:12px}
+
+.shell{position:relative;z-index:1;flex:1;display:flex;overflow:hidden}
+.sidebar{width:216px;min-width:216px;background:var(--side);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;padding:14px 10px 10px}
+.side-label{font-size:10.5px;font-weight:600;letter-spacing:.14em;color:var(--ink-mute);padding:0 10px 10px}
+[data-theme="ink"] .side-label,[data-theme="ink"] .card h2{font-family:"Songti SC","SimSun",serif}
+.nav-item{position:relative;display:flex;align-items:center;gap:10px;height:36px;padding:0 10px;
+  border-radius:6px;color:var(--ink-dim);font-size:13px;margin-bottom:2px}
+.nav-item.on{background:var(--accent-soft);color:var(--ink);font-weight:600}
+/* 笔锋：水墨主题下用一条手绘笔触而不是纯色条 */
+.nav-item.on .brush{position:absolute;left:-10px;top:6px;bottom:6px;width:6px}
+.nav-item.on .brush path{stroke:var(--ink);stroke-width:2.4;fill:none;stroke-linecap:round;
+  stroke-dasharray:26;stroke-dashoffset:0;
+  animation:brushDraw .45s cubic-bezier(.2,.8,.3,1) both}
+[data-theme="light"] .nav-item.on .brush path{stroke:var(--blue)}
+@keyframes brushDraw{from{stroke-dashoffset:26}to{stroke-dashoffset:0}}
+.side-foot{margin-top:auto;padding-top:10px;border-top:1px solid var(--line-soft)}
+.side-meta{padding:10px 10px 2px;font-size:11px;color:var(--ink-mute);line-height:1.6}
+
+.main{flex:1;overflow-y:auto;padding:18px 26px 32px}
+.wb{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start;
+  max-width:1180px;margin:0 auto}
+.card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:8px;
+  padding:15px 16px;margin-bottom:12px;overflow:hidden}
+/* 卡片：墨滴化开 */
+@keyframes inkSpread{from{opacity:0;transform:translateY(8px);filter:blur(4px)}
+                     to{opacity:1;transform:translateY(0);filter:blur(0)}}
+.card{animation:inkSpread .5s cubic-bezier(.2,.8,.3,1) both}
+.card:nth-child(2){animation-delay:.08s}
+.card:nth-child(3){animation-delay:.16s}
+.card h2{font-size:12.5px;font-weight:600;letter-spacing:.06em;margin-bottom:12px;
+  display:flex;align-items:center;justify-content:space-between}
+.card h2 span{font-size:11px;font-weight:400;color:var(--ink-mute);font-family:inherit;letter-spacing:0}
+
+.voices{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.voice{border:1px solid var(--line);border-radius:6px;background:var(--paper);
+  padding:13px 9px;text-align:center;position:relative}
+.voice.on{border-color:var(--ink);background:var(--accent-soft)}
+.voice.on::after{content:'✓';position:absolute;top:5px;right:8px;font-size:12px;font-weight:700}
+.voice .ic{color:var(--ink-mute);margin-bottom:6px}
+.voice b{display:block;font-size:12.5px;font-weight:600}
+.voice em{display:block;font-style:normal;font-size:11px;color:var(--ink-mute);margin-top:2px}
+.tag{display:inline-block;font-size:10px;padding:1px 7px;border-radius:10px;margin-top:6px;
+  background:rgba(22,22,20,.06);color:var(--ink-dim)}
+
+textarea{width:100%;height:78px;background:var(--card);border:1px solid var(--line);border-radius:6px;
+  padding:9px 11px;color:var(--ink);font-family:inherit;font-size:13px;line-height:1.65;resize:none}
+.row{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+.mut{font-size:11.5px;color:var(--ink-mute)}
+.chips{display:flex;gap:4px;align-items:center}
+.chip{font-size:11px;padding:2px 8px;border:1px solid var(--line);border-radius:5px;
+  color:var(--ink-dim);background:var(--paper)}
+
+.param{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.param label{font-size:12px;color:var(--ink-dim);width:44px;flex-shrink:0}
+.track{flex:1;height:4px;background:var(--line);border-radius:2px;position:relative}
+.track i{position:absolute;left:0;top:0;bottom:0;background:var(--ink);border-radius:2px}
+.track u{position:absolute;top:-5px;width:14px;height:14px;border-radius:50%;background:var(--ink);
+  border:2px solid var(--card);text-decoration:none}
+.param b{font-size:12px;width:38px;text-align:right;font-variant-numeric:tabular-nums}
+
+.btns{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.btn{height:33px;border-radius:6px;border:1px solid var(--line);background:var(--elev);color:var(--ink);
+  font-size:13px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:6px;
+  font-family:inherit;position:relative;overflow:hidden}
+.btn.pri{background:var(--ink);border-color:var(--ink);color:#fbfbf9;font-weight:600;letter-spacing:.08em}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--ink-dim);height:28px;font-size:12px}
+
+.hist{font-size:12px}
+.hist div{display:flex;gap:10px;padding:7px 8px;border-bottom:1px solid var(--line-soft)}
+.hist div:last-child{border-bottom:none}
+.hist time{color:var(--ink-mute);font-variant-numeric:tabular-nums;width:54px;flex-shrink:0}
+.hist span{color:var(--ink-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.statusbar{position:relative;z-index:1;height:26px;min-height:26px;background:var(--side);
+  border-top:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:0 16px;
+  font-size:11px;color:var(--ink-mute)}
+.statusbar .r{margin-left:auto}
+
+/* 预览用的主题开关 */
+.switch{position:fixed;right:18px;bottom:44px;z-index:99;display:flex;gap:0;
+  border:1px solid var(--line);border-radius:8px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.10)}
+.switch button{border:none;background:var(--card);color:var(--ink-dim);font-family:inherit;font-size:12px;
+  padding:8px 14px;cursor:pointer}
+.switch button.on{background:var(--ink);color:#fbfbf9;font-weight:600}
+</style>
+</head>
+<body>
+
+<!-- ═══════ 水墨山水背景 ═══════ -->
+<div class="ink-bg" aria-hidden="true">
+  <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMax slice">
+    <defs>
+      <!-- 墨迹毛边：用湍流噪声把平滑路径打散成毛笔边缘 -->
+      <filter id="inkEdge" x="-10%" y="-10%" width="120%" height="120%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.011 0.019" numOctaves="3" seed="12" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="26" xChannelSelector="R" yChannelSelector="G"/>
+      </filter>
+      <filter id="inkEdgeSoft" x="-10%" y="-10%" width="120%" height="120%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.016 0.026" numOctaves="2" seed="5" result="n"/>
+        <feDisplacementMap in="SourceGraphic" in2="n" scale="16" xChannelSelector="R" yChannelSelector="G"/>
+        <feGaussianBlur stdDeviation="1.2"/>
+      </filter>
+      <filter id="cloudBlur"><feGaussianBlur stdDeviation="26"/></filter>
+      <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+        <stop offset="1" stop-color="#fff" stop-opacity=".8"/>
+      </linearGradient>
+    </defs>
+
+    <!-- 远山（最淡，最慢） -->
+    <g filter="url(#inkEdgeSoft)" opacity=".13" style="animation:drift-far 150s ease-in-out infinite alternate">
+      <path fill="#161614" d="M-100,640 L60,520 L150,566 L280,432 L400,520 L520,392
+        L660,500 L800,430 L930,520 L1060,436 L1200,520 L1330,452 L1470,540 L1600,470
+        L1700,540 L1700,900 L-100,900 Z"/>
+    </g>
+
+    <!-- 中景山（主视觉，笔锋明显） -->
+    <g filter="url(#inkEdge)" opacity=".24" style="animation:drift-mid 110s ease-in-out infinite alternate">
+      <path fill="#161614" d="M-100,760 L40,600 L170,690 L300,520 L420,640 L520,560
+        L640,700 L780,600 L900,720 L1040,620 L1180,730 L1320,650 L1460,760 L1600,690
+        L1700,760 L1700,900 L-100,900 Z"/>
+    </g>
+
+    <!-- 近景坡石（最重） -->
+    <g filter="url(#inkEdge)" opacity=".30" style="animation:drift-far 130s ease-in-out infinite alternate-reverse">
+      <path fill="#161614" d="M-100,830 L120,790 L300,820 L470,780 L650,818 L840,786
+        L1020,824 L1210,792 L1400,828 L1600,800 L1700,820 L1700,900 L-100,900 Z"/>
+    </g>
+
+    <!-- 云雾：横向漂移 + 呼吸 -->
+    <g filter="url(#cloudBlur)">
+      <ellipse cx="330" cy="640" rx="290" ry="46" fill="#ffffff" opacity=".75"
+        style="animation:drift-cloud 70s ease-in-out infinite alternate, cloudPuff 13s ease-in-out infinite"/>
+      <ellipse cx="880" cy="700" rx="340" ry="40" fill="#ffffff" opacity=".7"
+        style="animation:drift-cloud 88s ease-in-out infinite alternate-reverse, cloudPuff 17s ease-in-out infinite"/>
+      <ellipse cx="1330" cy="650" rx="250" ry="38" fill="#ffffff" opacity=".65"
+        style="animation:drift-cloud 76s ease-in-out infinite alternate, cloudPuff 15s ease-in-out infinite"/>
+    </g>
+
+    <!-- 顶部淡出，避免干扰文字 -->
+    <rect x="0" y="0" width="1600" height="900" fill="url(#fade)" opacity=".55"/>
+  </svg>
+
+  <div class="specks">
+    <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+  </div>
+</div>
+<div class="bloom"></div>
+
+<!-- ═══════ 界面 ═══════ -->
+<div class="titlebar">
+  <div class="brand"><span class="dot"></span> VoxWorkstation</div>
+  <div class="winbtns"><i>─</i><i>□</i><i>✕</i></div>
+</div>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="side-label">工作台</div>
+    <div class="nav-item on">
+      <svg class="brush" viewBox="0 0 6 24"><path d="M3,1 C1.4,7 4.6,12 3,18 C2.2,21 3.4,22.5 3,23"/></svg>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>配音</div>
+    <div class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>音色库</div>
+    <div class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>克隆源</div>
+    <div class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>音乐</div>
+    <div class="side-foot">
+      <div class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>设置</div>
+      <div class="side-meta">VoxCPM2 引擎<br>已就绪 · 显存 8.0G</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="wb">
+      <div>
+        <div class="card">
+          <h2>音色选择 <span>未选择（音色设计）</span></h2>
+          <div class="voices">
+            <div class="voice on"><div class="ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></div><b>温柔女声</b><em>温柔,清澈</em><span class="tag">有声纹</span></div>
+            <div class="voice"><div class="ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></div><b>沉稳男声</b><em>低沉,有磁性</em><span class="tag">有声纹</span></div>
+            <div class="voice"><div class="ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></div><b>旁白标准音</b><em>中性,标准</em></div>
+            <div class="voice"><div class="ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></div><b>少年音</b><em>清亮</em></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>文本输入</h2>
+          <textarea>你好，这是一段用于试听效果的示例文本。生成后可以直接在下方试听并导出 WAV。</textarea>
+          <div class="row">
+            <span class="mut">38 字</span>
+            <div class="chips"><span class="mut">语气</span><span class="chip">笑</span><span class="chip">叹息</span><span class="chip">思考</span><span class="chip">疑问</span><span class="chip">惊讶</span></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:0">
+          <h2>生成结果 <span>0:04 / 0:12</span></h2>
+          <div style="height:56px;border-radius:4px;background:var(--paper);border:1px solid var(--line-soft);display:flex;align-items:center;padding:0 10px;overflow:hidden">
+            <div id="wave" style="display:flex;align-items:center;gap:2px;width:100%;height:38px"></div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <div style="display:flex;align-items:center;gap:10px;flex:1">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+              <div class="track"><i style="width:34%"></i><u style="left:calc(34% - 7px)"></u></div>
+              <span class="mut" style="font-variant-numeric:tabular-nums">0:04 / 0:12</span>
+            </div>
+            <span class="btn" style="height:28px;font-size:12px;padding:0 10px;width:auto">下载</span>
+          </div>
+        </div>
+      </div>
+
+      <aside>
+        <div class="card">
+          <h2>生成参数</h2>
+          <div class="param"><label>音量</label><div class="track"><i style="width:50%"></i><u style="left:calc(50% - 7px)"></u></div><b>100%</b></div>
+          <div class="param"><label>语速</label><div class="track"><i style="width:33%"></i><u style="left:calc(33% - 7px)"></u></div><b>1.0x</b></div>
+          <div class="param"><label>音调</label><div class="track"><i style="width:50%"></i><u style="left:calc(50% - 7px)"></u></div><b>0</b></div>
+          <div class="param"><label>稳定性</label><div class="track"><i style="width:50%"></i><u style="left:calc(50% - 7px)"></u></div><b>2.0</b></div>
+          <div class="param"><label>质量</label><div class="track"><i style="width:20%"></i><u style="left:calc(20% - 7px)"></u></div><b>10</b></div>
+          <div class="btns">
+            <span class="btn pri">生 成 配 音</span>
+            <span class="btn">导出 WAV</span>
+            <span class="btn ghost">恢复默认</span>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:0">
+          <h2>生成历史</h2>
+          <div class="hist">
+            <div><time>14:25:10</time><span>这是克隆模式生成的一段…</span></div>
+            <div><time>14:22:31</time><span>你好，这是一段音色设计…</span></div>
+            <div><time>14:20:02</time><span>第二段设计音频内容比较…</span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+
+<div class="statusbar"><span>就绪</span><span>3 次生成 · 1 次下载</span><span class="r">GPU 8.0G / 24.0G</span></div>
+
+<div class="switch">
+  <button id="btn-ink" class="on">黑白水墨（动效）</button>
+  <button id="btn-light">明亮现代</button>
+</div>
+
+<script>
+(function () {
+  // 水墨笔触波形
+  const host = document.getElementById('wave');
+  const n = 108;
+  for (let i = 0; i < n; i++) {
+    const t = i / n;
+    const env = Math.sin(Math.PI * t) * (0.45 + 0.55 * Math.abs(Math.sin(t * 9.3)));
+    const d = document.createElement('div');
+    const played = t < 0.34;
+    d.style.cssText = 'flex:1;height:' + Math.max(2, env * 34).toFixed(1) +
+      'px;border-radius:1px;background:var(--ink);opacity:' + (played ? .95 : .3);
+    host.appendChild(d);
+  }
+
+  const ink = document.getElementById('btn-ink');
+  const light = document.getElementById('btn-light');
+  const setTheme = (t) => {
+    document.documentElement.dataset.theme = t;
+    ink.classList.toggle('on', t === 'ink');
+    light.classList.toggle('on', t === 'light');
+  };
+  ink.addEventListener('click', () => setTheme('ink'));
+  light.addEventListener('click', () => setTheme('light'));
+})();
+</script>
+</body>
+</html>
