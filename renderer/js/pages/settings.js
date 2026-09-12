@@ -78,13 +78,17 @@ const SettingsPage = {
   _sw(on, act) { return '<label class="sw' + (on ? '' : ' off') + '" data-act="' + act + '"></label>'; },
 
   _appearance(s) {
-    const theme = document.documentElement.getAttribute('data-theme');
+    const theme = document.documentElement.getAttribute('data-theme') || 'light';
+    const TH = [
+      ['light', '明亮现代', '默认 · 干净 · 无动效', 'thprev-a'],
+      ['glass', '液态玻璃', '毛玻璃 + 彩色光斑', 'thprev-g'],
+      ['construct', '构成主义', '粗边分格 + 苏式红', 'thprev-c']
+    ];
     return '<div class="card"><h2>外观与主题</h2>'
       + '<div class="themes">'
-      + '<div class="th' + (theme !== 'glass' ? ' on' : '') + '" data-theme-pick="light">'
-      + '<div class="thprev thprev-a"></div><b>明亮现代</b><span>默认 · 干净 · 无动效</span></div>'
-      + '<div class="th' + (theme === 'glass' ? ' on' : '') + '" data-theme-pick="glass">'
-      + '<div class="thprev thprev-g"></div><b>液态玻璃</b><span>毛玻璃 + 彩色光斑</span></div>'
+      + TH.map(([id, name, sub, prev]) =>
+          '<div class="th' + (theme === id ? ' on' : '') + '" data-theme-pick="' + id + '">'
+          + '<div class="thprev ' + prev + '"></div><b>' + name + '</b><span>' + sub + '</span></div>').join('')
       + '</div>'
       + this._row('界面缩放', '高分屏可调大（立即生效）',
           '<select id="s-scale" style="width:120px">'
@@ -115,12 +119,13 @@ const SettingsPage = {
       + '</div>'
       + this._row('接口地址', 'OpenAI 兼容 baseURL，末尾不用带 /chat/completions',
           '<input type="text" id="ai-base" value="' + Util.escapeAttr(ai.baseURL || cur.base) + '" style="width:340px">')
-      + this._row('模型', '列出的为该服务商常用模型，可选「自定义」手填',
-          '<select id="ai-model-sel" style="width:230px">'
-          + models.map(m => '<option value="' + Util.escapeAttr(m) + '"'
-              + (!isCustomModel && ai.model === m ? ' selected' : '') + '>' + Util.escapeHtml(m) + '</option>').join('')
-          + '<option value="__custom__"' + (isCustomModel || !models.length ? ' selected' : '') + '>自定义…</option>'
-          + '</select>'
+      + this._row('模型', '点选即用，也可以选「自定义」手填',
+          '<div class="model-chips" id="ai-models">'
+          + models.map(m => '<button type="button" class="mchip' + (ai.model === m ? ' on' : '')
+              + '" data-model="' + Util.escapeAttr(m) + '">' + Util.escapeHtml(m) + '</button>').join('')
+          + '<button type="button" class="mchip' + (isCustomModel || !models.length ? ' on' : '')
+          + '" data-model="__custom__">自定义…</button>'
+          + '</div>'
           + '<input type="text" id="ai-model" value="' + Util.escapeAttr(ai.model || '') + '" style="width:230px;'
           + (isCustomModel || !models.length ? '' : 'display:none') + '" placeholder="手填模型名">')
       + this._row('视觉模型（OCR）', '图片取字用，留空则关闭该功能',
@@ -169,8 +174,8 @@ const SettingsPage = {
           + '</select>')
       + this._row('默认句间停顿', '逐句拼接时的静音长度',
           '<input type="number" id="o-pause" value="' + (o.pauseMs || 300) + '" style="width:90px"><span class="text-sm text-muted">ms</span>')
-      + this._row('文件命名规则', '可用占位符：{ep} {role} {voice} {no}',
-          '<input type="text" id="o-naming" value="' + Util.escapeAttr(o.naming || '{ep}_{role}_{voice}_{no}') + '" style="width:250px">')
+      + this._row('文件命名规则', '可用占位符：{no} 序号 {role} 角色 {text} 台词前几字 {ep} 集号 {voice} 音色',
+          '<input type="text" id="o-naming" value="' + Util.escapeAttr(o.naming || '{no}_{role}_{text}') + '" style="width:250px">')
       + this._row('导出时同时生成 SRT', '按真实时长生成时间轴', this._sw(o.exportSrt !== false, 'toggle-srt'))
       + '<div class="action-row mt-12"><button class="btn btn-primary" data-act="save-output">保存</button></div>'
       + '</div>';
@@ -287,43 +292,52 @@ const SettingsPage = {
     toggle('toggle-onlycur',  v => save({ privacy: { ...s.privacy, onlyCurrentParagraph: v } }));
     toggle('toggle-diff',     v => save({ privacy: { ...s.privacy, keepDiffHistory: v } }));
 
-    /* 服务商选择 → 自动填地址和模型下拉 */
+    /* 服务商选择 → 自动填地址，模型变成可点的 chips */
     let pickedProvider = (s.ai || {}).provider || 'deepseek';
     const fillProvider = (id) => {
       const p = AI_PROVIDERS.find(x => x.id === id) || AI_PROVIDERS[0];
       const baseEl = el.querySelector('#ai-base');
       if (baseEl && p.base) baseEl.value = p.base;
-      const sel = el.querySelector('#ai-model-sel');
+      const wrap = el.querySelector('#ai-models');
       const inp = el.querySelector('#ai-model');
-      if (!sel || !inp) return;
-      sel.innerHTML = (p.models || []).map(m =>
-          '<option value="' + Util.escapeAttr(m) + '">' + Util.escapeHtml(m) + '</option>').join('')
-        + '<option value="__custom__">自定义…</option>';
+      if (!wrap || !inp) return;
+      wrap.innerHTML = (p.models || []).map(m =>
+          '<button type="button" class="mchip" data-model="' + Util.escapeAttr(m) + '">' + Util.escapeHtml(m) + '</button>').join('')
+        + '<button type="button" class="mchip on" data-model="__custom__">自定义…</button>';
       if ((p.models || []).length) {
-        sel.value = p.models[0];
+        wrap.querySelector('.mchip').classList.add('on');
+        wrap.querySelector('[data-model="__custom__"]').classList.remove('on');
         inp.value = p.models[0];
         inp.style.display = 'none';
       } else {
-        sel.value = '__custom__';
         inp.style.display = '';
         inp.value = '';
+        inp.focus();
       }
+      bindChips();
     };
+    const bindChips = () => {
+      const wrap = el.querySelector('#ai-models');
+      const inp = el.querySelector('#ai-model');
+      wrap?.querySelectorAll('.mchip').forEach(c =>
+        c.addEventListener('click', () => {
+          wrap.querySelectorAll('.mchip').forEach(x => x.classList.toggle('on', x === c));
+          if (c.dataset.model === '__custom__') { inp.style.display = ''; inp.focus(); }
+          else { inp.style.display = 'none'; inp.value = c.dataset.model; }
+        }));
+    };
+    bindChips();
     el.querySelectorAll('[data-provider]').forEach(b =>
       b.addEventListener('click', () => {
         pickedProvider = b.dataset.provider;
         el.querySelectorAll('[data-provider]').forEach(x => x.classList.toggle('on', x === b));
         fillProvider(pickedProvider);
       }));
-
-    el.querySelector('#ai-model-sel')?.addEventListener('change', (e) => {
-      const inp = el.querySelector('#ai-model');
-      if (e.target.value === '__custom__') { inp.style.display = ''; inp.focus(); }
-      else { inp.style.display = 'none'; inp.value = e.target.value; }
-    });
     el.querySelector('#ai-model')?.addEventListener('input', (e) => {
-      const sel = el.querySelector('#ai-model-sel');
-      if (sel && ![...sel.options].some(o => o.value === e.target.value)) sel.value = '__custom__';
+      const wrap = el.querySelector('#ai-models');
+      wrap?.querySelectorAll('.mchip').forEach(x =>
+        x.classList.toggle('on', x.dataset.model === '__custom__'
+          || (![...(wrap.querySelectorAll('.mchip'))].some(c => c.dataset.model === e.target.value))));
     });
 
     const doTest = async (btn) => {

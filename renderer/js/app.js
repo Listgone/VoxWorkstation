@@ -20,7 +20,8 @@ const App = {
   async init() {
     // 主题（在 Store 就绪前先用本地缓存，避免闪白）
     const savedTheme = localStorage.getItem('vox-theme') || 'light';
-    document.documentElement.setAttribute('data-theme', savedTheme === 'glass' ? 'glass' : 'light');
+    document.documentElement.setAttribute('data-theme',
+      ['glass', 'construct'].includes(savedTheme) ? savedTheme : 'light');
 
     this._setupWindowControls();
     this._setupThemeToggle();
@@ -35,7 +36,8 @@ const App = {
 
     // 用设置里的主题 / 动效 / 缩放覆盖本地缓存
     const st = Store.settings || {};
-    if (st.theme) document.documentElement.setAttribute('data-theme', st.theme === 'glass' ? 'glass' : 'light');
+    if (st.theme) document.documentElement.setAttribute('data-theme',
+      ['glass', 'construct'].includes(st.theme) ? st.theme : 'light');
     document.documentElement.setAttribute('data-reduce-motion', st.reduceMotion ? 'true' : 'false');
     if (Number(st.uiScale) && Number(st.uiScale) !== 1) {
       document.body.style.zoom = String(Number(st.uiScale));
@@ -73,6 +75,8 @@ const App = {
 
     const sc = document.getElementById('page-scroll');
     if (sc) sc.scrollTop = 0;
+    // 页面渲染完，把原生 select 换成统一样式的下拉
+    Select.enhance(el);
     this._syncStatus();
   },
 
@@ -132,15 +136,17 @@ const App = {
     if (ai) ai.textContent = Store.hasApiKey ? '✦ AI 已配置' : '✦ AI 未配置';
   },
 
-  /** 轻量下拉菜单 */
-  _menu(anchor, items, onPick) {
+  /** 轻量下拉菜单（面包屑 / 自定义 select 共用）*/
+  _menu(anchor, items, onPick, opts = {}) {
     document.querySelectorAll('.popmenu').forEach(m => m.remove());
     if (!items.length) return;
     const r = anchor.getBoundingClientRect();
     const menu = document.createElement('div');
     menu.className = 'popmenu';
+    if (opts.minWidth) menu.style.minWidth = opts.minWidth + 'px';
     menu.innerHTML = items.map(it =>
-      '<div class="popmenu-item' + (it.active ? ' on' : '') + '" data-v="' + Util.escapeAttr(String(it.value)) + '">'
+      '<div class="popmenu-item' + (it.active ? ' on' : '') + (it.disabled ? ' disabled' : '')
+      + '" data-v="' + Util.escapeAttr(String(it.value)) + '">'
       + '<span class="pm-label">' + Util.escapeHtml(it.label) + '</span>'
       + (it.sub ? '<span class="pm-sub">' + Util.escapeHtml(it.sub) + '</span>' : '')
       + '</div>').join('');
@@ -153,7 +159,10 @@ const App = {
     const onDoc = (ev) => { if (!menu.contains(ev.target)) close(); };
     setTimeout(() => document.addEventListener('mousedown', onDoc, true), 0);
     menu.querySelectorAll('.popmenu-item').forEach(it =>
-      it.addEventListener('click', () => { close(); onPick(it.dataset.v); }));
+      it.addEventListener('click', () => {
+        if (it.classList.contains('disabled')) return;
+        close(); onPick(it.dataset.v);
+      }));
   },
 
   _syncStatus(text, mid) {
@@ -170,10 +179,11 @@ const App = {
     }
   },
 
-  /* ── 主题 ─────────────────────────────────── */
+  /* ── 主题（明亮现代 / 液态玻璃 / 构成主义）── */
   _setupThemeToggle() {
+    const THEMES = ['light', 'glass', 'construct'];
     const apply = (theme) => {
-      if (theme !== 'glass') theme = 'light';
+      if (!THEMES.includes(theme)) theme = 'light';
       document.documentElement.setAttribute('data-theme', theme);
       localStorage.setItem('vox-theme', theme);
       window.dispatchEvent(new CustomEvent('vox:theme-changed', { detail: { theme } }));
@@ -182,7 +192,7 @@ const App = {
     this.applyTheme = apply;
     document.getElementById('btn-theme')?.addEventListener('click', () => {
       const cur = document.documentElement.getAttribute('data-theme');
-      apply(cur === 'glass' ? 'light' : 'glass');
+      apply(THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length]);
     });
   },
 

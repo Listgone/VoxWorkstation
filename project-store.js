@@ -37,7 +37,7 @@ const DEFAULT_PROJECT = {
   defaults: { cfg: 2.0, steps: 10, pauseMs: 300, maxLineLen: 25 },
   dict: [],                    // [{ word, reading }]
   ai: { provider: '', model: '', prompt: '', features: [] },
-  output: { naming: '{ep}_{role}_{voice}_{no}', exportSrt: true },
+  output: { naming: '{no}_{role}_{text}', exportSrt: true },
   storage: { keepLineAudio: true }
 };
 

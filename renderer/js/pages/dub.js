@@ -6,6 +6,7 @@ const DubPage = {
   _player: null,
   _queue: [],
   _running: false,
+  _voices: [],
   _takes: [],       // 本次生成的结果 [{lineIdx, voice, cfg, url, blob, ms}]
 
   render() {
@@ -102,17 +103,93 @@ const DubPage = {
     const [stLabel, stCls] = l.error ? ['失败', 'pill-err']
       : l.audio ? ['✓ ' + Util.fmtDuration(l.durationMs || 0), 'pill-ok']
       : ['· 待生成', ''];
+    const role = l.role || '旁白';
     return '<tr><td class="num">' + (i + 1) + '</td>'
-      + '<td><span class="pill">' + Util.escapeHtml(l.role || '旁白') + '</span></td>'
+      + '<td><button class="pill pill-btn" data-act="set-role" data-i="' + i + '" title="改这一句的角色">'
+      + Util.escapeHtml(role) + ' ▾</button></td>'
       + '<td class="tx">' + Util.escapeHtml(l.text || '') + '</td>'
-      + '<td class="text-sm text-muted">' + Util.escapeHtml(l.voice || '—') + '</td>'
+      + '<td><button class="pill pill-btn" data-act="set-voice" data-i="' + i + '" title="单独指定这一句的音色">'
+      + Util.escapeHtml(l.voice || '跟随角色') + ' ▾</button></td>'
       + '<td><span class="pill ' + stCls + '">' + stLabel + '</span></td>'
       + '<td class="row-acts">'
       + (l.audio
           ? '<button class="btn btn-sm btn-play" data-act="play-one" data-i="' + i + '" title="试听这一句">▶</button>'
           : '')
-      + '<button class="btn btn-sm btn-gen" data-act="gen-one" data-i="' + i + '" title="重新生成这一句">生成</button>'
+      + '<button class="btn btn-sm btn-gen" data-act="gen-one" data-i="' + i + '" title="生成/重新生成这一句">生成</button>'
       + '</td></tr>';
+  },
+
+  /** 改单句角色 —— 台词不可能全是一个人说的 */
+  _setRole(i, btn) {
+    const p = Store.currentProject;
+    const lines = Store.currentEpisode.lines || [];
+    const line = lines[i];
+    if (!line) return;
+    const used = [...new Set(lines.map(l => l.role).filter(Boolean))];
+    const declared = (p.roles || []).map(r => r.name);
+    const names = [...new Set([...declared, ...used])];
+    const items = names.map(n => {
+      const def = (p.roles || []).find(r => r.name === n);
+      return { label: n, value: n, active: n === (line.role || '旁白'),
+               sub: def && def.voice ? def.voice : '未绑定音色' };
+    });
+    items.push({ label: '＋ 新建角色…', value: '__new__' });
+    items.push({ label: '应用到本句之后所有未生成的行', value: '__fill__' });
+
+    App._menu(btn || document.body, items, async (v) => {
+      if (v === '__new__') {
+        const name = await Modal.prompt({ title: '新建角色', label: '角色名', placeholder: '例如：小明' });
+        if (!name) return;
+        const roles = [...(p.roles || [])];
+        if (!roles.some(r => r.name === name)) roles.push({ name, voice: '', desc: '', cfg: null });
+        await Store.saveProject({ roles });
+        this._applyRole(i, name, false);
+        return;
+      }
+      if (v === '__fill__') { this._applyRole(i, line.role || '旁白', true); return; }
+      this._applyRole(i, v, false);
+    }, { minWidth: 220 });
+  },
+
+  async _applyRole(i, role, fillAfter) {
+    const lines = (Store.currentEpisode.lines || []).map(l => ({ ...l }));
+    const p = Store.currentProject;
+    const def = (p.roles || []).find(r => r.name === role);
+    const voice = (def && def.voice) || p.fallbackVoice || '';
+    const apply = (idx) => {
+      lines[idx].role = role;
+      if (!lines[idx].voiceOverride) lines[idx].voice = voice;
+    };
+    apply(i);
+    if (fillAfter) for (let k = i + 1; k < lines.length; k++) if (!lines[k].audio) apply(k);
+    await Store.saveEpisode({ lines });
+    await Store.openEpisode(Store.currentEpisodeNo);
+    App.go('dub');
+    Toast.success(fillAfter ? '本句及之后未生成的行已设为「' + role + '」' : '第 ' + (i + 1) + ' 句角色改为「' + role + '」');
+  },
+
+  /** 单句音色覆盖 */
+  async _setVoice(i, btn) {
+    const p = Store.currentProject;
+    const lines = (Store.currentEpisode.lines || []).map(l => ({ ...l }));
+    const line = lines[i];
+    if (!line) return;
+    const def = (p.roles || []).find(r => r.name === (line.role || '旁白'));
+    const items = [{ label: '跟随角色默认' + (def && def.voice ? '（' + def.voice + '）' : ''), value: '__role__' }]
+      .concat(this._voices.map(v => ({ label: v.name, value: v.name, sub: v.desc || '' })));
+    App._menu(btn || document.body, items, async (v) => {
+      if (v === '__role__') {
+        line.voiceOverride = false;
+        line.voice = (def && def.voice) || p.fallbackVoice || '';
+      } else {
+        line.voiceOverride = true;
+        line.voice = v;
+      }
+      await Store.saveEpisode({ lines });
+      await Store.openEpisode(Store.currentEpisodeNo);
+      App.go('dub');
+      Toast.success('第 ' + (i + 1) + ' 句音色：' + (line.voice || '未指定'));
+    }, { minWidth: 240 });
   },
 
   async mount(el) {
@@ -127,6 +204,14 @@ const DubPage = {
     // 每次渲染都要重建播放器：App.go() 会重建 #dub-player 的 DOM，
     // 复用旧实例会指向已被移除的节点，导致点了播放没反应
     this._player = AudioPlayer.create('dub-player');
+    if (!this._voices.length) {
+      try { this._voices = await API.getPresets(); } catch (e) { this._voices = []; }
+    }
+
+    el.querySelectorAll('[data-act="set-role"]').forEach(b =>
+      b.addEventListener('click', (e) => { e.stopPropagation(); this._setRole(Number(b.dataset.i), b); }));
+    el.querySelectorAll('[data-act="set-voice"]').forEach(b =>
+      b.addEventListener('click', (e) => { e.stopPropagation(); this._setVoice(Number(b.dataset.i), b); }));
 
     ['cfg', 'steps'].forEach(k => {
       const sl = el.querySelector('#dub-' + k);
@@ -186,12 +271,12 @@ const DubPage = {
     const roles = p.roles || [];
     const roleName = line.role || '旁白';
     const def = roles.find(r => r.name === roleName);
-    return {
-      role: roleName,
-      voice: (def && def.voice) || p.fallbackVoice || '',
-      cfg: (def && def.cfg != null) ? def.cfg : (p.defaults.cfg ?? 2.0),
-      steps: p.defaults.steps ?? 10
-    };
+    // 单句覆盖优先于角色默认
+    const voice = (line.voiceOverride && line.voice)
+      ? line.voice
+      : ((def && def.voice) || p.fallbackVoice || line.voice || '');
+    const cfg = (def && def.cfg != null) ? def.cfg : (p.defaults.cfg ?? 2.0);
+    return { role: roleName, voice, cfg, steps: p.defaults.steps ?? 10 };
   },
 
   async _bindRole(roleName) {
@@ -255,8 +340,14 @@ const DubPage = {
         const buf = await r.blob.arrayBuffer();
         // 注意：不能用 String.fromCharCode(...bytes)，130KB 的 WAV 会爆栈
         const b64 = Util.ab2b64(buf);
-        const pad = String(i + 1).padStart(4, '0');
-        const filename = pad + '_' + (line.role || '旁白') + '_' + (bind.voice || '默认') + '.wav';
+        // 命名：序号_角色_台词前几字 —— 便于在文件夹里认出是谁的台词
+        const idx = String(i + 1).padStart(3, '0');
+        const snippet = String(line.text || '')
+          .replace(/\[[^\]]*\]/g, '')                 // 去掉语气标记
+          .replace(/[\\/:*?"<>|\r\n]/g, '')
+          .replace(/\s+/g, '')
+          .slice(0, 6) || '未命名';
+        const filename = idx + '_' + (line.role || '旁白') + '_' + snippet + '.wav';
         await window.electronAPI.audio.save(Store.currentProjectId, Store.currentEpisodeNo, filename, b64);
 
         // 估算时长

@@ -75,7 +75,7 @@ const APP_SETTINGS_DEFAULTS = {
     format: 'wav',
     sampleRate: 44100,
     pauseMs: 300,
-    naming: '{ep}_{role}_{voice}_{no}',
+    naming: '{no}_{role}_{text}',
     exportSrt: true
   },
   project: { autoSaveSec: 30, dailyBackup: true },
