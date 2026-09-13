@@ -1,5 +1,5 @@
 {
-  "serverDir": "D:\\Voxcpm2",
+  "serverDir": "D:\\VoxWorkstation\\engine",
   "serverScript": "server.py",
   "pythonPath": "python",
   "serverPort": 8000,

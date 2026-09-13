@@ -19,3 +19,6 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# 语音引擎与模型（体积大，随安装包分发或单独下载）
+engine/

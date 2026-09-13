@@ -45,7 +45,7 @@ Electron 桌面端 + [VoxCPM2](https://github.com/OpenBMB/VoxCPM) 语音合成�
 | **系统** | Windows 10 / 11（x64） |
 | **显卡** | NVIDIA，建议 8GB+ 显存（VoxCPM2 依赖 CUDA） |
 | **Python** | 3.10+，需在 PATH 中 |
-| **VoxCPM2 后端** | 独立目录，默认 `D:\Voxcpm2`（含 `server.py` 与 `pretrained_models/VoxCPM2`） |
+| **VoxCPM2 后端** | 默认在项目内的 `engine\` 目录（含 `server.py` 与 `pretrained_models\VoxCPM2`，约 4.7 GB） |
 | **磁盘** | 模型约 5–10 GB，音频输出按需 |
 
 > 首次启动需要加载模型，约 **30 秒到 3 分钟**（取决于磁盘与显存）。
@@ -77,7 +77,7 @@ npm start
 ```json
 {
   "serverPort": 8000,
-  "serverDir": "D:\\Voxcpm2",
+  "serverDir": "D:\\VoxWorkstation\\engine",
   "pythonPath": "python",
   "autoStartServer": true
 }
@@ -303,6 +303,7 @@ ollama pull qwen2.5:14b
 | 换服务商要重填 Key 吗 | 不用，每家分开保存 |
 | 人名识别不出来 | 多为模型能力问题，换更强的模型 |
 | 后端起不来 | 自检会指出是脚本路径还是 Python 的问题 |
+| **上传 m4a / flac 参考音频后生成失败或静音** | Windows 上 `soundfile` / `librosa` 解码 m4a(AAC) 不稳定，报 `LibsndfileError: Format not recognised`。后端已用 ffmpeg 自动转 16kHz 单声道 WAV，**前提是 ffmpeg 在 PATH 中** —— 未安装时会在控制台打 `[warn] ffmpeg 转码失败`，此时请手动把参考音频转成 WAV 再上传 |
 
 ---
 
@@ -334,6 +335,14 @@ renderer/
     components/       modal / select / notify / player / gpu / shortcuts / toast
     pages/            9 个页面
 ```
+
+### 架构演进（为什么是前后端分离）
+
+最早用 **Gradio** 搭过一版 Web UI，功能跑通了，但卡在界面上：
+Gradio 的 Tab 逻辑是封闭的，想通过 CSS/JS 实现「左侧树形导航联动右侧内容」，多次尝试都无法稳定做到。
+
+为了模块化和可扩展性，改为 **FastAPI 后端 + 自主前端**：后端只管推理与文件，前端完全自控。
+后来又把前端从纯网页换成了 Electron 桌面端 —— 这样才能直接读写本地项目目录、管理逐句音频文件。
 
 ### 设计原则
 

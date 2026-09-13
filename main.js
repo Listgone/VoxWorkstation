@@ -9,7 +9,7 @@ const { ProjectStore } = require('./project-store');
    配置：环境变量 > vox.config.json > 内置默认值
    ══════════════════════════════════════════════════════════ */
 const DEFAULTS = {
-  serverDir: 'D:\\Voxcpm2',
+  serverDir: 'D:\\VoxWorkstation\\engine',
   serverScript: 'server.py',
   pythonPath: 'python',
   serverPort: 8000,
@@ -844,6 +844,16 @@ ipcMain.handle('vox:diag:run', async () => {
   } else {
     add('AI 服务', 'warn', `${prov} 未配置 Key`,
         '要用「整理成剧本」等 AI 功能需要配置；只在本地做规范化/分句则可以不配。');
+  }
+
+  /* 引擎版本 —— 与「本地模型是否需要更新」有关 */
+  if (ready && ready.engine) {
+    const e = ready.engine;
+    add('引擎版本', 'ok',
+        'voxcpm ' + e.voxcpm + ' · torch ' + e.torch + (e.gpu ? ' · ' + e.gpu : ''), '');
+  } else if (ready) {
+    add('引擎版本', 'warn', '后端未返回版本信息',
+        '后端不是本次配套的 server.py，建议同步更新（见 README）。');
   }
 
   try { fs.accessSync(app.getPath('userData'), fs.constants.W_OK);
