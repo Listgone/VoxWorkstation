@@ -1508,3 +1508,75 @@ table th:last-child,table td:last-child{padding-right:14px}
 [data-theme="minimal"] .logo-mk{background:#111}
 [data-theme="minimal"] .logo-mk i{background:#fff}
 [data-theme="construct"] .logo-mk{border-radius:0;background:#e63329;border:2px solid #1a1a1a}
+
+/* ══════════════════════════════════════════════════════════
+   加载页（重做）：波纹背景与图标联动 + 苹果式克制动效
+   ══════════════════════════════════════════════════════════ */
+#loading-overlay{
+  /* 不再是纯白：极低对比的多层渐变，缓慢流动 */
+  background:
+    radial-gradient(120% 80% at 22% 6%,  rgba(120,160,255,.20), transparent 56%),
+    radial-gradient(110% 76% at 82% 18%, rgba(180,150,255,.15), transparent 58%),
+    radial-gradient(120% 90% at 50% 104%,rgba(120,215,225,.13), transparent 60%),
+    linear-gradient(180deg,#fbfcfe 0%,#f5f7fb 100%);
+  background-size:200% 200%,200% 200%,200% 200%,100% 100%;
+  animation:ldDrift 24s ease-in-out infinite alternate;
+}
+@keyframes ldDrift{
+  0%  {background-position:0% 0%,100% 0%,50% 100%,0 0}
+  100%{background-position:28% 18%,72% 14%,46% 86%,0 0}
+}
+
+/* 波纹层：两倍宽，匀速平移形成无缝流动 */
+.ld-bg{position:absolute;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+.ld-waves{position:absolute;top:50%;left:0;width:200%;height:auto;min-height:100%;
+  transform:translateY(-50%);will-change:transform;
+  animation:ldWaveFlow 34s linear infinite;
+}
+@keyframes ldWaveFlow{from{transform:translate(0,-50%)}to{transform:translate(-50%,-50%)}}
+
+/* 图标：淡入缩放 → 持续轻微浮动；外圈与波纹同色的光晕 */
+.ld-mark{
+  width:104px;height:104px;border-radius:26px;display:block;margin:0 auto;
+  position:relative;z-index:2;
+  box-shadow:0 2px 4px rgba(20,40,90,.20),0 12px 30px rgba(37,99,235,.26),0 28px 60px rgba(80,60,200,.18);
+  animation:ldMarkIn .95s cubic-bezier(.22,.9,.28,1) both,
+            ldMarkFloat 4.4s ease-in-out 1s infinite;
+}
+@keyframes ldMarkIn{from{opacity:0;transform:scale(.80) translateY(10px)}to{opacity:1;transform:none}}
+@keyframes ldMarkFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+/* 呼吸光晕：与波纹同色系，把图标和背景连起来 */
+.ld-mark::after{content:'';position:absolute;inset:-18px;border-radius:44px;z-index:-1;
+  background:radial-gradient(circle,rgba(80,140,255,.42),rgba(150,90,240,.16) 55%,transparent 72%);
+  animation:ldHalo 3.2s ease-in-out infinite}
+@keyframes ldHalo{0%,100%{opacity:.5;transform:scale(.94)}50%{opacity:1;transform:scale(1.06)}}
+
+.ld-title{animation:ldUp .8s .30s cubic-bezier(.22,.9,.28,1) both;position:relative;z-index:2}
+.ld-text{animation:ldUp .8s .40s cubic-bezier(.22,.9,.28,1) both;position:relative;z-index:2}
+.ld-bar{animation:ldUp .8s .50s cubic-bezier(.22,.9,.28,1) both;position:relative;z-index:2}
+.ld-elapsed{animation:ldUp .8s .60s cubic-bezier(.22,.9,.28,1) both;position:relative;z-index:2}
+@keyframes ldUp{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+/* 进度条：内部渐变持续流动，即使数值不动也看得出在跑 */
+#loading-overlay .ld-bar{height:4px;border-radius:99px;overflow:hidden}
+#loading-overlay .ld-bar i{
+  border-radius:99px;
+  background:linear-gradient(90deg,#22d3ee,#3b82f6 45%,#8b5cf6 75%,#d946ef);
+  background-size:220% 100%;
+  animation:ldBarFlow 1.8s linear infinite;
+  transition:width .45s cubic-bezier(.4,0,.2,1);
+}
+@keyframes ldBarFlow{from{background-position:0 0}to{background-position:-220% 0}}
+
+/* 日志：没内容时整块不显示（原先是个空白条） */
+.ld-morewrap{width:100%;max-width:520px;margin:4px auto 0;animation:ldUp .8s .7s both}
+.ld-log{max-height:190px;overflow:auto;margin-top:10px;text-align:left;
+  border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;
+  background:var(--bg-card);white-space:pre-wrap;word-break:break-all}
+
+/* 尊重「减少动效」偏好 */
+@media (prefers-reduced-motion: reduce){
+  #loading-overlay,.ld-waves,.ld-mark,.ld-mark::after,
+  #loading-overlay .ld-bar i{animation:none!important}
+}
+

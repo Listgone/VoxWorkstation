@@ -327,6 +327,12 @@ const App = {
       for (let i = STAGES.length - 1; i >= 0; i--) {
         if (s >= STAGES[i][0]) { this._setLoadingText(STAGES[i][1]); break; }
       }
+      // 主进度条：模型加载没有真实百分比，用渐近曲线给一个「一直在走」的估计。
+      // 上限 92%，留出最后一段给真实就绪事件，避免卡在 100% 却没进主界面。
+      if (!this._pgPaused) {
+        const est = 92 * (1 - Math.exp(-s / 26));
+        this._smoothTo('loading-bar', est);
+      }
     };
     tick();
     this._loadingTimer = setInterval(tick, 1000);
@@ -344,10 +350,38 @@ const App = {
 
   _setLoadingText(t) { const e = document.getElementById('loading-text'); if (e) e.textContent = t; },
 
+  /**
+   * 平滑进度：目标值跳变时，显示值按帧向它靠拢。
+   * 直接写 width 会「突然蹦到某个进度」，这里用缓动补间消除突跳。
+   * id 用哪条进度条都行（主加载条 / 一键配置条）。
+   */
+  _smoothTo(id, pct) {
+    this._pg = this._pg || {};
+    const st = this._pg[id] || (this._pg[id] = { shown: 0, target: 0, timer: null });
+    st.target = Math.max(st.target, Math.min(100, pct));   // 只增不减，避免回退造成困惑
+    if (st.timer) return;
+    st.timer = setInterval(() => {
+      const diff = st.target - st.shown;
+      if (Math.abs(diff) < 0.35) {
+        st.shown = st.target;
+        clearInterval(st.timer); st.timer = null;
+      } else {
+        st.shown += diff * 0.16;                            // 缓动系数：越大越快
+      }
+      const el = document.getElementById(id);
+      if (el) el.style.width = st.shown.toFixed(2) + '%';
+    }, 60);
+  },
+
   _appendLog(line) {
     this._logLines = (this._logLines || []).concat(line).slice(-200);
+    const text = this._logLines.join('\n').trim();
     const el = document.getElementById('loading-log');
-    if (el) el.textContent = this._logLines.join('\n').trim();
+    if (el) el.textContent = text;
+    // 没有任何日志时，连「查看详情」按钮一起藏起来 ——
+    // 否则展开后是个空白的白条，看着像坏了
+    const wrap = document.getElementById('loading-logwrap');
+    if (wrap) wrap.style.display = text ? '' : 'none';
   },
 
   _onServerError(message) {
@@ -386,7 +420,7 @@ const App = {
     const setupFill = document.getElementById('setup-prog-fill');
     if (setupBox && setupBox.style.display !== 'none' && setupFill) {
       const overall = 58 + (d.progress || 0) * 42;      // 58% → 100%
-      setupFill.style.width = overall.toFixed(1) + '%';
+      this._smoothTo('setup-prog-fill', overall);
       const pctEl = document.getElementById('setup-prog-pct');
       if (pctEl) pctEl.textContent = Math.round(overall) + '%';
       const cap = document.getElementById('setup-prog-cap');
@@ -403,6 +437,11 @@ const App = {
     }
     this._setLoadingText('首次启动：正在下载语音模型');
     this._setSideStatus('下载模型 ' + pct + '%', 'loading');
+    // 主进度条（未走一键配置时）接真实下载进度
+    if (!(setupBox && setupBox.style.display !== 'none')) {
+      this._pgPaused = true;
+      this._smoothTo('loading-bar', pct);
+    }
   },
 
   /** 后端启动失败且是「找不到脚本」时，给出引导而不是死路 */
@@ -439,7 +478,7 @@ const App = {
         this._setupPct = 0;
         const paint = (pct, msg) => {
           this._setupPct = Math.max(this._setupPct, Math.min(100, pct));
-          if (fill) fill.style.width = this._setupPct.toFixed(1) + '%';
+          this._smoothTo('setup-prog-fill', this._setupPct);
           const pctEl = document.getElementById('setup-prog-pct');
           if (pctEl) pctEl.textContent = Math.round(this._setupPct) + '%';
           const cap = document.getElementById('setup-prog-cap');
@@ -512,6 +551,9 @@ const App = {
   /** 引擎（模型）加载完成 —— 与「服务已响应」是两回事。
       后端改成后台加载后，界面先放出来，生成按钮等这里再解禁。 */
   _onEngineReady() {
+    // 收尾：主进度条走到 100%，并停掉时间估算
+    this._pgPaused = true;
+    this._smoothTo('loading-bar', 100);
     document.body.classList.remove('engine-loading');
     this._setSideStatus('引擎就绪', 'ready');
     window.dispatchEvent(new CustomEvent('vox:engine-ready'));

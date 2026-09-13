@@ -58,22 +58,17 @@
 </div>
 
 <div id="loading-overlay">
+  <div class="ld-bg"><img class="ld-waves" src="assets/loading-waves.svg" alt=""></div>
   <div class="ld-stage">
-    <div class="ld-mark" aria-hidden="true">
-      <span class="lm-b" style="--i:0"></span>
-      <span class="lm-b" style="--i:1"></span>
-      <span class="lm-b" style="--i:2"></span>
-      <span class="lm-b" style="--i:3"></span>
-      <span class="lm-b" style="--i:4"></span>
-      <span class="lm-b" style="--i:5"></span>
-      <span class="lm-b" style="--i:6"></span>
-    </div>
+    <img class="ld-mark" src="../assets/icons/app-icon-256.png" alt="" aria-hidden="true">
     <h1 class="ld-title">VoxWorkstation</h1>
     <p id="loading-text" class="ld-text">正在启动语音引擎…</p>
     <div class="ld-bar"><i id="loading-bar"></i></div>
     <p id="loading-elapsed" class="ld-elapsed">首次加载模型需要 1–3 分钟，之后会快很多</p>
-    <button class="ld-more" id="loading-toggle-log" type="button">查看详情</button>
-    <pre id="loading-log" class="ld-log"></pre>
+    <div class="ld-morewrap" id="loading-logwrap" style="display:none">
+      <button class="ld-more" id="loading-toggle-log" type="button">查看详情</button>
+      <pre id="loading-log" class="ld-log"></pre>
+    </div>
     <div id="loading-dl" class="ld-dl" style="display:none">
       <div class="ld-dl-bar"><i id="loading-dl-fill"></i></div>
       <p id="loading-dl-text" class="ld-dl-text"></p>
