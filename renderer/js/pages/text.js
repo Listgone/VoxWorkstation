@@ -388,6 +388,7 @@ const TextPage = {
         Modal.close();
         App.go('text');
       } catch (err) {
+        clearInterval(tick);
         Notify.onFail();
         Toast.error('AI 处理失败：' + (err.message || err), true);
       } finally { btn.disabled = false; }
@@ -405,7 +406,13 @@ const TextPage = {
     };
     const t0 = Date.now();
     const secs = () => ((Date.now() - t0) / 1000).toFixed(1) + 's';
-    const say = (t) => { if (log) log.textContent = t + '　[' + secs() + ']'; };
+    let lastMsg = '';
+    const say = (t) => { lastMsg = t; if (log) log.textContent = t + '　[' + secs() + ']'; };
+    // 单次调用可能跑几十秒，中途没有任何回调；
+    // 不加这个定时器的话秒数会一直停在 0.0s，看着像卡死
+    const tick = setInterval(() => {
+      if (log && lastMsg) log.textContent = lastMsg + '　[' + secs() + ']';
+    }, 200);
 
     const tokenTotal = { prompt_tokens: 0, completion_tokens: 0 };
 
@@ -457,6 +464,7 @@ const TextPage = {
     }
 
     const cost = ((tokenTotal.prompt_tokens * 0.001 + tokenTotal.completion_tokens * 0.002) / 1000).toFixed(4);
+    clearInterval(tick);
     say('完成 · 用时 ' + secs() + ' · token ' + (tokenTotal.prompt_tokens + tokenTotal.completion_tokens)
       + '（输入 ' + tokenTotal.prompt_tokens + ' / 输出 ' + tokenTotal.completion_tokens + '）');
     Notify.onDone();

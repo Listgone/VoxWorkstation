@@ -16,7 +16,7 @@ const AI_PROVIDERS = [
     free: ['glm-5.3-flash'] },
   { id: 'qwen',     name: '通义千问',    sub: '自研 · 阿里云百炼', own: '^qwen',
     base: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'qwen-long'], free: [] },
+    models: ['qwen3.8-max', 'qwen3.7-plus', 'qwen3.8-flash'], free: [] },
 
 
   { id: 'openai',   name: 'OpenAI',      sub: '自研 · 需要能访问境外', own: '^(gpt|o[1-9]|chatgpt)',
@@ -36,9 +36,16 @@ function filterLatestModels(list, freeSet) {
   const arr = (list || []).filter(Boolean);
   const free = freeSet instanceof Set ? freeSet : new Set(freeSet || []);
   const allFree = free.has('*');
+  // 取「第一个版本号」，而不是最大数字 ——
+  // 否则日期后缀（2025-09-01 → 2025）和参数量（110b → 110）
+  // 会被当成版本，把真正的最新模型挤下去
   const verOf = (id) => {
-    const m = String(id).match(/\d+(?:\.\d+)?/g);
-    return m ? Math.max.apply(null, m.map(Number)) : -1;   // 无版本号多为最新别名
+    const s = String(id).toLowerCase()
+      .replace(/[-_]?\d{4}[-_]?\d{2}[-_]?\d{2}(?=$|[-_])/g, '')   // 2025-09-01
+      .replace(/[-_]?\d{6}(?=$|[-_])/g, '')                        // 20250901
+      .replace(/[-_]?\d{4}(?=$|[-_])/g, '');                       // 0912 / 2025
+    const m = s.match(/(?:^|[^\d.])(\d+(?:\.\d+)?)(?![\d.]*\s*b(?![a-z]))/);
+    return m ? parseFloat(m[1]) : -1;
   };
   const famOf = (id) => String(id).toLowerCase()
     .replace(/\d+(\.\d+)?/g, '')                 // 去掉版本号与参数量
@@ -58,7 +65,13 @@ function filterLatestModels(list, freeSet) {
   for (const x of best.values()) keep.add(x.id);
   if (allFree) return arr;                       // 全免费就不用筛了
   for (const id of arr) if (free.has(id)) keep.add(id);   // 免费的一律保留
-  return arr.filter(id => keep.has(id));
+  const out = arr.filter(id => keep.has(id));
+  // 封顶：即使每个家族只留最新，千问这类仍会剩下十几二十个，
+  // 按版本号从新到旧截断，只留最能用的几个
+  const CAP = 8;
+  if (out.length <= CAP) return out;
+  const ver = new Map(out.map(id => [id, verOf(id)]));
+  return out.slice().sort((a, b) => (ver.get(b) - ver.get(a)) || a.localeCompare(b)).slice(0, CAP);
 }
 const SettingsPage = {
   _sec: 'appearance',
