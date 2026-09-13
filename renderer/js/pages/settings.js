@@ -239,8 +239,8 @@ const SettingsPage = {
       + this._row('超时 / 重试', '长文本处理建议调大超时',
           '<input type="number" id="ai-timeout" value="' + (ai.timeoutSec || 60) + '" style="width:74px"><span class="text-sm text-muted">秒</span>'
           + '<input type="number" id="ai-retries" value="' + (ai.retries || 2) + '" style="width:66px"><span class="text-sm text-muted">次</span>')
-      + this._row('单次处理上限', '超长文本自动分段调用，避免超上下文',
-          '<input type="number" id="ai-max" value="' + (ai.maxCharsPerCall || 4000) + '" style="width:96px"><span class="text-sm text-muted">字</span>')
+      + this._row('单次处理上限', '超长文本自动分段并行调用。剧本整理不受此限制，整章一次做完',
+          '<input type="number" id="ai-max" value="' + (ai.maxCharsPerCall || 12000) + '" style="width:96px"><span class="text-sm text-muted">字</span>')
       + '<div class="action-row mt-12"><button class="btn btn-primary" data-act="save-ai">保存</button>'
       + '<button class="btn" data-act="test2">测试连接</button>'
       + '<span class="text-sm text-muted" id="ai-test-result"></span></div>'
@@ -652,7 +652,18 @@ const SettingsPage = {
         if (!kr.ok) throw new Error('API Key 保存失败：' + kr.message);
         const r = await window.electronAPI.ai.test(pickedProvider);
         if (out) out.textContent = (r.ok ? '✓ ' : '✕ ') + r.message + (r.reply ? '（' + r.reply + '）' : '');
-        if (r.ok) { Toast.success('AI 连接正常'); App.go('settings'); }
+        if (r.ok) {
+          Toast.success('AI 连接正常');
+          // 重新渲染前先把当前选择落盘，否则会退回上次保存的模型
+          await Store.saveSettings({ ai: {
+            ...(Store.settings.ai || {}),
+            provider: pickedProvider,
+            baseURL: el.querySelector('#ai-base').value.trim(),
+            model: el.querySelector('#ai-model').value.trim(),
+            visionModel: el.querySelector('#ai-vision').value.trim()
+          }});
+          App.go('settings');
+        }
         else Toast.error('连接失败：' + r.message, true);
       } catch (err) {
         if (out) out.textContent = '✕ ' + err.message;
@@ -673,7 +684,7 @@ const SettingsPage = {
           visionModel: el.querySelector('#ai-vision').value.trim(),
           timeoutSec: parseInt(el.querySelector('#ai-timeout').value, 10) || 60,
           retries: parseInt(el.querySelector('#ai-retries').value, 10) || 2,
-          maxCharsPerCall: parseInt(el.querySelector('#ai-max').value, 10) || 4000
+          maxCharsPerCall: parseInt(el.querySelector('#ai-max').value, 10) || 12000
         }
       }, kr.skipped ? 'AI 设置已保存' : 'AI 设置与 API Key 已保存');
     });

@@ -69,7 +69,7 @@ const APP_SETTINGS_DEFAULTS = {
     visionModel: '',
     timeoutSec: 60,
     retries: 2,
-    maxCharsPerCall: 4000
+    maxCharsPerCall: 12000
   },
   tts: { autoStart: true, cfg: 2.0, steps: 10, vramWarnPct: 90 },
   output: {
@@ -202,6 +202,26 @@ function saveAppSettings(patch) {
 }
 
 
+
+/* 拉取模型时按用途过滤：本应用只用得上
+   · 文本处理（对话 / 推理类语言模型）
+   · 配音（语音合成 / 识别，为将来接本地 Vox 预留）
+   · 视觉（图片取字 OCR）
+   3D / 图像 / 视频 / 向量 / 重排 / 翻译等一律不拉，免得清单里全是没用的 */
+const MODEL_UNUSABLE = new RegExp([
+  '3d', 'tripo', 'hunyuan3d',
+  'text-to-image', 't2i', 'i2i', 'wanx', 'wan2', 'cogview', 'cogvideo',
+  'kolors', 'flux', 'diffusion', 'sd3', 'seedream', 'seedance',
+  'text-to-video', 't2v', 'i2v', 'kling', 'vidu', 'pixverse', 'image',
+  'embedding', 'embed-', 'rerank', 'gme-', 'bge-', 'm3e',
+  'translat', 'moderation', 'guard'
+].join('|'), 'i');
+
+function isUsableModel(id) {
+  const s = String(id || '');
+  if (!s) return false;
+  return !MODEL_UNUSABLE.test(s);
+}
 
 /* ══════════════════════════════════════════════════════════
    项目存储
@@ -389,30 +409,66 @@ async function aiRun(task, text, options = {}) {
     system += '\n必须遵守的读音约定：' + options.dict.map(d => d.word + ' 读作 ' + d.reading).join('；') + '。';
   }
 
-  const parts = aiChunks(text, cfg.maxChars);
-  const outs = [];
+  // 剧本整理必须整章一次做完：
+  // 分段会让每段各自输出一遍【背景介绍】+【角色…】，结构就烂了，
+  // 而且串行多次调用非常慢。1M 上下文的模型完全吃得下整章。
+  const noChunk = (task === 'script' || task === 'roles');
+  const parts = noChunk ? [text] : aiChunks(text, cfg.maxChars);
+  const outs = new Array(parts.length).fill('');
   let usage = { prompt_tokens: 0, completion_tokens: 0 };
 
-  for (let i = 0; i < parts.length; i++) {
+  const runOne = async (i) => {
     let r = null;
     for (let attempt = 0; attempt <= cfg.retries; attempt++) {
       r = await aiRequest(cfg.baseURL, cfg.key, {
         model: cfg.model,
         messages: [{ role: 'system', content: system }, { role: 'user', content: parts[i] }],
         temperature: task === 'roles' ? 0 : 0.2,
+        max_tokens: options.maxTokens || 8192,   // 不限会一直往外写，白白等
         stream: false
       }, Math.min(300000, cfg.timeoutSec * 1000));
       if (r.ok) break;
-      if (attempt < cfg.retries) await new Promise(res => setTimeout(res, 800));
+      if (attempt < cfg.retries) await new Promise(res => setTimeout(res, 500));
     }
-    if (!r || !r.ok) return { ok: false, message: (r && r.message) || '调用失败', done: i, total: parts.length };
-    outs.push(String(r.content || '').trim());
+    return r;
+  };
+
+  // 分段任务并行跑（各段互相独立，顺序由下标保证），
+  // 串行是最主要的耗时来源：5 段就是 5 倍等待
+  const started = Date.now();
+  const CONC = Math.max(1, Math.min(4, parts.length));
+  if (parts.length === 1) {
+    const r = await runOne(0);
+    if (!r || !r.ok) return { ok: false, message: (r && r.message) || '调用失败', done: 0, total: 1 };
+    outs[0] = String(r.content || '').trim();
     if (r.usage) {
       usage.prompt_tokens += r.usage.prompt_tokens || 0;
       usage.completion_tokens += r.usage.completion_tokens || 0;
     }
-    if (send && mainWindow) send('vox:ai-progress', { task, done: i + 1, total: parts.length });
+    if (send && mainWindow) send('vox:ai-progress', { task, done: 1, total: 1 });
+  } else {
+    let next = 0, finished = 0, firstErr = null;
+    await Promise.all(new Array(CONC).fill(0).map(async () => {
+      while (true) {
+        const i = next++;
+        if (i >= parts.length || firstErr) return;
+        const r = await runOne(i);
+        if (!r || !r.ok) { firstErr = firstErr || { i, r }; return; }
+        outs[i] = String(r.content || '').trim();
+        if (r.usage) {
+          usage.prompt_tokens += r.usage.prompt_tokens || 0;
+          usage.completion_tokens += r.usage.completion_tokens || 0;
+        }
+        finished++;
+        if (send && mainWindow) send('vox:ai-progress', { task, done: finished, total: parts.length });
+      }
+    }));
+    if (firstErr) {
+      return { ok: false, message: (firstErr.r && firstErr.r.message) || '调用失败',
+               done: finished, total: parts.length };
+    }
   }
+  const elapsedMs = Date.now() - started;
 
   let content = outs.join('\n');
   if (task === 'roles') {
@@ -421,12 +477,12 @@ async function aiRun(task, text, options = {}) {
     try {
       const arr = JSON.parse(content);
       if (!Array.isArray(arr)) throw new Error('不是数组');
-      return { ok: true, roles: arr, usage, chunks: parts.length };
+      return { ok: true, roles: arr, usage, chunks: parts.length, elapsedMs };
     } catch (e) {
       return { ok: false, message: '模型返回的角色 JSON 解析失败：' + content.slice(0, 120) };
     }
   }
-  return { ok: true, text: content, usage, chunks: parts.length };
+  return { ok: true, text: content, usage, chunks: parts.length, elapsedMs };
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -716,7 +772,10 @@ ipcMain.handle('vox:ai:models', async (_e, override) => {
         try {
           const j = JSON.parse(data);
           const list = (j.data || j.models || [])
-            .map(m => String(m.id || m.name || m.model || '')).filter(Boolean).sort();
+            .map(m => String(m.id || m.name || m.model || ''))
+            .filter(Boolean)
+            .filter(isUsableModel)      // 只留文本/语音/视觉，滤掉 3D 图像视频向量等
+            .sort();
           if (!list.length) return resolve({ ok: false, message: '服务商没有返回模型列表' });
           resolve({ ok: true, models: list });
         } catch (e) { resolve({ ok: false, message: '返回不是合法 JSON' }); }

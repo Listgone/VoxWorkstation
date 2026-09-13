@@ -303,6 +303,7 @@ const TextPage = {
 
     const btn = document.querySelector('[data-act="script"]');
     const restore = btn ? btn.innerHTML : '';
+    const t0 = Date.now();
     if (btn) { btn.disabled = true; btn.textContent = '整理中…'; }
     try {
       const proj = Store.currentProject || {};
@@ -316,7 +317,8 @@ const TextPage = {
       this._applyParsed(parsed);
       App.go('text');
       Toast.success('已整理成剧本 · ' + parsed.lines.length + ' 句 · '
-        + [...new Set(parsed.lines.map(l => l.role))].length + ' 个角色');
+        + [...new Set(parsed.lines.map(l => l.role))].length + ' 个角色 · 用时 '
+        + ((Date.now() - t0) / 1000).toFixed(1) + 's');
     } catch (e) {
       Toast.error('整理失败：' + (e.message || e), true);
       if (btn) { btn.disabled = false; btn.innerHTML = restore; }
@@ -401,7 +403,9 @@ const TextPage = {
       projectPrompt: (proj.ai && proj.ai.prompt) || '',
       dict: proj.dict || []
     };
-    const say = (t) => { if (log) log.textContent = t; };
+    const t0 = Date.now();
+    const secs = () => ((Date.now() - t0) / 1000).toFixed(1) + 's';
+    const say = (t) => { if (log) log.textContent = t + '　[' + secs() + ']'; };
 
     const tokenTotal = { prompt_tokens: 0, completion_tokens: 0 };
 
@@ -453,7 +457,7 @@ const TextPage = {
     }
 
     const cost = ((tokenTotal.prompt_tokens * 0.001 + tokenTotal.completion_tokens * 0.002) / 1000).toFixed(4);
-    say('完成 · token ' + (tokenTotal.prompt_tokens + tokenTotal.completion_tokens)
+    say('完成 · 用时 ' + secs() + ' · token ' + (tokenTotal.prompt_tokens + tokenTotal.completion_tokens)
       + '（输入 ' + tokenTotal.prompt_tokens + ' / 输出 ' + tokenTotal.completion_tokens + '）');
     Notify.onDone();
     Toast.success('AI 处理完成 · ' + tasks.length + ' 项');
