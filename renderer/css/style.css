@@ -1656,3 +1656,26 @@ table th:last-child,table td:last-child{padding-right:14px}
 .ld-mk .ld-mark{width:100%;height:100%;margin:0}
 .ld-mk .ld-glow{border-radius:26px}
 
+
+/* ══════════════════════════════════════════════════════════
+   加载页也必须有窗口控制按钮
+   软件是无边框窗口，标题栏里才有关闭/最小化。
+   原先 #loading-overlay 的 z-index 是 1000，把 z-index 2 的
+   标题栏整个盖住 —— 加载卡住时用户只能 Alt+F4，这是不对的。
+   把标题栏提到浮层之上，加载期间也一直可用。
+   ══════════════════════════════════════════════════════════ */
+#titlebar{z-index:1200}
+
+/* 加载期间的标题栏：背景与浮层融为一体，只留一条细边 */
+body.engine-loading #titlebar,
+body.app-loading #titlebar{
+  background:transparent;
+  border-bottom-color:transparent;
+}
+/* 加载时面包屑还没内容，留白不留空档 */
+#loading-overlay:not([style*="display: none"]) ~ * #crumb{opacity:0}
+
+/* 浮层顶部给标题栏让出 38px，避免图标被压住 */
+#loading-overlay{padding-top:38px}
+.ld-stage{box-sizing:border-box}
+
