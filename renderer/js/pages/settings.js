@@ -81,27 +81,31 @@ const SettingsPage = {
     const theme = document.documentElement.getAttribute('data-theme') || 'light';
     const TH = [
       ['light', '明亮现代', '默认 · 干净 · 无动效', 'thprev-a'],
-      ['bento', 'Bento 看板', '深色 + 柠檬绿 · 跨格便当盒', 'thprev-b2'],
+      ['minimal', '极简黑白', '深色 · 纯灰阶 · 无彩色', 'thprev-m'],
       ['glass', '液态玻璃', '毛玻璃 + 彩色光斑', 'thprev-g'],
       ['construct', '构成主义', '粗边分格 + 苏式红', 'thprev-c']
     ];
-    const mono = App.monoInfo || { ok: false, fallback: '检测中…' };
-    const isMono = (s.font === 'mono' || s.font === 'monovar');
+    const fi = App.fontInfo || {};
+    const FONTS = [
+      ['system', '系统默认', 'Segoe UI + 微软雅黑'],
+      ['han', '思源黑体', fi.han ? '实际：' + fi.han : '屏幕阅读最舒服'],
+      ['deng', '等线', fi.deng ? '实际：' + fi.deng : '更细更紧凑'],
+      ['song', '宋体 / 思源宋体', fi.song ? '实际：' + fi.song : '适合读长剧本'],
+      ['code', '等宽', fi.code ? '实际：' + fi.code : '数字对齐']
+    ];
+    const curFont = s.font || 'system';
     return '<div class="card"><h2>外观与主题</h2>'
       + '<div class="themes">'
       + TH.map(([id, name, sub, prev]) =>
           '<div class="th' + (theme === id ? ' on' : '') + '" data-theme-pick="' + id + '">'
           + '<div class="thprev ' + prev + '"></div><b>' + name + '</b><span>' + sub + '</span></div>').join('')
       + '</div>'
-      + this._row('字体', '两个 JetBrains Mono 都已内置（随应用分发，无需系统安装）',
+      + this._row('字体', '全部使用系统已装字体，缺失时自动回退；数字与时间码始终用等宽',
           '<div class="model-chips" id="font-chips">'
-          + '<button type="button" class="mchip' + (!isMono ? ' on' : '') + '" data-font="system">系统默认</button>'
-          + '<button type="button" class="mchip' + (s.font === 'mono' ? ' on' : '') + '" data-font="mono">JetBrains Mono 特粗斜体</button>'
-          + '<button type="button" class="mchip' + (s.font === 'monovar' ? ' on' : '') + '" data-font="monovar">JetBrains Mono 常规</button>'
-          + '</div>'
-          + (isMono ? '<span class="text-sm text-muted" style="margin-left:10px">'
-              + (mono.ok ? '✓ 已加载' : '✕ 加载失败，回退到 ' + Util.escapeHtml(mono.fallback))
-              + '</span>' : ''))
+          + FONTS.map(([id, name, sub]) =>
+              '<button type="button" class="mchip' + (curFont === id ? ' on' : '') + '" data-font="' + id + '"'
+              + ' title="' + Util.escapeAttr(sub) + '">' + name + '</button>').join('')
+          + '</div>')
       + this._row('界面缩放', '高分屏可调大（立即生效）',
           '<select id="s-scale" style="width:120px">'
           + [1, 1.1, 1.25].map(v => '<option value="' + v + '"' + (Number(s.uiScale) === v ? ' selected' : '') + '>'
@@ -283,9 +287,8 @@ const SettingsPage = {
 
     /* 字体 */
     el.querySelectorAll('#font-chips [data-font]').forEach(c =>
-      c.addEventListener('click', async () => {
+      c.addEventListener('click', () => {
         App.applyFont(c.dataset.font);
-        if (c.dataset.font === 'mono') await App.detectMonoFont();
         App.go('settings');
       }));
 

@@ -21,10 +21,10 @@ const App = {
     // 主题（在 Store 就绪前先用本地缓存，避免闪白）
     const savedTheme = localStorage.getItem('vox-theme') || 'light';
     document.documentElement.setAttribute('data-theme',
-      ['glass', 'construct', 'bento'].includes(savedTheme) ? savedTheme : 'light');
+      ['minimal', 'glass', 'construct'].includes(savedTheme) ? savedTheme : 'light');
     const savedFont = localStorage.getItem('vox-font') || 'system';
     document.documentElement.setAttribute('data-font',
-      ['mono', 'monovar'].includes(savedFont) ? savedFont : 'system');
+      ['han', 'deng', 'song', 'code'].includes(savedFont) ? savedFont : 'system');
 
     this._setupWindowControls();
     this._setupThemeToggle();
@@ -40,9 +40,9 @@ const App = {
     // 用设置里的主题 / 字体 / 动效 / 缩放覆盖本地缓存
     const st = Store.settings || {};
     if (st.theme) document.documentElement.setAttribute('data-theme',
-      ['glass', 'construct', 'bento'].includes(st.theme) ? st.theme : 'light');
+      ['minimal', 'glass', 'construct'].includes(st.theme) ? st.theme : 'light');
     this.applyFont(st.font);
-    this.detectMonoFont();   // 异步探测内置字体是否加载成功，结果给设置页用
+    this.detectFonts();
     document.documentElement.setAttribute('data-reduce-motion', st.reduceMotion ? 'true' : 'false');
     if (Number(st.uiScale) && Number(st.uiScale) !== 1) {
       document.body.style.zoom = String(Number(st.uiScale));
@@ -202,15 +202,18 @@ const App = {
 
   /* ── 字体 ─────────────────────────────────── */
   applyFont(font) {
-    const mode = ['mono', 'monovar'].includes(font) ? font : 'system';
+    const mode = ['han', 'deng', 'song', 'code'].includes(font) ? font : 'system';
     document.documentElement.setAttribute('data-font', mode);
     localStorage.setItem('vox-font', mode);
     if (Store.settings) Store.saveSettings({ font: mode });
   },
 
-  /** 某个字体是否真的可用。
-   *  注意：document.fonts.check() 对缺失字体也返回 true（浏览器会静默回退），
-   *  所以用 canvas 量文字宽度比对 —— 与基准等宽字体宽度一致就说明在回退。 */
+  /** 每个字体栈里实际生效的是哪一个（靠 canvas 量宽比对，缺失字体会静默回退） */
+  _firstAvailable(list) {
+    for (const f of list) if (this._fontAvailable(f)) return f;
+    return list[list.length - 1];
+  },
+
   _fontAvailable(name) {
     try {
       const ctx = document.createElement('canvas').getContext('2d');
@@ -225,29 +228,20 @@ const App = {
     } catch (e) { return false; }
   },
 
-  /** 内置的 JetBrains Mono 是否真的加载成功；失败时报出回退到哪个字体 */
-  async detectMonoFont() {
-    try {
-      if (document.fonts) await document.fonts.load('13px "JetBrains Mono"');
-    } catch (e) { /* 忽略 */ }
-    if (this._fontAvailable('JetBrains Mono')) {
-      this.monoInfo = { ok: true, name: 'JetBrains Mono', fallback: '' };
-      return this.monoInfo;
-    }
-    const chain = ['Cascadia Mono', 'Cascadia Code', 'Consolas', 'Ubuntu Mono'];
-    for (const f of chain) {
-      if (this._fontAvailable(f)) {
-        this.monoInfo = { ok: false, name: f, fallback: f };
-        return this.monoInfo;
-      }
-    }
-    this.monoInfo = { ok: false, name: '系统等宽', fallback: '系统等宽' };
-    return this.monoInfo;
+  /** 报告每套字体栈实际会用到哪个字体，给设置页显示 */
+  detectFonts() {
+    this.fontInfo = {
+      han: this._firstAvailable(['Noto Sans SC', 'Source Han Sans CN', 'Microsoft YaHei']),
+      deng: this._firstAvailable(['DengXian', 'Microsoft YaHei']),
+      song: this._firstAvailable(['Source Han Serif CN', 'Noto Serif SC', 'SimSun']),
+      code: this._firstAvailable(['Cascadia Mono', 'Consolas', 'Ubuntu Mono'])
+    };
+    return this.fontInfo;
   },
 
-  /* ── 主题（明亮现代 / 液态玻璃 / 构成主义 / Bento）── */
+  /* ── 主题（明亮现代 / 极简黑白 / 液态玻璃 / 构成主义）── */
   _setupThemeToggle() {
-    const THEMES = ['light', 'glass', 'construct', 'bento'];
+    const THEMES = ['light', 'minimal', 'glass', 'construct'];
     const apply = (theme) => {
       if (!THEMES.includes(theme)) theme = 'light';
       document.documentElement.setAttribute('data-theme', theme);
