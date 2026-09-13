@@ -382,6 +382,9 @@ const App = {
     // 否则展开后是个空白的白条，看着像坏了
     const wrap = document.getElementById('loading-logwrap');
     if (wrap) wrap.style.display = text ? '' : 'none';
+    // 日志要滚到底：真正的报错总在最后几行，
+    // 停在顶部等于让用户看一堆无害的 FutureWarning
+    if (el && text) el.scrollTop = el.scrollHeight;
   },
 
   /** 展开日志（出错时自动调用，免得让用户去点一个折叠区找原因） */
@@ -397,6 +400,12 @@ const App = {
   _onServerError(message) {
     clearInterval(this._loadingTimer);
     this._openLog();
+    // 计时器停了之后还挂着「已等待 6 秒」看着像卡死，改成明确的失败状态
+    const el = document.getElementById('loading-elapsed');
+    if (el) {
+      el.classList.add('is-failed');
+      el.textContent = '启动失败（已耗时 ' + Math.round((Date.now() - (this._loadingStart || Date.now())) / 1000) + ' 秒）';
+    }
     const msg = String(message || '未知错误');
     // 后端起不来的原因很多（脚本缺失 / Python 异常 / 依赖没装 / 端口占用 / 进程秒退…），
     // 但补救办法都是同一套 —— 所以只要失败就走引导面板，不按错误文案分流。

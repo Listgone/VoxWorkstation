@@ -1679,3 +1679,80 @@ body.app-loading #titlebar{
 #loading-overlay{padding-top:38px}
 .ld-stage{box-sizing:border-box}
 
+
+/* ══════════════════════════════════════════════════════════
+   加载页排版修正
+   ① 日志框宽度：原先 max-width 520px，比上方内容列宽，
+      看着「多出一截」。改为与内容列同宽（图标/标题/进度条那一列）。
+   ② 失败后的计时器：原先 clearInterval 后停在「已等待 6 秒」不动，
+      看着像卡死。改为显示明确的失败状态。
+   ══════════════════════════════════════════════════════════ */
+.ld-morewrap{
+  width:100%;
+  max-width:none;          /* 不再单独限宽 */
+  margin:6px auto 0;
+}
+/* 与 .ld-stage 的内容列对齐：图标 104px、进度条 220px，
+   日志取一个比进度条略宽但不超过内容列的宽度 */
+.ld-morewrap > .ld-more,
+.ld-morewrap > .ld-log{
+  /* 与下方引导面板 .ld-setup 同宽，避免「多出一截」 */
+  width:min(460px, 84vw);
+  margin-left:auto;
+  margin-right:auto;
+  box-sizing:border-box;
+}
+.ld-log{max-height:170px;overflow:auto;text-align:left;
+  font-size:11px;line-height:1.65}
+
+/* 失败状态：替换掉那个不再走动的「已等待 N 秒」 */
+.ld-elapsed.is-failed{
+  color:var(--danger);
+  font-weight:500;
+}
+.ld-elapsed.is-failed::before{content:'✕ '}
+
+
+/* ── 统一加载页各块的宽度，消除「多出一截」 ──
+   实测发现：.ld-more（查看详情按钮）被写死 460px，
+   而其父 .ld-morewrap 只有 440px → 溢出 20px 且偏心 10px。
+   现在所有块共用同一宽度，一律居中。 */
+.ld-morewrap,
+.ld-setup,
+.ld-log{
+  width:min(460px, 84vw);
+  max-width:none;
+  box-sizing:border-box;
+}
+.ld-morewrap{margin:6px auto 0}
+.ld-morewrap > .ld-more{
+  display:block;
+  width:100%;
+  margin:0;
+  box-sizing:border-box;
+}
+.ld-morewrap > .ld-log{
+  width:100%;
+  margin:8px 0 0;
+  box-sizing:border-box;
+}
+.ld-setup{margin-left:auto;margin-right:auto}
+
+
+/* ── .ld-stage 用纵向 flex 居中，彻底消除 10px 偏移 ──
+   实测各子块中心为 510 而视口中心是 500，说明父容器内容盒左右不对称
+   （左 40 右 20）。改用 flex + align-items:center 后，
+   子块位置只由父容器宽度决定，不再受内边距不对称影响。 */
+.ld-stage{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding-left:0;
+  padding-right:0;
+  width:100%;
+}
+.ld-stage > *{flex-shrink:0}
+/* 宽度类子块改为固定宽度 + 自动外边距（在 flex 下由 align-items 居中） */
+.ld-morewrap,.ld-setup{width:min(460px,84vw)}
+
