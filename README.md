@@ -1,5 +1,7 @@
 # VoxWorkstation
 
+<img src="assets/icons/app-icon-256.png" width="88" alt="VoxWorkstation">
+
 [![Release](https://img.shields.io/github/v/release/Listgone/VoxWorkstation?style=flat-square&label=Release&color=blue)](https://github.com/Listgone/VoxWorkstation/releases)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D6?style=flat-square&logo=windows)](https://github.com/Listgone/VoxWorkstation/releases)
 [![Electron](https://img.shields.io/badge/Electron-31-47848F?style=flat-square&logo=electron)](https://www.electronjs.org/)
