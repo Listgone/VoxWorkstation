@@ -376,11 +376,69 @@ const SettingsPage = {
       + this._row('默认项目位置', '新建项目放这里', '<span class="text-sm text-muted">' + Util.escapeHtml(s.output.root) + '</span>')
       + this._row('自动保存间隔', '编辑台词时的落盘频率（当前为手动保存 + 生成时落盘）',
           '<input type="number" id="p-auto" value="' + (pr.autoSaveSec || 30) + '" style="width:80px"><span class="text-sm text-muted">秒</span>')
-      + this._row('崩溃恢复', '重开软件时自动回到上次编辑的项目与集', '<span class="pill pill-ok">已开启</span>')
-      + this._row('回收站', '删除的项目/集进 .trash，可手动恢复',
-          '<button class="btn btn-sm" data-act="open-trash">打开回收站</button>')
+      + this._row('崩溃恢复', '重开软件时自动回到上次编辑的项目与集。关闭后每次都要手动选项目',
+          this._sw(pr.crashRecovery !== false, 'toggle-crash'))
+      + this._row('回收站保留', '超期的删除项会在软件启动时自动清理',
+          '<select id="p-trash" style="width:130px">'
+          + [[7, '7 天'], [30, '30 天'], [90, '90 天'], [0, '永不清理']]
+              .map(([v, t]) => '<option value="' + v + '"'
+                + (Number(pr.trashKeepDays ?? 30) === v ? ' selected' : '') + '>' + t + '</option>').join('')
+          + '</select>')
+      + this._row('回收站', '删除的项目/集都在这里，可恢复或彻底删除',
+          '<button class="btn btn-sm" data-act="open-trash">管理回收站</button>')
       + '<div class="action-row mt-12"><button class="btn btn-primary" data-act="save-project">保存</button></div>'
       + '</div>';
+  },
+
+  /** 回收站管理 */
+  async _trashPanel() {
+    const items = await window.electronAPI.trash.list();
+    const fmt = (n) => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(0) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+    const rows = items.length
+      ? items.map(it =>
+          '<div class="trash-item">'
+          + '<span class="pill ' + (it.kind === 'project' ? 'pill-p' : '') + '">'
+          + (it.kind === 'project' ? '项目' : '集') + '</span>'
+          + '<div class="trash-body"><b>' + Util.escapeHtml(it.name) + '</b>'
+          + '<span>' + (it.scope ? Util.escapeHtml(it.scope) + ' · ' : '')
+          + new Date(it.deletedAt).toLocaleString('zh-CN') + ' · ' + fmt(it.size) + '</span></div>'
+          + '<button class="btn btn-sm" data-restore="' + Util.escapeAttr(it.path) + '">恢复</button>'
+          + '<button class="btn btn-sm btn-ghost btn-danger" data-purge="' + Util.escapeAttr(it.path) + '">彻底删除</button>'
+          + '</div>').join('')
+      : '<p class="text-sm text-muted" style="margin:0">回收站是空的。</p>';
+    const keep = Number((Store.settings.project || {}).trashKeepDays ?? 30);
+    const overlay = Modal.open({
+      title: '回收站', width: 620,
+      body: rows
+        + '<p class="text-sm text-muted mt-12" style="margin-bottom:0">'
+        + (keep > 0 ? '超过 ' + keep + ' 天的条目会在软件启动时自动清理。' : '当前设为永不自动清理。')
+        + '</p>',
+      footer: (items.length ? '<button class="btn btn-ghost btn-danger" data-act="empty">清空回收站</button>' : '')
+            + '<span style="flex:1"></span><button class="btn" data-act="close">关闭</button>'
+    });
+    overlay.querySelector('[data-act="close"]').addEventListener('click', () => Modal.close());
+    overlay.querySelector('[data-act="empty"]')?.addEventListener('click', async () => {
+      const ok = await Modal.confirm({ title: '清空回收站', okText: '全部删除', danger: true,
+        message: '回收站里的 <b>' + items.length + ' 项</b>会被<b>永久删除</b>，无法恢复。' });
+      if (!ok) return;
+      const r = await window.electronAPI.trash.empty();
+      Modal.close(); await Store.reloadProjects();
+      Toast.success('已清空 ' + ((r && r.removed) || 0) + ' 项');
+    });
+    overlay.querySelectorAll('[data-restore]').forEach(b =>
+      b.addEventListener('click', async () => {
+        const r = await window.electronAPI.trash.restore(b.dataset.restore);
+        Modal.close(); await Store.reloadProjects();
+        if (r && r.ok) Toast.success('已恢复'); else Toast.error((r && r.message) || '恢复失败', true);
+      }));
+    overlay.querySelectorAll('[data-purge]').forEach(b =>
+      b.addEventListener('click', async () => {
+        const ok = await Modal.confirm({ title: '彻底删除', okText: '永久删除', danger: true,
+          message: '删除后<b>无法恢复</b>。' });
+        if (!ok) return;
+        await window.electronAPI.trash.purge(b.dataset.purge);
+        Modal.close(); Toast.success('已永久删除');
+      }));
   },
 
   _shortcut() {

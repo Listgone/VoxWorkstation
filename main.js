@@ -81,7 +81,7 @@ const APP_SETTINGS_DEFAULTS = {
     naming: '{no}_{role}_{text}',
     exportSrt: true
   },
-  project: { autoSaveSec: 30, dailyBackup: true },
+  project: { autoSaveSec: 30, crashRecovery: true, trashKeepDays: 30 },
   privacy: { redact: false, onlyCurrentParagraph: true, keepDiffHistory: true },
   notify: { soundEnabled: true, sound: 'chime', volume: 70, onDone: true, onFail: true }
 };
@@ -872,6 +872,12 @@ const needStore = () => {
   if (!store) {
     appSettings = appSettings || loadAppSettings();
     store = new ProjectStore(appSettings.output.root);
+  // 启动时清理回收站里超过保留天数的条目（默认 30 天）
+  try {
+    const keep = (appSettings.project && appSettings.project.trashKeepDays) || 30;
+    const r = store.autoPurgeTrash(keep);
+    if (r.removed) console.log('[shell] 回收站自动清理 ' + r.removed + ' 项（超过 ' + keep + ' 天）');
+  } catch (e) { /* 不影响启动 */ }
   }
   return store;
 };
@@ -982,6 +988,10 @@ ipcMain.handle('vox:episode:listAudio', (_e, args) => needStore().listAudio(args
 ipcMain.handle('vox:episode:listOutput', (_e, args) => needStore().listOutput(args.projectId, args.no));
 ipcMain.handle('vox:episode:logExport', (_e, args) => needStore().appendExportLog(args.projectId, args.no, args.entry || {}));
 ipcMain.handle('vox:episode:reveal', (_e, args) => { shell.openPath(needStore().episodePath(args.projectId, args.no)); return { ok: true }; });
+ipcMain.handle('vox:trash:list', () => (store ? store.listTrash() : []));
+ipcMain.handle('vox:trash:restore', (_e, p) => (store ? store.restoreTrash(p) : { ok: false }));
+ipcMain.handle('vox:trash:purge', (_e, p) => (store ? store.purgeTrash(p) : { ok: false }));
+ipcMain.handle('vox:trash:empty', (_e, projectId) => (store ? store.emptyTrash(projectId) : { ok: false }));
 ipcMain.handle('vox:path:reveal', (_e, p) => { shell.openPath(String(p || '')); return { ok: true }; });
 ipcMain.handle('vox:path:pick', async (_e, { title, defaultPath }) => {
   const r = await dialog.showOpenDialog(mainWindow, {
@@ -1008,6 +1018,12 @@ if (!app.requestSingleInstanceLock()) {
     appSettings = loadAppSettings();
   migrateLegacyKey();
     store = new ProjectStore(appSettings.output.root);
+  // 启动时清理回收站里超过保留天数的条目（默认 30 天）
+  try {
+    const keep = (appSettings.project && appSettings.project.trashKeepDays) || 30;
+    const r = store.autoPurgeTrash(keep);
+    if (r.removed) console.log('[shell] 回收站自动清理 ' + r.removed + ' 项（超过 ' + keep + ' 天）');
+  } catch (e) { /* 不影响启动 */ }
     console.log('[shell] 配置:', JSON.stringify({
       serverDir: CONFIG.serverDir,
       pythonPath: CONFIG.pythonPath,

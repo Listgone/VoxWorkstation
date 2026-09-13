@@ -289,6 +289,105 @@ class ProjectStore {
     return { ok: true };
   }
 
+  /* ── 回收站 ──────────────────────────────────────
+     两处：<根>\.trash\<项目>_<时间戳>      删除的项目
+           <项目>\.trash\<第NN集>_<时间戳>  删除的集
+     目录名里带着删除时刻，恢复时按它判断原位置。 */
+
+  _dirSize(dir) {
+    let total = 0;
+    const walk = (d) => {
+      let ents = [];
+      try { ents = fs.readdirSync(d, { withFileTypes: true }); } catch (e) { return; }
+      for (const e of ents) {
+        const p = path.join(d, e.name);
+        if (e.isDirectory()) walk(p);
+        else { try { total += fs.statSync(p).size; } catch (err) { /* 跳过 */ } }
+      }
+    };
+    walk(dir);
+    return total;
+  }
+
+  _scanTrashDir(dir, kind, scope) {
+    const out = [];
+    if (!fs.existsSync(dir)) return out;
+    let names = [];
+    try { names = fs.readdirSync(dir); } catch (e) { return out; }
+    for (const n of names) {
+      const full = path.join(dir, n);
+      let st = null;
+      try { st = fs.statSync(full); } catch (e) { continue; }
+      const m = n.match(/^(.*)_(\d{10,})$/);
+      out.push({
+        kind, scope: scope || '',
+        name: m ? m[1] : n, dirName: n,
+        deletedAt: m ? Number(m[2]) : st.mtimeMs,
+        size: this._dirSize(full), path: full
+      });
+    }
+    return out;
+  }
+
+  /** 列出回收站内容（项目级 + 各集级），按删除时间倒序 */
+  listTrash() {
+    const items = this._scanTrashDir(path.join(this.root, '.trash'), 'project', '');
+    for (const p of this.listProjects()) {
+      items.push(...this._scanTrashDir(path.join(this.projectDir(p.id), '.trash'), 'episode', p.id));
+    }
+    return items.sort((a, b) => b.deletedAt - a.deletedAt);
+  }
+
+  /** 恢复：项目放回根目录，集放回所属项目目录 */
+  restoreTrash(itemPath) {
+    if (!fs.existsSync(itemPath)) return { ok: false, message: '条目已不存在' };
+    const dirName = path.basename(itemPath);
+    const target = path.dirname(path.dirname(itemPath));
+    const m = dirName.match(/^(.*)_(\d{10,})$/);
+    const name = m ? m[1] : dirName;
+    let dest = path.join(target, name);
+    let n = 2;
+    while (fs.existsSync(dest)) dest = path.join(target, name + '（恢复' + (n++) + '）');
+    try { fs.renameSync(itemPath, dest); return { ok: true, to: dest }; }
+    catch (e) { return { ok: false, message: e.message }; }
+  }
+
+  purgeTrash(itemPath) {
+    try { fs.rmSync(itemPath, { recursive: true, force: true }); return { ok: true }; }
+    catch (e) { return { ok: false, message: e.message }; }
+  }
+
+  /** projectId 有值时只清该项目的集回收站，否则全清 */
+  emptyTrash(projectId) {
+    const dirs = [];
+    if (projectId) dirs.push(path.join(this.projectDir(projectId), '.trash'));
+    else {
+      dirs.push(path.join(this.root, '.trash'));
+      for (const p of this.listProjects()) dirs.push(path.join(this.projectDir(p.id), '.trash'));
+    }
+    let n = 0;
+    for (const d of dirs) {
+      if (!fs.existsSync(d)) continue;
+      for (const name of fs.readdirSync(d)) {
+        try { fs.rmSync(path.join(d, name), { recursive: true, force: true }); n++; } catch (e) { /* 跳过 */ }
+      }
+    }
+    return { ok: true, removed: n };
+  }
+
+  /** 自动清理超过 days 天的条目 */
+  autoPurgeTrash(days = 30) {
+    if (!days || days <= 0) return { ok: true, removed: 0 };
+    const cutoff = Date.now() - days * 86400000;
+    let n = 0;
+    for (const it of this.listTrash()) {
+      if (it.deletedAt < cutoff) {
+        try { fs.rmSync(it.path, { recursive: true, force: true }); n++; } catch (e) { /* 跳过 */ }
+      }
+    }
+    return { ok: true, removed: n };
+  }
+
   deleteEpisode(projectId, no, { toRecycle = true } = {}) {
     const dir = this.episodePath(projectId, no);
     if (!fs.existsSync(dir)) return { ok: false, message: '集不存在' };
