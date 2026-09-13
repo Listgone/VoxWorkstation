@@ -28,19 +28,40 @@ const VoicesPage = {
       + '</div>';
   },
 
+  /** 由音色名派生的确定性配色 —— 同一个音色永远同一个颜色 */
+  _tone(name) {
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+    const a = h % 360;
+    const b = (a + 42 + (h >> 8) % 40) % 360;
+    return {
+      a, b,
+      grad: 'linear-gradient(135deg,hsl(' + a + ' 78% 64%),hsl(' + b + ' 72% 46%))',
+      soft: 'linear-gradient(135deg,hsl(' + a + ' 78% 64% / .16),hsl(' + b + ' 72% 46% / .10))'
+    };
+  },
+
   _card(v) {
     const used = this._usedBy(v.name);
-    return '<div class="vcard">'
-      + '<div class="vtop"><div class="vwave" data-wave="' + Util.escapeAttr(v.name) + '"></div>'
+    const t = this._tone(String(v.name));
+    const initial = String(v.name).trim().slice(0, 1) || '音';
+    const kind = v.voice_file ? '声纹克隆' : '音色设计';
+    return '<div class="vcard" style="--tone-a:' + t.a + ';--tone-b:' + t.b + '">'
+      // 顶部一条渐变窄带（占卡片一小部分，不抢内容）
+      + '<div class="vtone" style="background:' + t.grad + '"></div>'
+      + '<div class="vbody">'
+      + '<div class="vtop">'
+      + '<div class="vchip" style="background:' + t.grad + '">' + Util.escapeHtml(initial) + '</div>'
       + '<div class="vn"><b>' + Util.escapeHtml(v.name) + '</b>'
-      + '<span>' + (v.voice_file ? '有声纹 · ' : '设计 · ') + Util.escapeHtml(v.desc || '') + '</span></div></div>'
+      + '<span>' + kind + (v.desc ? ' · ' + Util.escapeHtml(v.desc) : '') + '</span></div>'
+      + '</div>'
       + '<div class="vacts">'
       + '<button class="btn btn-sm" data-act="audition" data-name="' + Util.escapeAttr(v.name) + '"'
       + (v.voice_file ? '' : ' disabled title="这个音色没有声纹文件，无法试听"') + '>▶ 试听</button>'
       + (used ? '<span class="pill pill-run">用于 ' + Util.escapeHtml(used) + '</span>' : '')
       + '<span style="flex:1"></span>'
       + '<button class="btn btn-sm btn-ghost btn-danger" data-act="del" data-name="' + Util.escapeAttr(v.name) + '">删</button>'
-      + '</div></div>';
+      + '</div></div></div>';
   },
 
   _usedBy(voiceName) {
@@ -99,29 +120,12 @@ const VoicesPage = {
           Toast.success('已删除：' + name);
         } catch (e) { Toast.error('删除失败：' + e.message, true); }
       }));
-
-    // 波形缩略图
-    el.querySelectorAll('[data-wave]').forEach(w => this._wave(w));
   },
 
   async _load() {
     try { this._voices = await API.getPresets(); }
     catch (e) { this._voices = []; Toast.error('读取音色库失败：' + e.message, true); }
     return this._voices;
-  },
-
-  /** 用名称哈希生成一条稳定的装饰波形 */
-  _wave(host) {
-    const name = host.dataset.wave || '';
-    let h = 0;
-    for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff;
-    host.innerHTML = '';
-    for (let i = 0; i < 18; i++) {
-      const v = Math.abs(Math.sin((i + h % 97) * 1.7)) * 0.5 + Math.abs(Math.sin((i + h % 53) * 0.43)) * 0.5;
-      const d = document.createElement('i');
-      d.style.height = Math.max(2, v * 0.9 * (host.clientHeight || 30)).toFixed(1) + 'px';
-      host.appendChild(d);
-    }
   },
 
   _newVoice() {

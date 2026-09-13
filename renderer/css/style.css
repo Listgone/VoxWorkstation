@@ -11,10 +11,6 @@
   --font-ui:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
   /* 思源黑体 / Noto Sans SC：屏幕阅读最舒服的中文无衬线（本机已装 VF） */
   --font-han:"Noto Sans SC","Source Han Sans CN","思源黑体 CN","Microsoft YaHei",sans-serif;
-  /* 等线：比雅黑更细更紧凑，信息密度高 */
-  --font-deng:"DengXian","等线","Microsoft YaHei",sans-serif;
-  /* 宋体：适合读长剧本 */
-  --font-song:"Source Han Serif CN","Noto Serif SC","Songti SC","SimSun","宋体",serif;
   /* 等宽：数字对齐、代码、时间码 */
   --font-code:"Cascadia Mono",Consolas,"Ubuntu Mono",ui-monospace,SFMono-Regular,monospace;
 }
@@ -463,15 +459,32 @@ svg{display:block}
 .filelist .pill{font-family:ui-monospace,Consolas,monospace;font-size:10px}
 
 /* --- 音色库 ---------------------------------------- */
-.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:11px}
-.vcard{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg-card);padding:13px 14px}
-.vtop{display:flex;align-items:center;gap:11px;margin-bottom:10px}
-.vwave{width:64px;height:30px;flex-shrink:0;display:flex;align-items:center;gap:1px}
-.vwave i{flex:1;background:var(--accent);border-radius:1px;display:block}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:11px}
+.vcard{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg-card);
+  overflow:hidden;display:flex;flex-direction:column;
+  transition:border-color var(--transition),transform var(--transition)}
+.vcard:hover{border-color:var(--text-mute);transform:translateY(-2px)}
+/* 顶部渐变窄带 —— 只占卡片一小条，用来区分音色 */
+.vtone{height:5px;flex-shrink:0}
+.vbody{padding:13px 14px;display:flex;flex-direction:column;gap:11px;flex:1}
+.vtop{display:flex;align-items:center;gap:11px;min-width:0}
+/* 渐变方块代替原来的音波图标，里面放音色首字 */
+.vchip{width:44px;height:44px;border-radius:12px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:17px;font-weight:600;letter-spacing:.02em;
+  text-shadow:0 1px 3px rgba(0,0,0,.28);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.32), 0 2px 8px hsl(var(--tone-a) 70% 40% / .28)}
 .vn{min-width:0;flex:1}
-.vn b{display:block;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.vn span{font-size:10.5px;color:var(--text-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
-.vacts{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.vn b{display:block;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vn span{font-size:11px;color:var(--text-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.vacts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:auto}
+/* 其它主题的适配 */
+[data-theme="glass"] .vchip{box-shadow:inset 0 1px 0 rgba(255,255,255,.45), 0 4px 14px hsl(var(--tone-a) 70% 45% / .35)}
+[data-theme="construct"] .vcard{border-width:3px}
+[data-theme="construct"] .vtone{height:7px;border-bottom:3px solid var(--border)}
+[data-theme="construct"] .vchip{border-radius:0;border:3px solid var(--border);text-shadow:none}
+[data-theme="minimal"] .vchip{box-shadow:none;filter:grayscale(1) contrast(1.15)}
+[data-theme="minimal"] .vtone{filter:grayscale(1)}
 
 /* --- 选择列表 -------------------------------------- */
 .pick-list{display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto}
@@ -759,6 +772,7 @@ code{background:var(--bg-elev);padding:1px 6px;border-radius:4px;font-size:11.5p
 [data-theme="glass"] .bc-total{background:rgba(31,41,55,.10)}
 
 /* --- 字体方案：全部使用系统已装字体，不内置字体文件 --- */
+/* --- 字体方案：只用系统默认与思源黑体，不内置字体文件 --- */
 html[data-font="han"] body, html[data-font="han"] input, html[data-font="han"] textarea,
 html[data-font="han"] select, html[data-font="han"] button, html[data-font="han"] .cselect-btn,
 html[data-font="han"] .mchip, html[data-font="han"] .nav-item, html[data-font="han"] .subnav a,
@@ -767,40 +781,9 @@ html[data-font="han"] .modal-box h3, html[data-font="han"] .titlebar-logo, html[
 html[data-font="han"] table, html[data-font="han"] .pill, html[data-font="han"] .btn{
   font-family:var(--font-han); }
 
-html[data-font="deng"] body, html[data-font="deng"] input, html[data-font="deng"] textarea,
-html[data-font="deng"] select, html[data-font="deng"] button, html[data-font="deng"] .cselect-btn,
-html[data-font="deng"] .mchip, html[data-font="deng"] .nav-item, html[data-font="deng"] .subnav a,
-html[data-font="deng"] .tab-btn, html[data-font="deng"] .card h2, html[data-font="deng"] .phead h1,
-html[data-font="deng"] .modal-box h3, html[data-font="deng"] .titlebar-logo, html[data-font="deng"] .crumb,
-html[data-font="deng"] table, html[data-font="deng"] .pill, html[data-font="deng"] .btn{
-  font-family:var(--font-deng); }
-
-html[data-font="song"] body, html[data-font="song"] input, html[data-font="song"] textarea,
-html[data-font="song"] select, html[data-font="song"] button, html[data-font="song"] .cselect-btn,
-html[data-font="song"] .mchip, html[data-font="song"] .nav-item, html[data-font="song"] .subnav a,
-html[data-font="song"] .tab-btn, html[data-font="song"] .card h2, html[data-font="song"] .phead h1,
-html[data-font="song"] .modal-box h3, html[data-font="song"] .titlebar-logo, html[data-font="song"] .crumb,
-html[data-font="song"] table, html[data-font="song"] .pill, html[data-font="song"] .btn{
-  font-family:var(--font-song); }
-
-html[data-font="code"] body, html[data-font="code"] input, html[data-font="code"] textarea,
-html[data-font="code"] select, html[data-font="code"] button, html[data-font="code"] .cselect-btn,
-html[data-font="code"] .mchip, html[data-font="code"] .nav-item, html[data-font="code"] .subnav a,
-html[data-font="code"] .tab-btn, html[data-font="code"] .card h2, html[data-font="code"] .phead h1,
-html[data-font="code"] .modal-box h3, html[data-font="code"] .titlebar-logo, html[data-font="code"] .crumb,
-html[data-font="code"] table, html[data-font="code"] .pill, html[data-font="code"] .btn{
-  font-family:var(--font-code); }
-
-/* 不同字体的视觉重量不一样，分别微调字号 */
-html[data-font="han"] body{font-size:13px}
-html[data-font="deng"] body{font-size:13.5px}
-html[data-font="song"] body{font-size:13.5px}
-html[data-font="song"] .card h2,
-html[data-font="song"] .phead h1{font-family:var(--font-song)}
-html[data-font="code"] body{font-size:12.5px}
-
 /* 数字/时间码/代码块始终用等宽，跟正文字体无关 */
 .num,.audio-player .ap-time,#loading-elapsed,.kpi .vl,code{font-family:var(--font-code)}
+
 
 /* ══════════════════════════════════════════════════
    极简黑白（深色）

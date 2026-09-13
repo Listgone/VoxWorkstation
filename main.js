@@ -57,7 +57,7 @@ const logBuffer = [];
    ══════════════════════════════════════════════════════════ */
 const APP_SETTINGS_DEFAULTS = {
   theme: 'light',
-  font: 'system',              // system | han | deng | song | code（都用系统已装字体）
+  font: 'system',              // system | han（都用系统已装字体，不内置字体文件）
   reduceMotion: false,
   uiScale: 1,
   language: 'zh-CN',

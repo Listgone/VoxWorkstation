@@ -23,8 +23,7 @@ const App = {
     document.documentElement.setAttribute('data-theme',
       ['minimal', 'glass', 'construct'].includes(savedTheme) ? savedTheme : 'light');
     const savedFont = localStorage.getItem('vox-font') || 'system';
-    document.documentElement.setAttribute('data-font',
-      ['han', 'deng', 'song', 'code'].includes(savedFont) ? savedFont : 'system');
+    document.documentElement.setAttribute('data-font', savedFont === 'han' ? 'han' : 'system');
 
     this._setupWindowControls();
     this._setupThemeToggle();
@@ -200,9 +199,9 @@ const App = {
     }
   },
 
-  /* ── 字体 ─────────────────────────────────── */
+  /* ── 字体（只用系统默认与思源黑体两档）───────── */
   applyFont(font) {
-    const mode = ['han', 'deng', 'song', 'code'].includes(font) ? font : 'system';
+    const mode = font === 'han' ? 'han' : 'system';
     document.documentElement.setAttribute('data-font', mode);
     localStorage.setItem('vox-font', mode);
     if (Store.settings) Store.saveSettings({ font: mode });
@@ -228,13 +227,10 @@ const App = {
     } catch (e) { return false; }
   },
 
-  /** 报告每套字体栈实际会用到哪个字体，给设置页显示 */
+  /** 报告字体栈实际会用到哪个字体，给设置页显示 */
   detectFonts() {
     this.fontInfo = {
-      han: this._firstAvailable(['Noto Sans SC', 'Source Han Sans CN', 'Microsoft YaHei']),
-      deng: this._firstAvailable(['DengXian', 'Microsoft YaHei']),
-      song: this._firstAvailable(['Source Han Serif CN', 'Noto Serif SC', 'SimSun']),
-      code: this._firstAvailable(['Cascadia Mono', 'Consolas', 'Ubuntu Mono'])
+      han: this._firstAvailable(['Noto Sans SC', 'Source Han Sans CN', 'Microsoft YaHei'])
     };
     return this.fontInfo;
   },
