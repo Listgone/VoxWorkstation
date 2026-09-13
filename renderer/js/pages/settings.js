@@ -244,6 +244,12 @@ const SettingsPage = {
           + 'placeholder="粘贴 API Key" style="width:230px" autocomplete="off" spellcheck="false">'
           + '<button class="btn btn-sm" data-act="test">测试连接</button>'
           + (hasKey ? '<button class="btn btn-sm btn-ghost btn-danger" data-act="clear-key">清除</button>' : ''))
+      + this._row('深度思考', 'DeepSeek 默认开启且强度为 high，回答前先写一大段推理，很慢。'
+            + '文本整理不需要，默认关闭；只有任务特别复杂时才值得打开',
+          '<div class="model-chips" id="think-chips">'
+          + '<button type="button" class="mchip' + ((s.thinking || 'off') !== 'on' ? ' on' : '') + '" data-think="off">关闭（快）</button>'
+          + '<button type="button" class="mchip' + ((s.thinking === 'on') ? ' on' : '') + '" data-think="on">开启（强）</button>'
+          + '</div>')
       + this._row('超时 / 重试', '长文本处理建议调大超时',
           '<input type="number" id="ai-timeout" value="' + (ai.timeoutSec || 60) + '" style="width:74px"><span class="text-sm text-muted">秒</span>'
           + '<input type="number" id="ai-retries" value="' + (ai.retries || 2) + '" style="width:66px"><span class="text-sm text-muted">次</span>')
@@ -648,6 +654,12 @@ const SettingsPage = {
         Toast.error('拉取失败：' + err.message, true);
       } finally { btn.disabled = false; btn.textContent = old; }
     });
+
+    el.querySelectorAll('#think-chips [data-think]').forEach(b =>
+      b.addEventListener('click', () => {
+        el.querySelectorAll('#think-chips .mchip').forEach(x => x.classList.toggle('on', x === b));
+        save({ thinking: b.dataset.think }, b.dataset.think === 'on' ? '已开启深度思考（会慢很多）' : '已关闭深度思考');
+      }));
 
     el.querySelector('[data-act="toggle-all"]')?.addEventListener('click', async () => {
       const aiModels = { ...(Store.settings.aiModels || {}) };

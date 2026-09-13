@@ -328,16 +328,18 @@ const TextPage = {
   _aiPanel() {
     const ai = Store.settings.ai || {};
     const proj = Store.currentProject || {};
-    const DEFAULT_TASKS = ['script', 'normalize', 'split', 'tone', 'roles'];
+    // 默认只勾「整理成剧本」——它已经包含断句与角色识别。
+    // 以前的默认是全勾，结果后面的任务把剧本格式冲掉了
+    const DEFAULT_TASKS = ['script'];
     // 注意：空数组是 truthy，必须判 length，否则项目没配 features 时一个都不勾
     const saved = (proj.ai && Array.isArray(proj.ai.features)) ? proj.ai.features : [];
     const on = saved.length ? saved : DEFAULT_TASKS;
     const TASKS = [
-      ['script', '整理成剧本', '只提取说出口的台词，旁白/动作/心理描写全部归入背景介绍'],
-      ['normalize', '文本规范化', '数字 / 日期 / 百分比 / 单位 / 英文缩写 → 口语读法'],
-      ['split', '智能断句', '按语义切分，每句不超过 ' + ((proj.defaults || {}).maxLineLen || 25) + ' 字'],
-      ['tone', '语气标注', '自动插入 [laughing] / [sigh] 等 VoxCPM2 标记'],
-      ['roles', '角色分离', '识别「小明：……」拆成角色 + 台词']
+      ['normalize', '① 文本规范化', '先做：数字 / 日期 / 百分比 / 缩写 → 口语读法（可选）'],
+      ['script', '② 整理成剧本', '核心：输出【背景介绍】+【角色（情绪）+台词】，已含断句与角色识别'],
+      ['tone', '③ 语气标注', '后做：插入 [laughing] / [sigh] 等 VoxCPM2 标记（可选）'],
+      ['split', '断句（单独用）', '只按标点切句，不做角色与背景 —— 整理成剧本已包含'],
+      ['roles', '角色分离（单独用）', '只输出角色+台词 JSON，不含背景 —— 整理成剧本已包含']
     ];
     const hasKey = Store.hasKey();
 
@@ -415,6 +417,10 @@ const TextPage = {
     }, 200);
 
     const tokenTotal = { prompt_tokens: 0, completion_tokens: 0 };
+
+    // 固定管线顺序：规范化 → 整理成剧本 → 语气标注 →（单独用的断句/角色）
+    const RANK = { normalize: 0, script: 1, tone: 2, split: 8, roles: 9 };
+    tasks = tasks.slice().sort((a, b) => (RANK[a] ?? 5) - (RANK[b] ?? 5));
 
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];

@@ -61,6 +61,7 @@ const APP_SETTINGS_DEFAULTS = {
   reduceMotion: false,
   uiScale: 1,
   language: 'zh-CN',
+  thinking: 'off',               // DeepSeek 思考模式：off 快，on 强（默认关，小任务白等）
   aiModels: {},                // { providerId: { list: [...], at: 时间戳 } } —— 拉取到的真实模型
   ai: {
     provider: 'deepseek',
@@ -276,6 +277,28 @@ function aiRequest(baseURL, key, bodyObj, timeoutMs) {
   });
 }
 
+/* 组装请求体。
+   DeepSeek 的思考模式默认开启且 effort=high —— 模型会先写一大段思维链
+   再作答，200 字的整理任务白等一分钟。默认关掉，需要时可在设置里打开。 */
+function aiBody(cfg, system, userText, task, options) {
+  const body = {
+    model: cfg.model,
+    messages: [{ role: 'system', content: system }, { role: 'user', content: userText }],
+    temperature: task === 'roles' ? 0 : 0.2,
+    max_tokens: (options && options.maxTokens) || 8192,
+    stream: false
+  };
+  const isDeepSeek = /deepseek/i.test(cfg.baseURL || '');
+  if (isDeepSeek) {
+    const mode = (appSettings.ai && appSettings.ai.thinking) || 'off';
+    body.thinking = { type: mode === 'on' ? 'enabled' : 'disabled' };
+    if (mode === 'on') {
+      body.reasoning_effort = (appSettings.ai && appSettings.ai.reasoningEffort) || 'low';
+      delete body.temperature;     // 思考模式下该参数不生效
+    }
+  }
+  return body;
+}
 function currentAI(providerOverride) {
   appSettings = appSettings || loadAppSettings();
   const ai = appSettings.ai || {};
@@ -420,13 +443,8 @@ async function aiRun(task, text, options = {}) {
   const runOne = async (i) => {
     let r = null;
     for (let attempt = 0; attempt <= cfg.retries; attempt++) {
-      r = await aiRequest(cfg.baseURL, cfg.key, {
-        model: cfg.model,
-        messages: [{ role: 'system', content: system }, { role: 'user', content: parts[i] }],
-        temperature: task === 'roles' ? 0 : 0.2,
-        max_tokens: options.maxTokens || 8192,   // 不限会一直往外写，白白等
-        stream: false
-      }, Math.min(300000, cfg.timeoutSec * 1000));
+      r = await aiRequest(cfg.baseURL, cfg.key, aiBody(cfg, system, parts[i], task, options),
+        Math.min(300000, cfg.timeoutSec * 1000));
       if (r.ok) break;
       if (attempt < cfg.retries) await new Promise(res => setTimeout(res, 500));
     }
