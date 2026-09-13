@@ -12,8 +12,8 @@ const AI_PROVIDERS = [
     models: ['deepseek-flash', 'deepseek-v4-pro'], free: [] },
   { id: 'zhipu',    name: '智谱 GLM',    sub: '有免费模型',
     base: 'https://open.bigmodel.cn/api/paas/v4',
-    models: ['glm-4-flash', 'glm-4-air', 'glm-4-plus'],
-    free: ['glm-4-flash'] },
+    models: ['glm-5.3-flash', 'glm-5.3', 'glm-5.2', 'glm-ocr'],
+    free: ['glm-5.3-flash'] },
   { id: 'qwen',     name: '通义千问',    sub: '阿里云 DashScope',
     base: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'qwen-long'], free: [] },
@@ -169,7 +169,7 @@ const SettingsPage = {
           + '<input type="text" id="ai-model" value="' + Util.escapeAttr(ai.model || '') + '" style="width:240px;'
           + (isCustomModel || !models.length ? '' : 'display:none') + '" placeholder="手填模型名">'
           + '</div>')
-      + this._row('视觉模型（OCR）', '图片取字用，留空则关闭该功能（哪些模型支持视觉请问服务商）',
+      + this._row('视觉模型（OCR）', '图片取字用，留空则关闭该功能。智谱可填 glm-ocr',
           '<input type="text" id="ai-vision" value="' + Util.escapeAttr(ai.visionModel || '') + '" placeholder="留空即关闭" style="width:220px">')
       + this._row('API Key', '用系统凭据加密存储，不落明文。<b>改完记得保存</b>，「测试连接」会先自动保存',
           '<input type="password" id="ai-key" placeholder="' + (Store.hasApiKey ? '已保存（留空则不修改）' : 'sk-…') + '" style="width:230px">'
