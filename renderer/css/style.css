@@ -1348,3 +1348,7 @@ table th:last-child,table td:last-child{padding-right:14px}
 .pane-text{max-width:none!important;width:100%}
 .pane{min-width:0}
 .duo .pane-text{resize:vertical}
+
+/* 原文只读：光标与配色都要体现不可编辑 */
+.pane-text[readonly]{cursor:default;color:var(--text-dim)}
+.pane-text[readonly]:focus{box-shadow:none}

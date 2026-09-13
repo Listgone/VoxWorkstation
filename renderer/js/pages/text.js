@@ -62,7 +62,9 @@ const TextPage = {
       + '<div class="card"><h2>对照 <span class="n">原文永不改动，处理结果只写右栏</span></h2>'
       + '<div class="duo">'
       + '<div class="pane"><div class="ph"><span>原文</span><span style="font-weight:400">只读</span></div>'
-      + '<textarea id="tx-orig" class="pane-text" spellcheck="false" placeholder="（还没有原文）">'
+      + '<textarea id="tx-orig" class="pane-text" spellcheck="false" readonly '
+      + 'title="原文只读，保证可回溯。要改内容请用「恢复为原文」后重新导入" '
+      + 'placeholder="（还没有原文）">'
       + Util.escapeHtml(d.original) + '</textarea></div>'
       + '<div class="pane"><div class="ph"><span>处理后 · 直接送 TTS</span>'
       + '<span style="font-weight:400;color:var(--ok)">✓ 可编辑</span></div>'
@@ -202,7 +204,7 @@ const TextPage = {
 
     const orig = el.querySelector('#tx-orig');
     const proc = el.querySelector('#tx-proc');
-    orig?.addEventListener('input', () => { this._draft.original = orig.value; });
+    // 原文只读：不再监听 input，改由导入/恢复流程写入
     proc?.addEventListener('input', () => { this._draft.processed = proc.value; });
 
     el.querySelector('[data-act="use-import"]')?.addEventListener('click', () => {
