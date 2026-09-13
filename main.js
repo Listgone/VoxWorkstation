@@ -567,6 +567,49 @@ ipcMain.handle('vox:ai:process', async (_e, { task, text, options }) => {
   return aiRun(task, String(text), options || {});
 });
 
+/** 拉取服务商真实可用的模型列表 —— 免得内置清单过期 */
+ipcMain.handle('vox:ai:models', async (_e, override) => {
+  const cfg = currentAI();
+  const base = (override && override.baseURL) || cfg.baseURL;
+  const key = (override && override.key) || cfg.key;
+  if (!base) return { ok: false, message: '未配置接口地址' };
+  if (!key) return { ok: false, message: '未配置 API Key' };
+
+  return new Promise((resolve) => {
+    let url;
+    try { url = new URL(String(base).replace(/\/+$/, '') + '/models'); }
+    catch (e) { return resolve({ ok: false, message: '接口地址格式不对' }); }
+    const isHttps = url.protocol === 'https:';
+    const mod = isHttps ? require('https') : require('http');
+    const req = mod.request({
+      hostname: url.hostname,
+      port: url.port || (isHttps ? 443 : 80),
+      path: url.pathname + url.search,
+      method: 'GET',
+      headers: { 'Authorization': 'Bearer ' + key },
+      timeout: 20000
+    }, (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          return resolve({ ok: false, message: 'HTTP ' + res.statusCode + '：' + data.slice(0, 120) });
+        }
+        try {
+          const j = JSON.parse(data);
+          const list = (j.data || j.models || [])
+            .map(m => String(m.id || m.name || m.model || '')).filter(Boolean).sort();
+          if (!list.length) return resolve({ ok: false, message: '服务商没有返回模型列表' });
+          resolve({ ok: true, models: list });
+        } catch (e) { resolve({ ok: false, message: '返回不是合法 JSON' }); }
+      });
+    });
+    req.on('error', (err) => resolve({ ok: false, message: err.message }));
+    req.on('timeout', () => { req.destroy(); resolve({ ok: false, message: '请求超时' }); });
+    req.end();
+  });
+});
+
 ipcMain.handle('vox:projects:list', () => needStore().listProjects());
 ipcMain.handle('vox:project:create', (_e, args) => needStore().createProject(args || {}));
 ipcMain.handle('vox:project:read', (_e, id) => needStore().readProject(id));

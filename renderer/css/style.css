@@ -625,12 +625,23 @@ code{background:var(--bg-elev);padding:1px 6px;border-radius:4px;font-size:11.5p
 .bg-text{flex:1;font-size:12.5px;line-height:1.7;color:var(--text)}
 
 /* --- AI 模型 chips ---------------------------------- */
+.mrow{display:flex;gap:8px;align-items:flex-start;flex:1;min-width:0}
+.mrow .model-chips{flex:1}
 .model-chips{display:flex;gap:6px;flex-wrap:wrap;flex:1;min-width:220px}
-.mchip{padding:5px 12px;border:1px solid var(--border);border-radius:20px;background:var(--bg-card);
-  color:var(--text-dim);font-family:inherit;font-size:12px;cursor:pointer;white-space:nowrap;
-  transition:all var(--transition)}
+.mchip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--border);
+  border-radius:20px;background:var(--bg-card);color:var(--text-dim);font-family:inherit;
+  font-size:12px;cursor:pointer;white-space:nowrap;transition:all var(--transition)}
 .mchip:hover{border-color:var(--accent);color:var(--accent)}
 .mchip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:600}
+/* 免费标记 */
+.free-tag{font-style:normal;font-size:9.5px;font-weight:600;line-height:1;
+  padding:2px 5px;border-radius:20px;background:var(--ok-soft);color:var(--ok);
+  border:1px solid transparent}
+.mchip.on .free-tag{background:rgba(255,255,255,.24);color:var(--accent-fg)}
+[data-theme="minimal"] .free-tag{background:transparent;border-color:var(--border);color:var(--text-dim)}
+[data-theme="minimal"] .mchip.on .free-tag{border-color:rgba(10,10,10,.3);color:var(--accent-fg)}
+[data-theme="construct"] .free-tag{border-radius:0;border-color:var(--border);background:transparent;color:var(--text)}
+[data-theme="construct"] .mchip.on .free-tag{color:var(--accent-fg);border-color:transparent}
 [data-theme="glass"] .mchip{background:rgba(255,255,255,.6);
   -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
 [data-theme="glass"] .mchip.on{background:linear-gradient(180deg,#4aa3ff,#0a7bf0);border-color:rgba(255,255,255,.4)}

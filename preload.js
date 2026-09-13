@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ai: {
     test: () => invoke('vox:ai:test'),
     process: (task, text, options) => invoke('vox:ai:process', { task, text, options }),
+    models: (override) => invoke('vox:ai:models', override),
     onProgress: (cb) => subscribe('vox:ai-progress', cb)
   },
 

@@ -2,34 +2,36 @@
    设置 —— 软件层面的配置（11 个分组）
    ══════════════════════════════════════════ */
 
-/* OpenAI 兼容服务商预设 —— 换服务商只改这里的 baseURL 与模型 */
+/* OpenAI 兼容服务商预设
+   注意：模型清单只是「起步参考」，各家的模型迭代很快，随时可能过期。
+   设置页有「拉取服务商模型」按钮，直接问服务商要真实列表，以那个为准。
+   free 里列的是已知有免费额度的模型，界面上会打「免费」标。 */
 const AI_PROVIDERS = [
-  { id: 'deepseek', name: 'DeepSeek',    sub: '国内直连 · 错峰半价',
+  { id: 'deepseek', name: 'DeepSeek',    sub: '国内直连',
     base: 'https://api.deepseek.com/v1',
-    models: ['deepseek-flash', 'deepseek-v4-pro'],
-    note: 'deepseek-flash 便宜且支持视觉（1M 上下文），文本处理完全够用；'
-        + '错峰时段（北京时间 09:00-12:00、14:00-18:00 之外，含整个周末）价格减半。'
-        + '旧的 deepseek-chat / deepseek-reasoner 已下线。' },
+    models: ['deepseek-flash', 'deepseek-v4-pro'], free: [] },
+  { id: 'zhipu',    name: '智谱 GLM',    sub: '有免费模型',
+    base: 'https://open.bigmodel.cn/api/paas/v4',
+    models: ['glm-4-flash', 'glm-4-air', 'glm-4-plus'],
+    free: ['glm-4-flash'] },
   { id: 'qwen',     name: '通义千问',    sub: '阿里云 DashScope',
     base: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    models: ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long'] },
-  { id: 'kimi',     name: 'Kimi',        sub: '超长上下文 · 长剧本',
+    models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'qwen-long'], free: [] },
+  { id: 'kimi',     name: 'Kimi',        sub: '超长上下文',
     base: 'https://api.moonshot.cn/v1',
-    models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k', 'kimi-latest'] },
-  { id: 'zhipu',    name: '智谱 GLM',    sub: '清华系',
-    base: 'https://open.bigmodel.cn/api/paas/v4',
-    models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash'] },
-  { id: 'silicon',  name: '硅基流动',    sub: '聚合多家开源模型',
+    models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k', 'kimi-latest'], free: [] },
+  { id: 'silicon',  name: '硅基流动',    sub: '有免费模型',
     base: 'https://api.siliconflow.cn/v1',
-    models: ['deepseek-ai/DeepSeek-V3', 'Qwen/Qwen2.5-72B-Instruct', 'Qwen/Qwen2.5-7B-Instruct'] },
+    models: ['Qwen/Qwen2.5-7B-Instruct', 'Qwen/Qwen2.5-72B-Instruct', 'deepseek-ai/DeepSeek-V3'],
+    free: ['Qwen/Qwen2.5-7B-Instruct'] },
   { id: 'openai',   name: 'OpenAI',      sub: '需要能访问境外',
     base: 'https://api.openai.com/v1',
-    models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'] },
-  { id: 'ollama',   name: '本地 Ollama', sub: '数据不出网 · 需先 ollama pull',
+    models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'], free: [] },
+  { id: 'ollama',   name: '本地 Ollama', sub: '全部免费 · 数据不出网',
     base: 'http://127.0.0.1:11434/v1',
-    models: ['qwen2.5:7b', 'qwen2.5:14b', 'llama3.1:8b'] },
+    models: ['qwen2.5:7b', 'qwen2.5:14b', 'llama3.1:8b'], free: ['*'] },
   { id: 'custom',   name: '自定义',      sub: '任意 OpenAI 兼容端点',
-    base: '', models: [] }
+    base: '', models: [], free: [] }
 ];
 
 const SettingsPage = {
@@ -122,34 +124,41 @@ const SettingsPage = {
     const ai = s.ai || {};
     const cur = AI_PROVIDERS.find(x => x.id === ai.provider) || AI_PROVIDERS[0];
     const models = cur.models || [];
+    const freeSet = new Set(cur.free || []);
+    const allFree = freeSet.has('*');
+    const isFree = (m) => allFree || freeSet.has(m);
     const isCustomModel = !!ai.model && models.length > 0 && !models.includes(ai.model);
     return '<div class="card"><h2>AI 服务 <span class="n">'
-      + (Store.hasApiKey ? '已配置 Key' + (Store.keyEncrypted ? '（加密存储）' : '（未加密）') : '未配置 Key')
+      + (Store.hasApiKey
+          ? '已配置 Key' + (Store.keyEncrypted ? '（加密存储）' : '（未加密）')
+          : '<span style="color:var(--danger)">未配置 Key</span>')
       + '</span></h2>'
       + '<p class="text-sm text-muted" style="margin:-6px 0 10px">'
       + '所有服务商都走 OpenAI 兼容接口。选一个会自动填好地址与模型，也可以手改。</p>'
-      + (cur.note ? '<div class="bg-line" style="margin-bottom:12px">'
-          + '<div class="bg-text" style="font-size:12px">' + Util.escapeHtml(cur.note) + '</div></div>' : '')
       + '<div class="themes" style="flex-wrap:wrap;margin-bottom:6px">'
       + AI_PROVIDERS.map(p =>
           '<div class="th' + (ai.provider === p.id ? ' on' : '') + '" data-provider="' + p.id + '" style="width:164px">'
           + '<b>' + p.name + '</b><span>' + p.sub + '</span></div>').join('')
       + '</div>'
       + this._row('接口地址', 'OpenAI 兼容 baseURL，末尾不用带 /chat/completions',
-          '<input type="text" id="ai-base" value="' + Util.escapeAttr(ai.baseURL || cur.base) + '" style="width:340px">')
-      + this._row('模型', '点选即用，也可以选「自定义」手填',
-          '<div class="model-chips" id="ai-models">'
+          '<input type="text" id="ai-base" value="' + Util.escapeAttr(ai.baseURL || cur.base) + '" style="width:320px">')
+      + this._row('模型', '标「免费」的是已知有免费额度的；模型迭代快，建议点右侧按钮拉取真实列表',
+          '<div class="mrow">'
+          + '<div class="model-chips" id="ai-models">'
           + models.map(m => '<button type="button" class="mchip' + (ai.model === m ? ' on' : '')
-              + '" data-model="' + Util.escapeAttr(m) + '">' + Util.escapeHtml(m) + '</button>').join('')
+              + '" data-model="' + Util.escapeAttr(m) + '">' + Util.escapeHtml(m)
+              + (isFree(m) ? '<i class="free-tag">免费</i>' : '') + '</button>').join('')
           + '<button type="button" class="mchip' + (isCustomModel || !models.length ? ' on' : '')
           + '" data-model="__custom__">自定义…</button>'
           + '</div>'
+          + '<button class="btn btn-sm" data-act="fetch-models" title="向服务商请求 /models，拿到真实可用列表">⟳ 拉取</button>'
+          + '</div>'
           + '<input type="text" id="ai-model" value="' + Util.escapeAttr(ai.model || '') + '" style="width:230px;'
           + (isCustomModel || !models.length ? '' : 'display:none') + '" placeholder="手填模型名">')
-      + this._row('视觉模型（OCR）', '图片取字用；DeepSeek 可直接填 deepseek-flash，留空则关闭该功能',
-          '<input type="text" id="ai-vision" value="' + Util.escapeAttr(ai.visionModel || '') + '" placeholder="如 deepseek-flash / qwen-vl-max" style="width:220px">')
-      + this._row('API Key', '用系统凭据加密存储，不落明文',
-          '<input type="password" id="ai-key" placeholder="' + (Store.hasApiKey ? '已保存（留空则不修改）' : 'sk-…') + '" style="width:240px">'
+      + this._row('视觉模型（OCR）', '图片取字用，留空则关闭该功能（哪些模型支持视觉请问服务商）',
+          '<input type="text" id="ai-vision" value="' + Util.escapeAttr(ai.visionModel || '') + '" placeholder="留空即关闭" style="width:220px">')
+      + this._row('API Key', '用系统凭据加密存储，不落明文。<b>改完记得保存</b>，「测试连接」会先自动保存',
+          '<input type="password" id="ai-key" placeholder="' + (Store.hasApiKey ? '已保存（留空则不修改）' : 'sk-…') + '" style="width:230px">'
           + '<button class="btn btn-sm" data-act="test">测试连接</button>')
       + this._row('超时 / 重试', '长文本处理建议调大超时',
           '<input type="number" id="ai-timeout" value="' + (ai.timeoutSec || 60) + '" style="width:74px"><span class="text-sm text-muted">秒</span>'
@@ -359,29 +368,49 @@ const SettingsPage = {
     toggle('toggle-onlycur',  v => save({ privacy: { ...s.privacy, onlyCurrentParagraph: v } }));
     toggle('toggle-diff',     v => save({ privacy: { ...s.privacy, keepDiffHistory: v } }));
 
+    /* 把输入框里的 key 存下来（没输入就跳过）；返回是否成功 */
+    const persistKey = async () => {
+      const inp = el.querySelector('#ai-key');
+      const key = inp ? inp.value.trim() : '';
+      if (!key) return { ok: true, skipped: true };
+      const r = await window.electronAPI.settings.setApiKey(key);
+      if (r && r.ok) {
+        Store.hasApiKey = true;
+        Store.keyEncrypted = r.encrypted;
+        inp.value = '';
+        inp.placeholder = '已保存（留空则不修改）';
+        return { ok: true };
+      }
+      return { ok: false, message: (r && r.message) || '未知错误' };
+    };
+
     /* 服务商选择 → 自动填地址，模型变成可点的 chips */
     let pickedProvider = (s.ai || {}).provider || 'deepseek';
+    const renderModels = (list, freeList, keep) => {
+      const wrap = el.querySelector('#ai-models');
+      const inp = el.querySelector('#ai-model');
+      if (!wrap || !inp) return;
+      const freeSet = new Set(freeList || []);
+      const allFree = freeSet.has('*');
+      wrap.innerHTML = (list || []).map(m =>
+          '<button type="button" class="mchip' + (keep === m ? ' on' : '') + '" data-model="'
+          + Util.escapeAttr(m) + '">' + Util.escapeHtml(m)
+          + ((allFree || freeSet.has(m)) ? '<i class="free-tag">免费</i>' : '') + '</button>').join('')
+        + '<button type="button" class="mchip' + (list && list.length ? '' : ' on')
+        + '" data-model="__custom__">自定义…</button>';
+      if (list && list.length) {
+        inp.value = keep || list[0];
+        inp.style.display = 'none';
+      } else {
+        inp.style.display = '';
+      }
+      bindChips();
+    };
     const fillProvider = (id) => {
       const p = AI_PROVIDERS.find(x => x.id === id) || AI_PROVIDERS[0];
       const baseEl = el.querySelector('#ai-base');
       if (baseEl && p.base) baseEl.value = p.base;
-      const wrap = el.querySelector('#ai-models');
-      const inp = el.querySelector('#ai-model');
-      if (!wrap || !inp) return;
-      wrap.innerHTML = (p.models || []).map(m =>
-          '<button type="button" class="mchip" data-model="' + Util.escapeAttr(m) + '">' + Util.escapeHtml(m) + '</button>').join('')
-        + '<button type="button" class="mchip on" data-model="__custom__">自定义…</button>';
-      if ((p.models || []).length) {
-        wrap.querySelector('.mchip').classList.add('on');
-        wrap.querySelector('[data-model="__custom__"]').classList.remove('on');
-        inp.value = p.models[0];
-        inp.style.display = 'none';
-      } else {
-        inp.style.display = '';
-        inp.value = '';
-        inp.focus();
-      }
-      bindChips();
+      renderModels(p.models || [], p.free || [], '');
     };
     const bindChips = () => {
       const wrap = el.querySelector('#ai-models');
@@ -404,7 +433,30 @@ const SettingsPage = {
       const wrap = el.querySelector('#ai-models');
       wrap?.querySelectorAll('.mchip').forEach(x =>
         x.classList.toggle('on', x.dataset.model === '__custom__'
-          || (![...(wrap.querySelectorAll('.mchip'))].some(c => c.dataset.model === e.target.value))));
+          || (![...wrap.querySelectorAll('.mchip')].some(c => c.dataset.model === e.target.value))));
+    });
+
+    /* 拉取服务商真实模型列表 */
+    el.querySelector('[data-act="fetch-models"]')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const old = btn.textContent;
+      btn.disabled = true; btn.textContent = '拉取中…';
+      const out = el.querySelector('#ai-test-result');
+      try {
+        const kr = await persistKey();            // 先存 key，否则拉不动
+        if (!kr.ok) throw new Error('API Key 保存失败：' + kr.message);
+        const r = await window.electronAPI.ai.models({
+          baseURL: el.querySelector('#ai-base').value.trim()
+        });
+        if (!r.ok) throw new Error(r.message);
+        const p = AI_PROVIDERS.find(x => x.id === pickedProvider) || {};
+        renderModels(r.models, p.free || [], el.querySelector('#ai-model').value.trim());
+        if (out) out.textContent = '✓ 拉取到 ' + r.models.length + ' 个模型';
+        Toast.success('已拉取 ' + r.models.length + ' 个模型');
+      } catch (err) {
+        if (out) out.textContent = '✕ ' + err.message;
+        Toast.error('拉取失败：' + err.message, true);
+      } finally { btn.disabled = false; btn.textContent = old; }
     });
 
     const doTest = async (btn) => {
@@ -413,26 +465,24 @@ const SettingsPage = {
       btn.disabled = true; btn.textContent = '测试中…';
       if (out) out.textContent = '';
       try {
+        // 关键：先把输入框里的 key 存下来，否则测的是磁盘上的旧 key
+        const kr = await persistKey();
+        if (!kr.ok) throw new Error('API Key 保存失败：' + kr.message);
         const r = await window.electronAPI.ai.test();
         if (out) out.textContent = (r.ok ? '✓ ' : '✕ ') + r.message + (r.reply ? '（' + r.reply + '）' : '');
-        if (r.ok) Toast.success('AI 连接正常'); else Toast.error('连接失败：' + r.message, true);
-      } catch (e) {
-        if (out) out.textContent = '✕ ' + e.message;
-        Toast.error('连接失败：' + e.message, true);
+        if (r.ok) { Toast.success('AI 连接正常'); App.go('settings'); }
+        else Toast.error('连接失败：' + r.message, true);
+      } catch (err) {
+        if (out) out.textContent = '✕ ' + err.message;
+        Toast.error('连接失败：' + err.message, true);
       } finally { btn.disabled = false; btn.textContent = old; }
     };
     el.querySelector('[data-act="test"]')?.addEventListener('click', (e) => doTest(e.currentTarget));
     el.querySelector('[data-act="test2"]')?.addEventListener('click', (e) => doTest(e.currentTarget));
 
     el.querySelector('[data-act="save-ai"]')?.addEventListener('click', async () => {
-      const key = el.querySelector('#ai-key').value.trim();
-      if (key) {
-        const r = await window.electronAPI.settings.setApiKey(key);
-        if (r && r.ok) {
-          Store.hasApiKey = true; Store.keyEncrypted = r.encrypted;
-          el.querySelector('#ai-key').value = '';
-        }
-      }
+      const kr = await persistKey();
+      if (!kr.ok) { Toast.error('API Key 保存失败：' + kr.message, true); return; }
       await save({
         ai: {
           provider: pickedProvider,
@@ -443,7 +493,7 @@ const SettingsPage = {
           retries: parseInt(el.querySelector('#ai-retries').value, 10) || 2,
           maxCharsPerCall: parseInt(el.querySelector('#ai-max').value, 10) || 4000
         }
-      }, 'AI 设置已保存');
+      }, kr.skipped ? 'AI 设置已保存' : 'AI 设置与 API Key 已保存');
     });
 
     el.querySelector('[data-act="test-old"]')?.addEventListener('click', async (e) => {
