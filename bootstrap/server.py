@@ -203,6 +203,89 @@ def _dir_size(p):
     return total
 
 
+MODEL_REPO = "OpenBMB/VoxCPM2"
+MODEL_FILES = [
+    ("model.safetensors", 4580080592),
+    ("audiovae.pth", 376982016),
+    ("tokenizer.json", 3682304),
+    ("config.json", 4336),
+    ("tokenizer_config.json", 5059),
+    ("special_tokens_map.json", 0),
+    ("tokenization_voxcpm2.py", 0),
+]
+MIRRORS = [
+    "https://modelscope.cn/models/{repo}/resolve/master/{file}",
+    "https://hf-mirror.com/{repo_lower}/resolve/main/{file}",
+]
+
+_cur_file = {"name": "", "done": 0, "total": 0, "mbps": 0.0}
+
+
+def _fetch(url, dest, stop):
+    """流式下载单个文件，边下边更新 _cur_file。返回 True/False。"""
+    import urllib.request
+    req = urllib.request.Request(url, headers={"User-Agent": "VoxWorkstation/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            total = int(r.headers.get("Content-Length") or 0)
+            _cur_file.update(name=os.path.basename(dest), done=0, total=total)
+            t0 = time.time()
+            with open(dest, "wb") as f:
+                while True:
+                    chunk = r.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    _cur_file["done"] += len(chunk)
+                    el = time.time() - t0
+                    if el > 0:
+                        _cur_file["mbps"] = (_cur_file["done"] / 1048576) / el
+                    # 同步到 /api/ready 的进度
+                    _phase["downloaded"] = _dir_size(MODEL_PATH)
+                    _phase["progress"] = min(0.99, _phase["downloaded"] / MODEL_SIZE_HINT)
+                    _phase["mbps"] = round(_cur_file["mbps"], 2)
+                    if stop.is_set():
+                        return False
+        return os.path.getsize(dest) > 0
+    except Exception as e:
+        print(f"  [下载失败] {url} -> {e}", flush=True)
+        try:
+            if os.path.exists(dest):
+                os.unlink(dest)
+        except OSError:
+            pass
+        return False
+
+
+def _download_model_files():
+    """直接从 ModelScope 直链下载。
+
+    不用 modelscope 的 snapshot_download：它走另一套 API 端点、逐文件校验，
+    实测比直链慢很多（直链可持续 17+ MB/s，4.4 GB 约 4 分钟）。
+    直链失败时回退 snapshot_download。
+    """
+    stop = threading.Event()
+    ok = True
+    for name, _size in MODEL_FILES:
+        dest = os.path.join(MODEL_PATH, name)
+        if os.path.exists(dest) and os.path.getsize(dest) > 0:
+            continue
+        print(f"  下载 {name} ...", flush=True)
+        got = False
+        for tpl in MIRRORS:
+            url = tpl.format(repo=MODEL_REPO, repo_lower=MODEL_REPO.lower(), file=name)
+            if _fetch(url, dest, stop):
+                got = True
+                print(f"    {name} 完成（{os.path.getsize(dest)/1048576:.1f} MB）", flush=True)
+                break
+        if not got:
+            ok = False
+            break
+    if not ok or not os.path.exists(MODEL_WEIGHT):
+        print("  直链下载未成功，回退 modelscope.snapshot_download ...", flush=True)
+        from modelscope import snapshot_download
+        snapshot_download(MODEL_REPO, local_dir=MODEL_PATH)
+
 def _bootstrap():
     """后台线程：确保模型文件（必要时下载）→ 加载模型。
 
@@ -225,9 +308,8 @@ def _bootstrap():
 
             threading.Thread(target=_report, daemon=True, name="dl-progress").start()
             try:
-                from modelscope import snapshot_download
                 os.makedirs(MODEL_PATH, exist_ok=True)
-                snapshot_download("OpenBMB/VoxCPM2", local_dir=MODEL_PATH)
+                _download_model_files()
             finally:
                 stop.set()
             if not os.path.exists(MODEL_WEIGHT):
@@ -272,6 +354,7 @@ async def api_ready():
         "message": _phase.get("message", ""),
         "progress": round(float(_phase.get("progress", 0.0)), 3),
         "downloaded_mb": int(_phase.get("downloaded", 0) / 1024 / 1024),
+        "mbps": _phase.get("mbps", 0),
         "expected_mb": int(MODEL_SIZE_HINT / 1024 / 1024),
         "error": model_error,
         "elapsed_ms": int((time.time() - _model_started_at) * 1000),
@@ -802,6 +885,51 @@ async def check_links(data: dict):
 
 
 # ========== 启动服务 ==========
+# ========== 启动服务 ==========
+def _resolve_port():
+    """端口可由 VOX_PORT 环境变量或 --port 参数指定。
+
+    写死 8000 会导致：该端口被别的程序占用时 uvicorn 绑不上直接退出，
+    客户端只看到一个没头没尾的 code=3，很难定位。
+    """
+    for i, a in enumerate(sys.argv):
+        if a == "--port" and i + 1 < len(sys.argv):
+            return int(sys.argv[i + 1])
+        if a.startswith("--port="):
+            return int(a.split("=", 1)[1])
+    try:
+        return int(os.environ.get("VOX_PORT") or 8000)
+    except ValueError:
+        return 8000
+
+
+def _serve(start_port, tries=60):
+    """逐个端口尝试绑定，成功即用。
+
+    为什么要在绑定处重试：Windows 的「端口排除段」（Hyper-V / WSL /
+    Docker 预留）会让整段端口都返回 WSAEACCES，即使没有任何程序在监听。
+    客户端侧的预判猜不到这段范围有多宽，只有真正 bind 一次才知道。
+    """
+    import socket as _socket
+    for offset in range(tries):
+        p = start_port + offset
+        probe = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+        try:
+            probe.bind(("127.0.0.1", p))
+            probe.close()
+        except OSError as e:
+            probe.close()
+            print(f"  端口 {p} 不可用（{e.errno}），试下一个", flush=True)
+            continue
+        # 让客户端知道最终用的是哪个端口
+        print(f"VOX_PORT_ACTUAL={p}", flush=True)
+        print(f"监听端口 {p}", flush=True)
+        import uvicorn as _uvicorn
+        _uvicorn.run(app, host="127.0.0.1", port=p)
+        return
+    print("找不到可用端口，请检查系统端口排除设置", flush=True)
+    sys.exit(1)
+
+
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    _serve(_resolve_port())

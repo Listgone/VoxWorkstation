@@ -1,6 +1,6 @@
 {
   "name": "vox-workstation",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "VoxCPM2 AI Voice Workstation",
   "author": "VoxWorkstation",
   "license": "MIT",
@@ -8,7 +8,9 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "build:win": "electron-builder --win"
+    "build:win": "electron-builder --win",
+    "prebuild:win": "node scripts/sync-bootstrap.js",
+    "sync": "node scripts/sync-bootstrap.js"
   },
   "build": {
     "appId": "com.voxcpm.workstation",
