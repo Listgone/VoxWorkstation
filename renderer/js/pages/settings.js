@@ -75,6 +75,7 @@ const SettingsPage = {
   _sec: 'appearance',
 
   _SECTIONS: [
+    ['guide',      '使用说明'],
     ['appearance', '外观与主题'],
     ['ai',         'AI 服务'],
     ['tts',        'TTS 引擎'],
@@ -99,6 +100,7 @@ const SettingsPage = {
 
   _section(s) {
     switch (this._sec) {
+      case 'guide':      return this._guide();
       case 'appearance': return this._appearance(s);
       case 'ai':         return this._ai(s);
       case 'tts':        return this._tts(s);
@@ -119,6 +121,49 @@ const SettingsPage = {
 
   _sw(on, act) { return '<label class="sw' + (on ? '' : ' off') + '" data-act="' + act + '"></label>'; },
 
+  _guide() {
+    const box = (t, items) => '<div class="gsec"><b>' + t + '</b><ol>'
+      + items.map(x => '<li>' + x + '</li>').join('') + '</ol></div>';
+    return '<div class="card"><h2>使用说明 <span class="n">从零到出成品</span></h2>'
+      + '<div class="gflow">'
+      + ['① 建项目', '② 建集', '③ 文本处理', '④ 配音', '⑤ 导出']
+          .map((x, i) => '<span class="gstep">' + x + '</span>'
+            + (i < 4 ? '<i class="garrow">→</i>' : '')).join('')
+      + '</div>'
+
+      + box('日常流程', [
+          '<b>项目管理</b>新建一个项目（一个项目 = 一部作品）。',
+          '<b>集管理</b>新建集；集文件夹会建在项目目录下，形如 <code>第01集</code>。',
+          '<b>文本处理</b>把小说/剧本原文粘进左上输入框 → 点「作为原文」→ 点 <b>✦ 整理成剧本</b>。',
+          '整理结果分两段：<code>【背景介绍】</code>只供判断不配音；<code>【角色（情绪）+台词】</code>才是配音内容。',
+          '核对分句表：角色、情绪分级（明确 / 推断 / 未标注）不对就手动改。',
+          '<b>配音</b>先给每个角色绑定音色 → 点「生成全部」。每生成一句立刻落盘，中途关软件也不丢。',
+          '<b>导出</b>整轨合并 / 生成 SRT / 逐句目录。'
+        ])
+      + box('AI 处理怎么选', [
+          '<b>✦ 整理成剧本</b>：一键完成全流程（推荐，只想要剧本点这个就够）。',
+          '<b>✦ AI 处理…</b>：分步用。只规范化数字 / 只补语气标记 / 只要台词 JSON 时用。',
+          '本地处理（<b>本地规范化</b>、<b>按标点分句</b>）不联网、瞬间完成，但不懂语义。',
+          'AI 需要先在「设置 → AI 服务」配置。DeepSeek 便宜且快，建议 <code>deepseek-flash</code>。'
+        ])
+      + box('文件都存哪', [
+          '每个集一个文件夹，里面有 <code>script.original.txt</code>（原文）、<code>script.txt</code>（处理后）、'
+            + '<code>lines.json</code>（分句与状态）、<code>audio\\</code>（逐句音频）、<code>output\\</code>（导出成品）。',
+          '音频命名形如 <code>001_旁白_这是第2集的.wav</code>：序号 + 角色 + 台词前几字，方便辨认。',
+          '删除的项目/集进同级的 <code>.trash</code> 文件夹，不会直接抹掉。'
+        ])
+      + box('常见问题', [
+          '<b>界面卡在加载页</b>：模型在后台加载，服务一响应就能进主界面，生成按钮会自动解禁。'
+            + '若超过 5 分钟没变化，去「诊断与关于」跑一次自检。',
+          '<b>AI 报错或很慢</b>：先点「测试连接」。DeepSeek 的「深度思考」务必保持关闭，'
+            + '开着会让简单任务慢几十倍。',
+          '<b>生成的音频听不了</b>：确认状态栏引擎徽章是绿色「引擎就绪」；'
+            + '加载中生成的请求会返回 503。',
+          '<b>换个服务商 key 要重填吗</b>：不用。每个服务商的 Key 分开保存，切换时自动带出各自的。',
+          '<b>整理结果里人名识别不出来</b>：多为模型能力问题，换更强的模型（如 DeepSeek）通常能解决。'
+        ])
+      + '</div>';
+  },
   _appearance(s) {
     const theme = document.documentElement.getAttribute('data-theme') || 'light';
     const TH = [
@@ -386,7 +431,15 @@ const SettingsPage = {
 
   _about(s) {
     const cfg = window.__voxConfig || {};
-    return '<div class="card"><h2>诊断与关于</h2>'
+    return '<div class="card"><h2>自检 <span class="n" id="diag-sum">点右侧按钮开始检测</span></h2>'
+      + '<p class="text-sm text-muted" style="margin:-6px 0 10px">'
+      + '逐项检查后端、引擎、目录与配置，发现问题会给出修复办法。</p>'
+      + '<div class="action-row"><button class="btn btn-primary" data-act="run-diag">开始自检</button>'
+      + '<span class="text-sm text-muted" id="diag-hint"></span></div>'
+      + '<div id="diag-list" class="diag-list"></div>'
+      + '</div>'
+
+      + '<div class="card"><h2>诊断与关于</h2>'
       + this._row('后端服务', Util.escapeHtml(API.baseUrl) + ' · ' + Util.escapeHtml(cfg.serverDir || ''), '')
       + this._row('配置目录', Util.escapeHtml(Store.userData || ''),
           '<button class="btn btn-sm" data-act="open-userdata">打开</button>')
@@ -394,6 +447,26 @@ const SettingsPage = {
           '<button class="btn btn-sm" data-act="show-log">查看</button>')
       + this._row('VoxWorkstation v1.0.0', 'VoxCPM2 引擎 · Electron', '')
       + '</div>';
+  },
+
+  _diagHtml(res) {
+    if (!res || !res.ok) return '<p class="text-sm text-muted">自检失败：' + Util.escapeHtml((res && res.message) || '未知错误') + '</p>';
+    const ICON = { ok: '✓', warn: '!', fail: '✕' };
+    const rows = res.checks.map(c =>
+      '<div class="diag-item diag-' + c.level + '">'
+      + '<span class="diag-ico">' + ICON[c.level] + '</span>'
+      + '<div class="diag-body"><b>' + Util.escapeHtml(c.name) + '</b>'
+      + '<span class="diag-detail">' + Util.escapeHtml(c.detail || '') + '</span>'
+      + (c.fix ? '<div class="diag-fix"><b>修复：</b>' + Util.escapeHtml(c.fix) + '</div>' : '')
+      + '</div></div>').join('');
+    const e = res.env;
+    const env = '<div class="diag-env">'
+      + ['Electron ' + e.electron, 'Chromium ' + e.chrome, 'Node ' + e.node,
+         e.platform, '后端 ' + e.serverDir, 'Python ' + e.pythonPath,
+         '端口 ' + e.serverPort, '输出 ' + (e.outputRoot || '(未设置)')]
+        .map(x => '<code>' + Util.escapeHtml(x) + '</code>').join('')
+      + '</div>';
+    return rows + env;
   },
 
   async mount(el) {
@@ -776,6 +849,26 @@ const SettingsPage = {
     });
     el.querySelector('[data-act="open-trash"]')?.addEventListener('click', () =>
       window.electronAPI.path.reveal(s.output.root + '\\.trash'));
+    el.querySelector('[data-act="run-diag"]')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const list = el.querySelector('#diag-list');
+      btn.disabled = true; btn.textContent = '检测中…';
+      if (list) list.innerHTML = '<p class="text-sm text-muted">正在检测…</p>';
+      try {
+        const r = await window.electronAPI.diag.run();
+        if (list) list.innerHTML = this._diagHtml(r);
+        const sum = el.querySelector('#diag-sum');
+        if (sum && r && r.summary) {
+          sum.textContent = '通过 ' + r.summary.ok + ' · 提醒 ' + r.summary.warn + ' · 异常 ' + r.summary.fail;
+          sum.style.color = r.summary.fail ? 'var(--danger)' : (r.summary.warn ? 'var(--warn)' : 'var(--ok)');
+        }
+        const hint = el.querySelector('#diag-hint');
+        if (hint) hint.textContent = (r && r.summary && r.summary.fail) ? '有异常项，按下方「修复」提示处理' : '';
+      } catch (err) {
+        if (list) list.innerHTML = '<p class="text-sm">自检失败：' + Util.escapeHtml(err.message) + '</p>';
+      } finally { btn.disabled = false; btn.textContent = '开始自检'; }
+    });
+
     el.querySelector('[data-act="open-userdata"]')?.addEventListener('click', () =>
       window.electronAPI.path.reveal(Store.userData));
     el.querySelector('[data-act="reveal-config"]')?.addEventListener('click', () =>

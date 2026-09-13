@@ -73,6 +73,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   /* 路径工具 */
+  diag: { run: () => invoke('vox:diag:run') },
+
   path: {
     pick: (args) => invoke('vox:path:pick', args),
     reveal: (p) => invoke('vox:path:reveal', p)

@@ -763,6 +763,102 @@ ipcMain.handle('restart-server', async () => {
 });
 
 /* ══════════════════════════════════════════════════════════
+   自检 —— 逐项检测并给出可执行的修复建议
+   ══════════════════════════════════════════════════════════ */
+ipcMain.handle('vox:diag:run', async () => {
+  const checks = [];
+  const add = (name, level, detail, fix) => checks.push({ name, level, detail, fix: fix || '' });
+  const base = `http://127.0.0.1:${CONFIG.serverPort}`;
+
+  const ready = await getJson(base + '/api/ready');
+  if (!ready) {
+    add('后端服务', 'fail', `端口 ${CONFIG.serverPort} 无响应`,
+        '在「设置 → TTS 引擎」确认后端目录与 Python 路径；或手动运行 start_app.bat 看报错。'
+      + '若端口被占用，改 vox.config.json 里的 serverPort。');
+  } else {
+    add('后端服务', 'ok', `已在 ${base} 响应`, '');
+    if (ready.ready) {
+      add('语音引擎', 'ok', `模型已就绪（加载耗时 ${(ready.elapsed_ms / 1000).toFixed(1)}s）`, '');
+    } else if (ready.error) {
+      add('语音引擎', 'fail', '模型加载失败：' + ready.error,
+          '多为显存不足或模型文件损坏。关掉占显存的程序后重试；'
+        + '仍失败可删除 pretrained_models/VoxCPM2 让它重新下载。');
+    } else {
+      add('语音引擎', 'warn', '模型仍在加载中',
+          '首次加载需 1–3 分钟属正常。若超过 5 分钟无变化，查看后端日志。');
+    }
+  }
+
+  const sp = CONFIG.serverScriptPath || path.join(CONFIG.serverDir, 'server.py');
+  if (fs.existsSync(sp)) add('后端脚本', 'ok', sp, '');
+  else add('后端脚本', 'fail', '找不到 ' + sp,
+           '在 vox.config.json 里把 serverDir 指向 server.py 所在目录。');
+
+  const py = await new Promise(res => {
+    try {
+      const c = spawn(CONFIG.pythonPath, ['--version'], { stdio: 'ignore', windowsHide: true });
+      c.on('error', () => res(false));
+      c.on('exit', code => res(code === 0));
+    } catch (e) { res(false); }
+  });
+  if (py) add('Python', 'ok', CONFIG.pythonPath + ' 可执行', '');
+  else add('Python', 'fail', '无法执行「' + CONFIG.pythonPath + '」',
+           '确认 Python 已装并加入 PATH，或在 vox.config.json 里把 pythonPath 写成 python.exe 的完整路径。');
+
+  const root = (appSettings.output && appSettings.output.root) || '';
+  if (!root) {
+    add('输出目录', 'warn', '未设置', '在「设置 → 音频输出」里选一个目录。');
+  } else if (!fs.existsSync(root)) {
+    try { fs.mkdirSync(root, { recursive: true }); add('输出目录', 'ok', '已创建 ' + root, ''); }
+    catch (e) { add('输出目录', 'fail', '无法创建 ' + root + '：' + e.message, '换一个有写权限的目录。'); }
+  } else {
+    try {
+      const probe = path.join(root, '.vox-write-test');
+      fs.writeFileSync(probe, 'ok'); fs.rmSync(probe, { force: true });
+      add('输出目录', 'ok', root + ' 可写', '');
+    } catch (e) { add('输出目录', 'fail', '不可写：' + e.message, '换目录，或给该目录写权限。'); }
+  }
+
+  try {
+    const st = fs.statfsSync(root && fs.existsSync(root) ? root : app.getPath('userData'));
+    const freeGb = (st.bavail * st.bsize) / 1024 ** 3;
+    add('磁盘空间', freeGb < 2 ? 'warn' : 'ok', `可用 ${freeGb.toFixed(1)} GB`,
+        freeGb < 2 ? '音频文件很占地方，建议清理或换盘。' : '');
+  } catch (e) { add('磁盘空间', 'warn', '无法读取', ''); }
+
+  const prov = (appSettings.ai && appSettings.ai.provider) || 'deepseek';
+  const ks = keyStatus()[prov] || {};
+  if (prov === 'ollama') {
+    const ol = await getJson('http://127.0.0.1:11434/api/tags');
+    add('本地 Ollama', ol ? 'ok' : 'warn', ol ? '服务在线' : '127.0.0.1:11434 无响应',
+        ol ? '' : '本地模型需要先启动 Ollama（装完它会常驻后台）。');
+  } else if (ks.has) {
+    add('AI 服务', 'ok', `${prov} 已配置 Key（${ks.hint}）`, '');
+  } else {
+    add('AI 服务', 'warn', `${prov} 未配置 Key`,
+        '要用「整理成剧本」等 AI 功能需要配置；只在本地做规范化/分句则可以不配。');
+  }
+
+  try { fs.accessSync(app.getPath('userData'), fs.constants.W_OK);
+        add('配置目录', 'ok', app.getPath('userData'), ''); }
+  catch (e) { add('配置目录', 'fail', '不可写：' + e.message, '检查该目录权限，或删除后重启软件。'); }
+
+  return {
+    ok: true, checks,
+    summary: {
+      ok: checks.filter(c => c.level === 'ok').length,
+      warn: checks.filter(c => c.level === 'warn').length,
+      fail: checks.filter(c => c.level === 'fail').length
+    },
+    env: {
+      electron: process.versions.electron, chrome: process.versions.chrome,
+      node: process.versions.node, platform: process.platform + ' ' + process.arch,
+      serverDir: CONFIG.serverDir, pythonPath: CONFIG.pythonPath,
+      serverPort: CONFIG.serverPort, outputRoot: root
+    }
+  };
+});
+/* ══════════════════════════════════════════════════════════
    项目 / 集 / 设置 IPC
    ══════════════════════════════════════════════════════════ */
 const needStore = () => {
