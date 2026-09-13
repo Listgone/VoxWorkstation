@@ -1,6 +1,6 @@
 {
   "name": "vox-workstation",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "VoxCPM2 AI Voice Workstation",
   "author": "VoxWorkstation",
   "license": "MIT",
@@ -17,11 +17,10 @@
       "output": "dist"
     },
     "files": [
-      "main.js",
-      "preload.js",
-      "vox.config.json",
+      "*.js",
       "renderer/**/*",
-      "assets/**/*"
+      "assets/**/*",
+      "vox.config.json"
     ],
     "win": {
       "target": "nsis",
