@@ -105,9 +105,11 @@ const EpisodesPage = {
       + '<td class="num">' + (e.durationMs ? Util.fmtDuration(e.durationMs) : '—') + '</td>'
       + '<td>' + Util.progressBar(e.doneCount || 0, e.lineCount || 0, 72) + '</td>'
       + '<td><span class="pill ' + cls + '">' + label + '</span></td>'
-      + '<td><button class="btn btn-sm' + (cur ? ' btn-primary' : '') + '" data-act="open-ep" data-no="' + e.no + '">'
+      + '<td class="row-acts">'
+      + '<button class="btn btn-sm' + (cur ? ' btn-primary' : '') + '" data-act="open-ep" data-no="' + e.no + '">'
       + (cur ? '继续' : '打开') + '</button>'
-      + '<button class="btn btn-sm btn-ghost btn-danger" data-act="del-ep" data-no="' + e.no + '">删</button></td>'
+      + '<button class="btn btn-sm btn-ghost btn-danger btn-del" data-act="del-ep" data-no="' + e.no + '"'
+      + ' title="删除这一集">删除</button></td>'
       + '</tr>';
   },
 

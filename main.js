@@ -280,6 +280,11 @@ function aiRequest(baseURL, key, bodyObj, timeoutMs) {
 /* 组装请求体。
    DeepSeek 的思考模式默认开启且 effort=high —— 模型会先写一大段思维链
    再作答，200 字的整理任务白等一分钟。默认关掉，需要时可在设置里打开。 */
+/** 指向本机的端点不需要鉴权（Ollama / LM Studio 等） */
+function isLocalEndpoint(url) {
+  return /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?/i.test(String(url || ''));
+}
+
 function aiBody(cfg, system, userText, task, options) {
   const body = {
     model: cfg.model,
@@ -420,7 +425,10 @@ function aiChunks(text, maxChars) {
 
 async function aiRun(task, text, options = {}) {
   const cfg = currentAI();
-  if (!cfg.key) return { ok: false, message: '未配置 API Key（设置 → AI 服务）' };
+  // 本地部署（Ollama / LM Studio 等）不需要 API Key
+  if (!cfg.key && !isLocalEndpoint(cfg.baseURL)) {
+    return { ok: false, message: '未配置 API Key（设置 → AI 服务）' };
+  }
   if (!cfg.baseURL) return { ok: false, message: '未配置接口地址（设置 → AI 服务）' };
   const spec = AI_TASKS[task];
   if (!spec) return { ok: false, message: '未知任务：' + task };
@@ -781,7 +789,7 @@ ipcMain.handle('vox:settings:clearApiKey', (_e, provider) => clearApiKey(provide
 
 ipcMain.handle('vox:ai:test', async (_e, override) => {
   const cfg = currentAI(override && override.provider);
-  if (!cfg.key) return { ok: false, message: '未配置 API Key' };
+  if (!cfg.key && !isLocalEndpoint(cfg.baseURL)) return { ok: false, message: '未配置 API Key' };
   if (!cfg.baseURL) return { ok: false, message: '未配置接口地址' };
   const r = await aiRequest(cfg.baseURL, cfg.key, {
     model: cfg.model,
@@ -804,7 +812,7 @@ ipcMain.handle('vox:ai:models', async (_e, override) => {
   const base = (override && override.baseURL) || cfg.baseURL;
   const key = (override && override.key) || cfg.key;
   if (!base) return { ok: false, message: '未配置接口地址' };
-  if (!key) return { ok: false, message: '未配置 API Key' };
+  if (!key && !isLocalEndpoint(base)) return { ok: false, message: '未配置 API Key' };
 
   return new Promise((resolve) => {
     let url;

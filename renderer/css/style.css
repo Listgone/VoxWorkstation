@@ -1269,3 +1269,27 @@ body.engine-loading .btn-gen,
 body.engine-loading [data-act="gen-all"],
 body.engine-loading [data-act="gen-failed"]{opacity:.45;pointer-events:none}
 body.engine-loading #side-status::after{content:' · 模型加载中';color:var(--warn)}
+
+/* ══════════════════════════════════════════════════
+   操作列间距统一（原来 5px，按钮贴在一起很容易误点）
+   ══════════════════════════════════════════════════ */
+.row-acts{display:flex;gap:8px;justify-content:flex-end;align-items:center;white-space:nowrap}
+.row-acts .btn{min-width:52px;justify-content:center}
+.btn-del{min-width:52px}
+/* 表格里的操作列给足宽度，避免挤压换行 */
+table th:last-child,table td:last-child{padding-right:14px}
+/* 工具行 / 动作行统一间距 */
+.action-row{gap:9px}
+.toolrow{gap:10px}
+/* 卡片内并排的按钮组也别贴太近 */
+.card .action-row + .action-row{margin-top:8px}
+/* 徽标之间 */
+.pill + .pill{margin-left:4px}
+/* 侧栏角标与文字 */
+.nav-item span + .badge{margin-left:auto;padding-left:8px}
+
+/* 本地部署说明块 */
+.ollama-hint{font-size:12px;line-height:1.75;color:var(--text-dim)}
+.ollama-hint code{background:var(--bg-elev);padding:1px 6px;border-radius:4px}
+.ollama-hint ol{margin:6px 0 0 18px}
+.ollama-hint li{margin-bottom:3px}

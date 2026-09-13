@@ -234,19 +234,30 @@ const SettingsPage = {
           + '</div>')
       + this._row('视觉模型（OCR）', '图片取字用，留空则关闭该功能。智谱可填 glm-ocr',
           '<input type="text" id="ai-vision" value="' + Util.escapeAttr(ai.visionModel || '') + '" placeholder="留空即关闭" style="width:220px">')
-      + this._row('API Key', (hasKey
+      + (prov === 'ollama'
+          ? this._row('API Key', '本地部署不需要 Key，把服务跑起来就能用', '<span class="text-sm text-muted">无需配置</span>')
+          : this._row('API Key', (hasKey
               ? '<b>' + Util.escapeHtml(cur.name) + '</b> 的 Key 已加密保存在本机。要换就直接输入新的，留空则不改动'
               : '每个服务商分开保存。「测试连接」会先自动保存'),
           '<input type="text" id="ai-key" class="key-input' + (hasKey ? ' is-set' : '') + '" '
           + 'value="' + Util.escapeAttr(hasKey ? (ks.hint || '已保存') : '') + '" '
           + 'placeholder="粘贴 API Key" style="width:230px" autocomplete="off" spellcheck="false">'
           + '<button class="btn btn-sm" data-act="test">测试连接</button>'
-          + (hasKey ? '<button class="btn btn-sm btn-ghost btn-danger" data-act="clear-key">清除</button>' : ''))
+          + (hasKey ? '<button class="btn btn-sm btn-ghost btn-danger" data-act="clear-key">清除</button>' : '')))
       + (prov !== 'deepseek' ? '' : this._row('深度思考', 'DeepSeek 默认开启且强度为 high，回答前先写一大段推理，很慢。'
             + '文本整理不需要，默认关闭；只有任务特别复杂时才值得打开',
           '<div class="model-chips" id="think-chips">'
           + '<button type="button" class="mchip' + ((s.thinking || 'off') !== 'on' ? ' on' : '') + '" data-think="off">关闭（快）</button>'
           + '<button type="button" class="mchip' + ((s.thinking === 'on') ? ' on' : '') + '" data-think="on">开启（强）</button>'
+          + '</div>'))
+      + (prov !== 'ollama' ? '' : this._row('怎么用本地模型', '',
+          '<div class="ollama-hint">'
+          + '<b>1. 装 Ollama</b>（ollama.com）—— 装哪个目录都行，装完它在后台常驻，不依赖本软件。<br>'
+          + '<b>2. 拉一个模型</b>：终端执行 <code>ollama pull qwen2.5:14b</code>，模型存在 Ollama 自己的目录（默认 <code>%USERPROFILE%\.ollama\models</code>）。<br>'
+          + '<b>3. 回到这里点「⟳ 拉取」</b>，本机装了哪些模型就会列出来，选一个即可。<br>'
+          + '<b>4. 不需要 API Key</b>，服务跑着就能用。'
+          + '<p style="margin:8px 0 0">本软件只通过 <code>http://127.0.0.1:11434</code> 调用它，不复制模型文件、不改动 Ollama 的目录。</p>'
+          + '<p style="margin:6px 0 0"><b>模型选择建议</b>：剧本整理是结构化长输出任务，<code>qwen2.5:14b</code> 起步；显存紧张退到 <code>7b</code>，但人名与角色识别会明显变差（7b 常把叙述当成台词）。</p>'
           + '</div>'))
       + this._row('超时 / 重试', '长文本处理建议调大超时',
           '<input type="number" id="ai-timeout" value="' + (ai.timeoutSec || 60) + '" style="width:74px"><span class="text-sm text-muted">秒</span>'
@@ -490,6 +501,7 @@ const SettingsPage = {
     const persistKey = async () => {
       const inp = el.querySelector('#ai-key');
       if (!inp) return { ok: true, skipped: true };
+      if (pickedProvider === 'ollama') return { ok: true, skipped: true };   // 本地不需要 Key
       const key = inp.value.trim();
       if (!key || isMask(key)) return { ok: true, skipped: true };
       const r = await window.electronAPI.settings.setApiKey(pickedProvider, key);
