@@ -1756,3 +1756,12 @@ body.app-loading #titlebar{
 /* 宽度类子块改为固定宽度 + 自动外边距（在 flex 下由 align-items 居中） */
 .ld-morewrap,.ld-setup{width:min(460px,84vw)}
 
+
+/* 引导面板：模型目录说明 */
+.ld-model{margin-top:12px;padding-top:11px;border-top:1px solid var(--border-soft)}
+.ld-model-path{font-size:11px;color:var(--text-mute);text-align:center;margin-bottom:8px;
+  line-height:1.7;word-break:break-all}
+.ld-model-path code{font-family:var(--font-code);font-size:10.5px;
+  background:var(--bg-elev);padding:2px 6px;border-radius:4px;color:var(--text-dim)}
+.ld-model-tip{font-size:10.5px;color:var(--text-mute);text-align:center;
+  margin-top:8px;line-height:1.7;opacity:.85}

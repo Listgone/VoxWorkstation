@@ -661,6 +661,8 @@ function startServer() {
 
 /** 轮询 /api/ready，模型加载完成后通知渲染层解除生成按钮的禁用 */
 let enginePoll = null;
+let _lastDlMb = -1;
+let _stuckSec = 0;
 function watchEngineReady() {
   if (enginePoll) return;
   let deadline = Date.now() + 15 * 60 * 1000;   // 加载模型可能很久
@@ -690,6 +692,20 @@ function watchEngineReady() {
     // 每次都把截止时间往后推，并把进度报给界面
     if (r.phase === 'downloading') {
       deadline = Math.max(deadline, Date.now() + 15 * 60 * 1000);
+      // 卡住检测：进度长时间不动就提示，别让用户干等
+      const mb = r.downloaded_mb || 0;
+      if (mb === _lastDlMb) {
+        _stuckSec += 1.2;
+      } else {
+        _stuckSec = 0;
+        _lastDlMb = mb;
+      }
+      if (_stuckSec > 45) {
+        setStatus({ status: 'engine-downloading', progress: r.progress || 0,
+                    downloadedMb: mb, expectedMb: r.expected_mb || 0,
+                    mbps: 0, stalled: true });
+        return;
+      }
       setStatus({
         status: 'engine-downloading',
         progress: r.progress || 0,
@@ -715,13 +731,18 @@ function getJson(url) {
   });
 }
 
-async function ensureServer() {  if (serverState === 'ready') return { ok: true };
+async function ensureServer() {
+  // 注意：凡是「服务已经在跑」的早退分支，都必须启动 watchEngineReady()。
+  // 否则收不到 engine-downloading / engine-ready 事件 ——
+  // 表现就是一键配置走到 58%（交接点）后进度再也不动。
+  if (serverState === 'ready') { watchEngineReady(); return { ok: true }; }
 
-  // 端口上已经有服务在跑（例如用户自己启动过 app.py）→ 直接复用，
-  // 避免再拉一个绑不上端口、却让健康检查通过第二个进程的假象
+  // 端口上已经有服务在跑（例如上次启动的后端还活着，或用户自己启动过）
+  // → 直接复用，避免再拉一个绑不上端口的进程造成假象
   if (await probe(CONFIG.serverPort)) {
     pushLog(`[shell] 端口 ${CONFIG.serverPort} 已有后端在运行，直接复用`);
     serverState = 'ready';
+    watchEngineReady();
     return { ok: true, reused: true };
   }
 
@@ -1046,18 +1067,52 @@ ipcMain.handle('vox:setup:status', () => ({
 }));
 
 /** 校验用户选的目录里有没有 server.py */
+/** 返回模型应放的位置（顺带建好目录），供「打开模型目录」使用 */
+ipcMain.handle('vox:setup:modelDir', () => {
+  const dir = path.join(CONFIG.serverDir, 'pretrained_models', 'VoxCPM2');
+  try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { /* 建不了也返回路径 */ }
+  const weight = path.join(dir, 'model.safetensors');
+  let mb = 0;
+  try {
+    for (const f of fs.readdirSync(dir)) {
+      const st = fs.statSync(path.join(dir, f));
+      if (st.isFile()) mb += st.size;
+    }
+  } catch (e) { /* 空目录 */ }
+  return { ok: true, dir, hasModel: fs.existsSync(weight), sizeMb: Math.round(mb / 1048576) };
+});
+
 ipcMain.handle('vox:setup:validate', (_e, dir) => {
   if (!dir) return { ok: false, message: '未选择目录' };
   const sp = path.join(dir, String(CONFIG.serverScript || 'server.py'));
   if (!fs.existsSync(sp)) {
     return { ok: false, message: '该目录下没有找到 ' + path.basename(sp) };
   }
-  const model = path.join(dir, 'pretrained_models', 'VoxCPM2', 'model.safetensors');
+  const mdir = path.join(dir, 'pretrained_models', 'VoxCPM2');
+  const weight = path.join(mdir, 'model.safetensors');
+  const vae = path.join(mdir, 'audiovae.pth');
+  const hasModel = fs.existsSync(weight) && fs.existsSync(vae);
+  let sizeMb = 0;
+  if (hasModel) {
+    try {
+      for (const f of fs.readdirSync(mdir)) {
+        const st = fs.statSync(path.join(mdir, f));
+        if (st.isFile()) sizeMb += st.size;
+      }
+      sizeMb = Math.round(sizeMb / 1048576);
+    } catch (e) { /* 读不到就算了 */ }
+  }
   return {
     ok: true,
     scriptPath: sp,
-    hasModel: fs.existsSync(model),
-    message: fs.existsSync(model) ? '后端与模型都在' : '找到后端，但还没有模型（首次启动会自动下载约 4.7 GB）'
+    modelDir: mdir,
+    hasModel,
+    sizeMb,
+    // 这样用户自己下好模型后，指定目录就能直接用，不会重复下载
+    message: hasModel
+      ? '已识别到模型（' + sizeMb + ' MB），可直接使用，不会重复下载'
+      : '找到后端，但还没有模型 —— 启动后会自动下载约 4.7 GB；' +
+        '你也可以自己下好放进 ' + mdir
   };
 });
 

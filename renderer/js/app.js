@@ -425,6 +425,9 @@ const App = {
     let dlText = '正在下载模型 ' + (d.downloadedMb || 0) + ' / '
       + (d.expectedMb || 0) + ' MB（' + pct + '%）';
     // 速度和剩余时间是等待时最需要的信息
+    if (d.stalled) {
+      dlText += ' · 下载似乎已停滞，请检查网络或代理；也可自行下载模型放到 engine\\pretrained_models\\VoxCPM2\\';
+    }
     const sp = Number(d.mbps || 0);
     if (sp > 0.05) {
       dlText += ' · ' + sp.toFixed(1) + ' MB/s';
@@ -492,6 +495,20 @@ const App = {
       if (p) p.textContent = '当前查找位置：' + (s.scriptPath || '(未配置)');
     });
 
+    // 显示模型应放的位置，并允许直接打开 —— 自己下好丢进去就能用
+    window.electronAPI.setup.modelDir().then((m) => {
+      const el = document.getElementById('loading-model-dir');
+      if (el && m) el.textContent = m.dir;
+    });
+    const openModel = document.getElementById('loading-open-model');
+    if (openModel && !openModel.dataset.bound) {
+      openModel.dataset.bound = '1';
+      openModel.addEventListener('click', async () => {
+        const m = await window.electronAPI.setup.modelDir();
+        if (m && m.dir) window.electronAPI.path.reveal(m.dir);
+      });
+    }
+
     const auto = document.getElementById('loading-setup-auto');
     if (auto && !auto.dataset.bound) {
       auto.dataset.bound = '1';
@@ -556,7 +573,10 @@ const App = {
         const v = await window.electronAPI.setup.validate(r.path);
         const m = document.getElementById('loading-setup-msg');
         if (!v.ok) { if (m) { m.className = 'ld-setup-msg err'; m.textContent = v.message; } return; }
-        if (m) { m.className = 'ld-setup-msg ok'; m.textContent = v.message; }
+        if (m) {
+          m.className = 'ld-setup-msg ' + (v.hasModel ? 'ok' : '');
+          m.textContent = v.message;
+        }
         const a = await window.electronAPI.setup.apply(r.path);
         if (m) { m.className = 'ld-setup-msg ' + (a.ok ? 'ok' : 'err'); m.textContent = a.message || (a.ok ? '已保存，正在启动…' : '启动失败'); }
       });

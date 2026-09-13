@@ -81,6 +81,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     apply: (dir) => invoke('vox:setup:apply', dir),
     detect: () => invoke('vox:setup:detect'),
     auto: (opts) => invoke('vox:setup:auto', opts),
+    modelDir: () => invoke('vox:setup:modelDir'),
     onProgress: (cb) => subscribe('vox:setup-progress', cb)
   },
 
