@@ -1580,3 +1580,79 @@ table th:last-child,table td:last-child{padding-right:14px}
   #loading-overlay .ld-bar i{animation:none!important}
 }
 
+
+/* ══════════════════════════════════════════════════════════
+   加载页图标：出场动画
+   插画图标没有可生长的笔画，所以用「弹性放大 + 高光扫过 +
+   光晕爆发」三件事叠出「长出来」的感觉，随后转入悬浮呼吸。
+   ══════════════════════════════════════════════════════════ */
+
+/* 外层负责出场与常驻浮动，避免两套 transform 打架 */
+.ld-mark{
+  width:104px;height:104px;border-radius:26px;display:block;margin:0 auto;
+  position:relative;z-index:2;
+  box-shadow:0 2px 4px rgba(20,40,90,.20),0 12px 30px rgba(37,99,235,.26),0 28px 60px rgba(80,60,200,.18);
+  animation:ldMarkIn 1.05s cubic-bezier(.16,1.02,.28,1) both,
+            ldMarkFloat 4.6s ease-in-out 1.15s infinite;
+}
+@keyframes ldMarkIn{
+  0%  {opacity:0;transform:scale(.62) translateY(14px);filter:blur(7px)}
+  55% {opacity:1;filter:blur(0)}
+  72% {transform:scale(1.035) translateY(-2px)}   /* 轻微过冲，弹性感 */
+  100%{transform:scale(1) translateY(0);filter:blur(0)}
+}
+@keyframes ldMarkFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+
+/* ① 出场瞬间向外炸开的光环 */
+.ld-mark::before{
+  content:'';position:absolute;inset:0;border-radius:26px;z-index:-2;
+  border:2px solid rgba(90,150,255,.75);
+  animation:ldBurst 1.5s cubic-bezier(.16,.9,.3,1) .28s both;
+}
+@keyframes ldBurst{
+  0%  {opacity:0;transform:scale(.9)}
+  22% {opacity:.9}
+  100%{opacity:0;transform:scale(2.05)}
+}
+/* ② 常驻呼吸光晕 */
+.ld-mark::after{
+  content:'';position:absolute;inset:-18px;border-radius:44px;z-index:-1;
+  background:radial-gradient(circle,rgba(80,140,255,.42),rgba(150,90,240,.16) 55%,transparent 72%);
+  animation:ldHalo 3.4s ease-in-out 1.2s infinite;
+}
+@keyframes ldHalo{0%,100%{opacity:.45;transform:scale(.94)}50%{opacity:1;transform:scale(1.07)}}
+
+/* ③ 一道斜向高光在出场后扫过图标，像被打磨了一下 */
+.ld-glow{
+  position:absolute;inset:0;border-radius:26px;overflow:hidden;
+  pointer-events:none;z-index:3;
+}
+.ld-glow::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(112deg,transparent 34%,rgba(255,255,255,.52) 48%,transparent 62%);
+  background-size:280% 100%;
+  animation:ldSheen 1.15s cubic-bezier(.3,.6,.35,1) .5s both;
+}
+@keyframes ldSheen{
+  0%  {background-position:190% 0;opacity:0}
+  15% {opacity:1}
+  100%{background-position:-90% 0;opacity:1}
+}
+
+/* 文字与进度条的入场延后一点，让图标先立住 */
+.ld-title{animation-delay:.62s}
+.ld-text{animation-delay:.70s}
+.ld-bar{animation-delay:.78s}
+.ld-elapsed{animation-delay:.86s}
+
+@media (prefers-reduced-motion: reduce){
+  .ld-mark,.ld-mark::before,.ld-mark::after,.ld-glow::after{animation:none!important}
+  .ld-mark{opacity:1;transform:none;filter:none}
+}
+
+
+/* 图标容器：负责居中，内部 img 填满；高光层贴在其上 */
+.ld-mk{display:block;width:104px;height:104px;margin:0 auto;position:relative}
+.ld-mk .ld-mark{width:100%;height:100%;margin:0}
+.ld-mk .ld-glow{border-radius:26px}
+
