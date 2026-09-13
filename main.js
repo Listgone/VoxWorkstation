@@ -61,6 +61,7 @@ const APP_SETTINGS_DEFAULTS = {
   reduceMotion: false,
   uiScale: 1,
   language: 'zh-CN',
+  aiModels: {},                // { providerId: { list: [...], at: 时间戳 } } —— 拉取到的真实模型
   ai: {
     provider: 'deepseek',
     baseURL: 'https://api.deepseek.com/v1',

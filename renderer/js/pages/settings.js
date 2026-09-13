@@ -126,8 +126,13 @@ const SettingsPage = {
     const prov = ai.provider || 'deepseek';
     const ks = (Store.keyStatus || {})[prov] || {};
     const hasKey = !!ks.has;
-    const models = cur.models || [];
+    const fetched = ((s.aiModels || {})[prov] || null);
+    const models = (fetched && fetched.list && fetched.list.length) ? fetched.list : (cur.models || []);
     const freeSet = new Set(cur.free || []);
+    const fetchedAt = fetched && fetched.at ? new Date(fetched.at) : null;
+    const fetchedLabel = fetchedAt
+      ? '✓ 已拉取 ' + models.length + ' 个 · ' + fetchedAt.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '';
     const allFree = freeSet.has('*');
     const isFree = (m) => allFree || freeSet.has(m);
     const isCustomModel = !!ai.model && models.length > 0 && !models.includes(ai.model);
@@ -171,6 +176,12 @@ const SettingsPage = {
               + '</div>')
           + '<input type="text" id="ai-model" value="' + Util.escapeAttr(ai.model || '') + '" style="width:240px;'
           + (isCustomModel || !models.length ? '' : 'display:none') + '" placeholder="手填模型名">'
+          + (fetchedLabel
+              ? '<div class="text-sm" style="display:flex;gap:10px;align-items:center;color:var(--ok)">'
+                + Util.escapeHtml(fetchedLabel)
+                + '<a data-act="reset-models" style="cursor:pointer;color:var(--text-mute);'
+                + 'text-decoration:underline">恢复内置清单</a></div>'
+              : '')
           + '</div>')
       + this._row('视觉模型（OCR）', '图片取字用，留空则关闭该功能。智谱可填 glm-ocr',
           '<input type="text" id="ai-vision" value="' + Util.escapeAttr(ai.visionModel || '') + '" placeholder="留空即关闭" style="width:220px">')
@@ -553,13 +564,26 @@ const SettingsPage = {
         });
         if (!r.ok) throw new Error(r.message);
         const p = AI_PROVIDERS.find(x => x.id === pickedProvider) || {};
+        // 关键：把结果存进设置，否则一切页面就回到内置清单，看起来像没刷新
+        const aiModels = { ...(Store.settings.aiModels || {}) };
+        aiModels[pickedProvider] = { list: r.models, at: Date.now() };
+        await Store.saveSettings({ aiModels });
         renderModels(r.models, p.free || [], el.querySelector('#ai-model').value.trim());
         if (out) out.textContent = '✓ 拉取到 ' + r.models.length + ' 个模型';
-        Toast.success('已拉取 ' + r.models.length + ' 个模型');
+        Toast.success('已拉取并保存 ' + r.models.length + ' 个模型');
+        setTimeout(() => App.go('settings'), 700);
       } catch (err) {
         if (out) out.textContent = '✕ ' + err.message;
         Toast.error('拉取失败：' + err.message, true);
       } finally { btn.disabled = false; btn.textContent = old; }
+    });
+
+    el.querySelector('[data-act="reset-models"]')?.addEventListener('click', async () => {
+      const aiModels = { ...(Store.settings.aiModels || {}) };
+      delete aiModels[pickedProvider];
+      await Store.saveSettings({ aiModels });
+      Toast.success('已恢复内置清单');
+      App.go('settings');
     });
 
     const doTest = async (btn) => {
