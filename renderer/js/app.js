@@ -366,15 +366,29 @@ const App = {
 
   /** 正在下载模型：显示真实进度（首次启动可能要几十分钟） */
   _onEngineDownloading(d) {
-    const box = document.getElementById('loading-dl');
-    const fill = document.getElementById('loading-dl-fill');
-    const txt = document.getElementById('loading-dl-text');
-    if (box) box.style.display = '';
     const pct = Math.round((d.progress || 0) * 100);
-    if (fill) fill.style.width = pct + '%';
-    if (txt) {
-      txt.textContent = '正在下载模型 ' + (d.downloadedMb || 0) + ' / '
-        + (d.expectedMb || 0) + ' MB（' + pct + '%）· 首次使用需要，之后不再下载';
+    const dlText = '正在下载模型 ' + (d.downloadedMb || 0) + ' / '
+      + (d.expectedMb || 0) + ' MB（' + pct + '%）';
+
+    // 若一键配置的进度条还在（刚配置完就进入下载），接着它走完最后一段
+    const setupBox = document.getElementById('setup-prog');
+    const setupFill = document.getElementById('setup-prog-fill');
+    if (setupBox && setupBox.style.display !== 'none' && setupFill) {
+      const overall = 58 + (d.progress || 0) * 42;      // 58% → 100%
+      setupFill.style.width = overall.toFixed(1) + '%';
+      const pctEl = document.getElementById('setup-prog-pct');
+      if (pctEl) pctEl.textContent = Math.round(overall) + '%';
+      const cap = document.getElementById('setup-prog-cap');
+      if (cap) cap.textContent = '步骤 5/5 · 下载语音模型';
+      const txt = document.getElementById('setup-prog-text');
+      if (txt) txt.textContent = dlText + ' · 首次使用需要，之后不再下载';
+    } else {
+      const box = document.getElementById('loading-dl');
+      const fill = document.getElementById('loading-dl-fill');
+      const txt = document.getElementById('loading-dl-text');
+      if (box) box.style.display = '';
+      if (fill) fill.style.width = pct + '%';
+      if (txt) txt.textContent = dlText + ' · 首次使用需要，之后不再下载';
     }
     this._setLoadingText('首次启动：正在下载语音模型');
     this._setSideStatus('下载模型 ' + pct + '%', 'loading');
@@ -409,16 +423,40 @@ const App = {
         auto.disabled = true;
         if (m) { m.className = 'ld-setup-msg'; m.textContent = ''; }
 
+        // 一条连续进度条：0–3% 建目录 / 3–12% Python / 12–55% 依赖 /
+        // 55–58% 配置 / 58–100% 模型下载（后续由 engine-downloading 事件接管）
+        this._setupPct = 0;
+        const paint = (pct, msg) => {
+          this._setupPct = Math.max(this._setupPct, Math.min(100, pct));
+          if (fill) fill.style.width = this._setupPct.toFixed(1) + '%';
+          const pctEl = document.getElementById('setup-prog-pct');
+          if (pctEl) pctEl.textContent = Math.round(this._setupPct) + '%';
+          const cap = document.getElementById('setup-prog-cap');
+          if (cap && msg) cap.textContent = msg;
+          if (txt && msg) txt.textContent = msg;
+        };
+        const STAGE_LABEL = {
+          files: '步骤 1/5 · 创建后端目录',
+          python: '步骤 2/5 · Python 环境',
+          pip: '步骤 3/5 · 安装依赖',
+          config: '步骤 4/5 · 写入配置',
+          start: '步骤 5/5 · 下载语音模型'
+        };
+
         window.electronAPI.setup.onProgress((p) => {
-          if (fill && p.progress != null) fill.style.width = Math.round(p.progress * 100) + '%';
-          if (txt) txt.textContent = p.message || '';
+          const pct = p.progress != null ? p.progress * 100 : this._setupPct;
+          paint(pct, p.message || '');
+          const cap = document.getElementById('setup-prog-cap');
+          if (cap) cap.textContent = p.caption || STAGE_LABEL[p.stage] || '';
         });
+        paint(0, '准备中…');
 
         const r = await window.electronAPI.setup.auto({});
         auto.disabled = false;
         if (r && r.ok) {
-          if (m) { m.className = 'ld-setup-msg ok'; m.textContent = '配置完成，正在启动…'; }
-          this._setLoadingText('配置完成，正在启动后端');
+          paint(58, '后端已启动，开始下载语音模型…');
+          if (m) { m.className = 'ld-setup-msg ok'; m.textContent = '依赖就绪，正在下载模型'; }
+          this._setLoadingText('正在下载语音模型');
         } else if (r && r.needPython) {
           if (m) { m.className = 'ld-setup-msg err'; m.textContent = r.message; }
         } else {

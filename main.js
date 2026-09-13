@@ -880,8 +880,11 @@ function downloadTo(url, dest, emit, label) {
         got += d.length; f.write(d);
         if (total) {
           const pct = Math.round(got / total * 100);
-          emit('download', label + ' ' + (got / 1048576).toFixed(1) + ' / '
-            + (total / 1048576).toFixed(1) + ' MB（' + pct + '%）', null);
+          emit('download',
+               label + ' ' + (got / 1048576).toFixed(1) + ' / '
+                 + (total / 1048576).toFixed(1) + ' MB（' + pct + '%）',
+               got / total,                       // 真实进度，供上层映射
+               '步骤 2/5 · Python 环境');
         }
       });
       res.on('end', () => f.end(() => resolve(dest)));
@@ -901,10 +904,12 @@ async function ensurePortablePython(engineDir, emit) {
 
   fs.mkdirSync(runtime, { recursive: true });
   const zip = path.join(runtime, 'py-embed.zip');
-  emit('python', '正在下载 Python 运行环境（约 8 MB）…', 0.15);
-  await downloadTo(PY_URL, zip, emit, 'Python');
+  const pyEmit = (stage, msg, frac) =>
+    emit(stage, msg, frac == null ? null : 0.03 + frac * 0.09, '步骤 2/5 · Python 环境');
+  emit('python', '正在下载 Python 运行环境（约 8 MB）…', 0.03, '步骤 2/5 · Python 环境');
+  await downloadTo(PY_URL, zip, pyEmit, '正在下载 Python');
 
-  emit('python', '正在解压…', 0.22);
+  emit('python', '正在解压…', 0.10, '步骤 2/5 · Python 环境');
   const r = spawnSync('tar', ['-xf', zip, '-C', runtime], { windowsHide: true });
   if (r.status !== 0) {
     // 兜底：用 PowerShell 解压
@@ -922,9 +927,9 @@ async function ensurePortablePython(engineDir, emit) {
   }
 
   // 装 pip
-  emit('python', '正在准备 pip…', 0.26);
+  emit('python', '正在准备 pip…', 0.11, '步骤 2/5 · Python 环境');
   const getpip = path.join(runtime, 'get-pip.py');
-  await downloadTo('https://bootstrap.pypa.io/get-pip.py', getpip, emit, 'pip');
+  await downloadTo('https://bootstrap.pypa.io/get-pip.py', getpip, pyEmit, '正在准备 pip');
   const pipR = spawnSync(pyExe, [getpip, '--no-warn-script-location'], { windowsHide: true, cwd: runtime, encoding: 'utf8' });
   fs.rmSync(getpip, { force: true });
   if (pipR.status !== 0) throw new Error('pip 安装失败：' + String(pipR.stderr || '').slice(-200));
@@ -933,14 +938,14 @@ async function ensurePortablePython(engineDir, emit) {
 
 ipcMain.handle('vox:setup:auto', async (_e, opts) => {
   const dir = (opts && opts.dir) || defaultEngineDir();
-  const emit = (stage, message, progress) => {
+  const emit = (stage, message, progress, caption) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('vox:setup-progress', { stage, message, progress });
+      mainWindow.webContents.send('vox:setup-progress', { stage, message, progress, caption });
     }
   };
   try {
     /* 1) 目录 + 后端脚本（随安装包分发，无需联网） */
-    emit('files', '正在创建后端目录…', 0.03);
+    emit('files', '正在创建后端目录…', 0.01, '步骤 1/5 · 创建后端目录');
     fs.mkdirSync(path.join(dir, 'pretrained_models'), { recursive: true });
     fs.mkdirSync(path.join(dir, 'history'), { recursive: true });
     fs.mkdirSync(path.join(dir, 'voice_profiles'), { recursive: true });
@@ -955,7 +960,7 @@ ipcMain.handle('vox:setup:auto', async (_e, opts) => {
     if (!fs.existsSync(path.join(dir, 'custom_presets.json'))) {
       fs.writeFileSync(path.join(dir, 'custom_presets.json'), '{}', 'utf8');
     }
-    emit('files', '后端脚本已就位', 0.06);
+    emit('files', '后端脚本已就位', 0.03, '步骤 1/5 · 创建后端目录');
 
     /* 2) 找 Python：先看系统里有没有能用的，没有就装便携版 */
     let py = null;
@@ -964,15 +969,15 @@ ipcMain.handle('vox:setup:auto', async (_e, opts) => {
       if (ok) { py = c; break; }
     }
     if (py) {
-      emit('python', '使用系统已装好的 Python（' + py + '）', 0.12);
+      emit('python', '使用系统已装好的 Python（' + py + '）', 0.12, '步骤 2/5 · Python 环境');
     } else {
-      emit('python', '未检测到可用的 Python，正在安装便携版到软件目录…', 0.12);
+      emit('python', '未检测到可用的 Python，正在安装便携版到软件目录…', 0.04, '步骤 2/5 · Python 环境');
       py = await ensurePortablePython(dir, emit);
-      emit('python', 'Python 运行环境已就绪', 0.35);
+      emit('python', 'Python 运行环境已就绪', 0.12, '步骤 2/5 · Python 环境');
     }
 
     /* 3) 依赖 */
-    emit('pip', '正在安装依赖（首次约 2–3 GB，可以放着不管）…', 0.4);
+    emit('pip', '正在安装依赖（首次约 2–3 GB，可以放着不管）…', 0.12, '步骤 3/5 · 安装依赖');
     const req = path.join(dir, 'requirements.txt');
     await new Promise((resolve, reject) => {
       const c = spawn(py, ['-m', 'pip', 'install', '-r', req,
@@ -980,22 +985,40 @@ ipcMain.handle('vox:setup:auto', async (_e, opts) => {
                            '--disable-pip-version-check', '--no-warn-script-location'],
                       { windowsHide: true, cwd: dir });
       let buf = '';
+      // 依赖总量约 2.5 GB；按 pip 输出的「已下载 MB」推进进度条，
+      // 否则这一步几分钟内条子完全不动，看着像卡死
+      const EST_MB = 2500;
+      let gotMb = 0;
       const onData = (d) => {
         buf += String(d);
         const lines = buf.split(/\r?\n/);
         buf = lines.pop();
+        for (const ln of lines) {
+          const m = ln.match(/Downloading\s+\S+\s+\(([\d.]+)\s*([kMG])B\)/i);
+          if (m) {
+            const v = parseFloat(m[1]);
+            const u = m[2].toUpperCase();
+            gotMb += u === 'G' ? v * 1024 : (u === 'K' ? v / 1024 : v);
+          }
+        }
         const last = lines.filter(Boolean).pop();
-        if (last) emit('pip', last.trim().slice(0, 130), null);
+        if (last) {
+          const pct = Math.min(99, Math.round(Math.min(gotMb, EST_MB) / EST_MB * 100));
+          emit('pip', last.trim().slice(0, 130), null,
+               gotMb > 0 ? '依赖已下载 ' + Math.round(gotMb) + ' MB（' + pct + '%）' : '');
+        }
+        const frac = Math.min(0.99, gotMb / EST_MB);
+        emit('pip', '', 0.12 + frac * 0.43);
       };
       c.stdout.on('data', onData);
       c.stderr.on('data', onData);
       c.on('error', reject);
       c.on('close', (code) => code === 0 ? resolve() : reject(new Error('依赖安装失败（退出码 ' + code + '）')));
     });
-    emit('pip', '依赖安装完成', 0.85);
+    emit('pip', '依赖安装完成', 0.55, '依赖已就绪');
 
     /* 4) 写配置并启动（模型由后端自动下载） */
-    emit('config', '正在写入配置…', 0.9);
+    emit('config', '正在写入配置…', 0.56, '步骤 4/5 · 写入配置');
     const file = path.join(app.getPath('userData'), 'vox.config.json');
     let cur = {};
     try { cur = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (err) { /* 首次 */ }
@@ -1006,7 +1029,7 @@ ipcMain.handle('vox:setup:auto', async (_e, opts) => {
     killServerTree();
     serverState = 'idle';
     if (enginePoll) { clearInterval(enginePoll); enginePoll = null; }
-    emit('start', '正在启动后端，随后自动下载语音模型（约 4.7 GB）…', 0.95);
+    emit('start', '正在启动后端…', 0.58, '步骤 5/5 · 下载语音模型');
     const res = await ensureServer();
     return { ok: res.ok !== false, dir, python: py, message: res.message || '' };
   } catch (e) {
