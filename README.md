@@ -382,3 +382,41 @@ Gradio 的 Tab 逻辑是封闭的，想通过 CSS/JS 实现「左侧树形导航
 ## 许可
 
 本项目为个人作品。VoxCPM2 模型与其推理代码版权归 [OpenBMB](https://github.com/OpenBMB/VoxCPM) 所有，使用前请阅读其许可条款。
+
+---
+
+## 国内加速下载
+
+GitHub 在国内直连**约 0.04 MB/s**（75 MB 安装包要 31 分钟）。实测可用的加速方式：
+
+### 安装包（推荐）
+
+在原始链接前加 `https://gh-proxy.com/`：
+
+```
+https://gh-proxy.com/https://github.com/Listgone/VoxWorkstation/releases/download/v1.0.5/VoxWorkstation.Setup.1.0.5.exe
+```
+
+实测 **27.6 MB/s**（约 3 秒下完）。`ghproxy.net` 无效，别用。
+
+### 语音模型（4.7 GB）
+
+软件内置的下载走 **ModelScope**，实测 **16.4 MB/s**（约 5 分钟），**一般不需要手动下载**。
+
+要手动下（比如用迅雷 / IDM）就取这几个文件，全部放进 `engine\pretrained_models\VoxCPM2\`：
+
+```
+https://modelscope.cn/models/OpenBMB/VoxCPM2/resolve/master/model.safetensors     4.4 GB
+https://modelscope.cn/models/OpenBMB/VoxCPM2/resolve/master/audiovae.pth          360 MB
+https://modelscope.cn/models/OpenBMB/VoxCPM2/resolve/master/config.json
+https://modelscope.cn/models/OpenBMB/VoxCPM2/resolve/master/tokenizer.json
+https://modelscope.cn/models/OpenBMB/VoxCPM2/resolve/master/tokenizer_config.json
+https://modelscope.cn/models/OpenBMB/VoxCPM2/resolve/master/special_tokens_map.json
+https://modelscope.cn/models/OpenBMB/VoxCPM2/resolve/master/tokenization_voxcpm2.py
+```
+
+> 只要 `model.safetensors` 存在，后端就认为模型已就位，不会再触发下载。
+
+### Python 运行环境（8 MB）
+
+软件会自动从 `python.org` 下载，实测 **7.4 MB/s**，无需干预。

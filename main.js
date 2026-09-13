@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, shell, safeStorage, dialog } = require('ele
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
-const { spawn, execFile } = require('child_process');
+const { spawn, execFile, spawnSync } = require('child_process');
 const { ProjectStore } = require('./project-store');
 
 /* ══════════════════════════════════════════════════════════
@@ -860,6 +860,77 @@ print(json.dumps(out))
 });
 
 /** 一键配置：建目录 → 放后端脚本 → 装依赖。模型由后端首次启动时自动下载。 */
+/** 下载文件并报告进度 */
+function downloadTo(url, dest, emit, label) {
+  return new Promise((resolve, reject) => {
+    const mod = url.startsWith('https') ? require('https') : require('http');
+    const f = fs.createWriteStream(dest);
+    mod.get(url, { timeout: 120000 }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        f.close(); fs.rmSync(dest, { force: true });
+        return downloadTo(res.headers.location, dest, emit, label).then(resolve, reject);
+      }
+      if (res.statusCode !== 200) {
+        f.close(); fs.rmSync(dest, { force: true });
+        return reject(new Error('下载失败 HTTP ' + res.statusCode + '：' + url));
+      }
+      const total = Number(res.headers['content-length'] || 0);
+      let got = 0;
+      res.on('data', (d) => {
+        got += d.length; f.write(d);
+        if (total) {
+          const pct = Math.round(got / total * 100);
+          emit('download', label + ' ' + (got / 1048576).toFixed(1) + ' / '
+            + (total / 1048576).toFixed(1) + ' MB（' + pct + '%）', null);
+        }
+      });
+      res.on('end', () => f.end(() => resolve(dest)));
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+/** 便携版 Python：装在软件自己的目录里，不碰系统、不需要管理员权限 */
+async function ensurePortablePython(engineDir, emit) {
+  const PY_VER = '3.10.11';
+  const PY_URL = `https://www.python.org/ftp/python/${PY_VER}/python-${PY_VER}-embed-amd64.zip`;
+  const runtime = path.join(engineDir, 'runtime');
+  const pyExe = path.join(runtime, 'python.exe');
+
+  if (fs.existsSync(pyExe)) return pyExe;
+
+  fs.mkdirSync(runtime, { recursive: true });
+  const zip = path.join(runtime, 'py-embed.zip');
+  emit('python', '正在下载 Python 运行环境（约 8 MB）…', 0.15);
+  await downloadTo(PY_URL, zip, emit, 'Python');
+
+  emit('python', '正在解压…', 0.22);
+  const r = spawnSync('tar', ['-xf', zip, '-C', runtime], { windowsHide: true });
+  if (r.status !== 0) {
+    // 兜底：用 PowerShell 解压
+    spawnSync('powershell', ['-NoProfile', '-Command',
+      `Expand-Archive -LiteralPath '${zip}' -DestinationPath '${runtime}' -Force`], { windowsHide: true });
+  }
+  fs.rmSync(zip, { force: true });
+  if (!fs.existsSync(pyExe)) throw new Error('Python 解压失败');
+
+  // 启用 site-packages（嵌入版默认关掉，不开的话装不了任何包）
+  const pth = fs.readdirSync(runtime).find(f => /^python\d+\._pth$/.test(f));
+  if (pth) {
+    const p = path.join(runtime, pth);
+    fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace(/^#\s*import site/m, 'import site'), 'utf8');
+  }
+
+  // 装 pip
+  emit('python', '正在准备 pip…', 0.26);
+  const getpip = path.join(runtime, 'get-pip.py');
+  await downloadTo('https://bootstrap.pypa.io/get-pip.py', getpip, emit, 'pip');
+  const pipR = spawnSync(pyExe, [getpip, '--no-warn-script-location'], { windowsHide: true, cwd: runtime, encoding: 'utf8' });
+  fs.rmSync(getpip, { force: true });
+  if (pipR.status !== 0) throw new Error('pip 安装失败：' + String(pipR.stderr || '').slice(-200));
+  return pyExe;
+}
+
 ipcMain.handle('vox:setup:auto', async (_e, opts) => {
   const dir = (opts && opts.dir) || defaultEngineDir();
   const emit = (stage, message, progress) => {
@@ -868,8 +939,8 @@ ipcMain.handle('vox:setup:auto', async (_e, opts) => {
     }
   };
   try {
-    // 1) 目录 + 后端脚本
-    emit('files', '正在创建后端目录…', 0.05);
+    /* 1) 目录 + 后端脚本（随安装包分发，无需联网） */
+    emit('files', '正在创建后端目录…', 0.03);
     fs.mkdirSync(path.join(dir, 'pretrained_models'), { recursive: true });
     fs.mkdirSync(path.join(dir, 'history'), { recursive: true });
     fs.mkdirSync(path.join(dir, 'voice_profiles'), { recursive: true });
@@ -884,51 +955,50 @@ ipcMain.handle('vox:setup:auto', async (_e, opts) => {
     if (!fs.existsSync(path.join(dir, 'custom_presets.json'))) {
       fs.writeFileSync(path.join(dir, 'custom_presets.json'), '{}', 'utf8');
     }
-    emit('files', '后端脚本已就位', 0.1);
+    emit('files', '后端脚本已就位', 0.06);
 
-    // 2) Python
-    const py = await new Promise((resolve) => {
-      for (const c of pythonCandidates()) {
-        try {
-          const p = spawn(c, ['--version'], { windowsHide: true });
-          p.on('error', () => {});
-          p.on('close', (code) => { if (code === 0) resolve(c); });
-        } catch (e) { /* 下一个 */ }
-      }
-      setTimeout(() => resolve(null), 8000);
-    });
-    if (!py) {
-      return { ok: false, needPython: true, dir,
-               message: '这台电脑没有装 Python。请先安装 Python 3.10 或更高版本（安装时勾选 Add to PATH），再点重试。' };
+    /* 2) 找 Python：先看系统里有没有能用的，没有就装便携版 */
+    let py = null;
+    for (const c of pythonCandidates()) {
+      const ok = spawnSync(c, ['-c', 'import voxcpm'], { windowsHide: true }).status === 0;
+      if (ok) { py = c; break; }
     }
-    emit('python', '已找到 ' + py, 0.15);
+    if (py) {
+      emit('python', '使用系统已装好的 Python（' + py + '）', 0.12);
+    } else {
+      emit('python', '未检测到可用的 Python，正在安装便携版到软件目录…', 0.12);
+      py = await ensurePortablePython(dir, emit);
+      emit('python', 'Python 运行环境已就绪', 0.35);
+    }
 
-    // 3) 依赖
+    /* 3) 依赖 */
+    emit('pip', '正在安装依赖（首次约 2–3 GB，可以放着不管）…', 0.4);
     const req = path.join(dir, 'requirements.txt');
-    const args = ['-m', 'pip', 'install', '-r', req, '--disable-pip-version-check'];
-    emit('pip', '正在安装依赖（首次约 2–3 GB，请耐心等）…', 0.2);
     await new Promise((resolve, reject) => {
-      const c = spawn(py, args, { windowsHide: true, cwd: dir });
+      const c = spawn(py, ['-m', 'pip', 'install', '-r', req,
+                           '--extra-index-url', 'https://download.pytorch.org/whl/cu121',
+                           '--disable-pip-version-check', '--no-warn-script-location'],
+                      { windowsHide: true, cwd: dir });
       let buf = '';
       const onData = (d) => {
         buf += String(d);
         const lines = buf.split(/\r?\n/);
         buf = lines.pop();
         const last = lines.filter(Boolean).pop();
-        if (last) send('pip', last.slice(0, 120), null);
+        if (last) emit('pip', last.trim().slice(0, 130), null);
       };
       c.stdout.on('data', onData);
       c.stderr.on('data', onData);
       c.on('error', reject);
-      c.on('close', (code) => code === 0 ? resolve() : reject(new Error('pip 安装失败（退出码 ' + code + '）')));
+      c.on('close', (code) => code === 0 ? resolve() : reject(new Error('依赖安装失败（退出码 ' + code + '）')));
     });
-    emit('pip', '依赖安装完成', 0.6);
+    emit('pip', '依赖安装完成', 0.85);
 
-    // 4) 写配置并启动（模型由后端首次启动时自动下载）
-    emit('config', '正在写入配置…', 0.8);
+    /* 4) 写配置并启动（模型由后端自动下载） */
+    emit('config', '正在写入配置…', 0.9);
     const file = path.join(app.getPath('userData'), 'vox.config.json');
     let cur = {};
-    try { cur = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { /* 首次 */ }
+    try { cur = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (err) { /* 首次 */ }
     cur.serverDir = dir;
     cur.pythonPath = py;
     fs.writeFileSync(file, JSON.stringify(cur, null, 2), 'utf8');
@@ -936,7 +1006,7 @@ ipcMain.handle('vox:setup:auto', async (_e, opts) => {
     killServerTree();
     serverState = 'idle';
     if (enginePoll) { clearInterval(enginePoll); enginePoll = null; }
-    emit('start', '正在启动后端，随后会自动下载模型（约 4.7 GB）…', 0.9);
+    emit('start', '正在启动后端，随后自动下载语音模型（约 4.7 GB）…', 0.95);
     const res = await ensureServer();
     return { ok: res.ok !== false, dir, python: py, message: res.message || '' };
   } catch (e) {
