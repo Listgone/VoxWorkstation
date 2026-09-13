@@ -146,7 +146,7 @@ input,textarea,[contenteditable]{user-select:text !important;-webkit-user-select
 .crumb .seg:hover{border-color:var(--text-mute);color:var(--text)}
 .crumb .seg.cur{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
 .crumb .sl{color:var(--text-mute);font-size:11px}
-.titlebar-actions{display:flex;height:100%;-webkit-app-region:no-drag;app-region:no-drag}
+.titlebar-actions{display:flex;align-items:center;height:100%;-webkit-app-region:no-drag;app-region:no-drag}
 .titlebar-actions button{width:42px;height:100%;border:none;background:transparent;color:var(--text-mute);
   cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background var(--transition),color var(--transition)}
 .titlebar-actions button:hover{background:var(--bg-hover);color:var(--text)}
@@ -1268,7 +1268,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 body.engine-loading .btn-gen,
 body.engine-loading [data-act="gen-all"],
 body.engine-loading [data-act="gen-failed"]{opacity:.45;pointer-events:none}
-body.engine-loading #side-status::after{content:' · 模型加载中';color:var(--warn)}
+
 
 /* ══════════════════════════════════════════════════
    操作列间距统一（原来 5px，按钮贴在一起很容易误点）
@@ -1318,11 +1318,13 @@ table th:last-child,table td:last-child{padding-right:14px}
 .status-chip{display:inline-flex;align-items:center;gap:5px;height:19px;padding:0 9px;
   border-radius:99px;font-size:10.5px;font-weight:500;border:1px solid transparent;
   background:var(--bg-elev);color:var(--text-mute)}
-.status-chip.is-on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.status-chip.is-on{background:var(--ok-soft);color:var(--ok);border-color:var(--ok)}
 .status-chip.is-on::before{content:'';width:6px;height:6px;border-radius:50%;
-  background:var(--accent);box-shadow:0 0 7px var(--accent)}
-.status-chip.is-off{color:var(--text-mute)}
+  background:var(--ok);box-shadow:0 0 7px var(--ok)}
+.status-chip.is-off{background:var(--warn-soft);color:var(--warn);border-color:rgba(154,103,0,.42)}
+.status-chip.is-off::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--warn)}
 [data-theme="minimal"] .status-chip.is-on{background:transparent;border-color:var(--text);color:var(--text)}
+[data-theme="minimal"] .status-chip.is-off{background:transparent;border-color:var(--text-mute);color:var(--text-mute)}
 [data-theme="minimal"] .status-chip.is-on::before{background:var(--text);box-shadow:none}
 [data-theme="construct"] .status-chip{border-radius:0}
 [data-theme="construct"] .status-chip.is-on{background:var(--ok-soft);border-color:var(--border);color:var(--text)}
@@ -1335,3 +1337,8 @@ table th:last-child,table td:last-child{padding-right:14px}
 .pane-text{flex:1;min-height:clamp(200px,44vh,700px)}
 @media (min-width:1500px){ .duo{min-height:clamp(320px,58vh,860px)} .pane-text{min-height:clamp(280px,50vh,780px)} }
 @media (min-width:1800px){ .duo{min-height:clamp(380px,62vh,940px)} .pane-text{min-height:clamp(330px,54vh,860px)} }
+
+/* 引擎徽章：贴顶是因为 .titlebar-actions 默认 stretch 且元素固定高度 */
+.engine-chip{align-self:center;margin-top:0}
+.titlebar-actions{padding-right:4px}
+#titlebar .engine-chip + #btn-theme{margin-left:2px}
