@@ -905,8 +905,33 @@ const SettingsPage = {
     el.querySelector('[data-act="goto-dict"]')?.addEventListener('click', () => {
       ProjectSettingsPage._sec = 'dict'; App.go('project-settings');
     });
-    el.querySelector('[data-act="open-trash"]')?.addEventListener('click', () =>
-      window.electronAPI.path.reveal(s.output.root + '\\.trash'));
+    el.querySelector('[data-act="open-trash"]')?.addEventListener('click', () => this._trashPanel());
+
+    el.querySelector('[data-act="toggle-crash"]')?.addEventListener('click', async (e) => {
+      const on = e.currentTarget.classList.contains('off');   // 当前 off → 点后为 on
+      if (!on) {
+        const ok = await Modal.confirm({
+          title: '关闭崩溃恢复', okText: '仍然关闭', danger: true,
+          message: '关闭后，重开软件<b>不会自动回到</b>上次编辑的项目与集，每次都要手动选择。<br><br>'
+                 + '已生成的文件不受影响，但正在编辑的草稿可能找不回来。'
+        });
+        if (!ok) return;
+      }
+      e.currentTarget.classList.toggle('off', !on);
+      save({ project: { ...s.project, crashRecovery: on } }, on ? '已开启崩溃恢复' : '已关闭崩溃恢复');
+    });
+
+    el.querySelector('#p-trash')?.addEventListener('change', async (e2) => {
+      const v = Number(e2.target.value);
+      if (v === 0) {
+        const ok = await Modal.confirm({
+          title: '设为永不清理', okText: '确定', danger: true,
+          message: '回收站会一直占着磁盘，不会自动清理。<br>删掉的项目和集都会留在那里，需要手动管理。'
+        });
+        if (!ok) { App.go('settings'); return; }
+      }
+      save({ project: { ...s.project, trashKeepDays: v } }, v === 0 ? '已设为永不清理' : '保留 ' + v + ' 天');
+    });
     el.querySelector('[data-act="run-diag"]')?.addEventListener('click', async (e) => {
       const btn = e.currentTarget;
       const list = el.querySelector('#diag-list');
