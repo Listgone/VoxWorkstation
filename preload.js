@@ -75,6 +75,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /* 路径工具 */
   diag: { run: () => invoke('vox:diag:run') },
 
+  setup: {
+    status: () => invoke('vox:setup:status'),
+    validate: (dir) => invoke('vox:setup:validate', dir),
+    apply: (dir) => invoke('vox:setup:apply', dir)
+  },
+
   trash: {
     list: () => invoke('vox:trash:list'),
     restore: (p) => invoke('vox:trash:restore', p),

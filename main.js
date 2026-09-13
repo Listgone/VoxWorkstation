@@ -663,9 +663,13 @@ function startServer() {
 let enginePoll = null;
 function watchEngineReady() {
   if (enginePoll) return;
-  const deadline = Date.now() + 15 * 60 * 1000;   // 大模型首次加载可能很久
+  let deadline = Date.now() + 15 * 60 * 1000;   // 加载模型可能很久
   enginePoll = setInterval(async () => {
-    if (Date.now() > deadline) { clearInterval(enginePoll); enginePoll = null; return; }
+    if (Date.now() > deadline) {
+      clearInterval(enginePoll); enginePoll = null;
+      setStatus({ status: 'error', message: '等待引擎就绪超时' });
+      return;
+    }
     const r = await getJson(`http://127.0.0.1:${CONFIG.serverPort}/api/ready`);
     if (!r) return;
     if (r.ready) {
@@ -673,11 +677,25 @@ function watchEngineReady() {
       serverState = 'ready';
       pushLog(`[shell] 引擎就绪（耗时 ${(r.elapsed_ms / 1000).toFixed(1)}s）`);
       setStatus({ status: 'engine-ready' });
-    } else if (r.error) {
+      return;
+    }
+    if (r.error) {
       clearInterval(enginePoll); enginePoll = null;
       serverState = 'error';
       pushLog(`[shell] 引擎加载失败：${r.error}`);
       setStatus({ status: 'error', message: '引擎加载失败：' + r.error });
+      return;
+    }
+    // 正在下载模型：下载可能要几十分钟，不能按「加载超时」算，
+    // 每次都把截止时间往后推，并把进度报给界面
+    if (r.phase === 'downloading') {
+      deadline = Math.max(deadline, Date.now() + 15 * 60 * 1000);
+      setStatus({
+        status: 'engine-downloading',
+        progress: r.progress || 0,
+        downloadedMb: r.downloaded_mb || 0,
+        expectedMb: r.expected_mb || 0
+      });
     }
   }, 1200);
 }
@@ -786,6 +804,51 @@ ipcMain.handle('restart-server', async () => {
 /* ══════════════════════════════════════════════════════════
    自检 —— 逐项检测并给出可执行的修复建议
    ══════════════════════════════════════════════════════════ */
+/* ── 首次启动引导：后端目录设置 ────────────────────── */
+ipcMain.handle('vox:setup:status', () => ({
+  serverDir: CONFIG.serverDir,
+  scriptPath: CONFIG.serverScriptPath,
+  exists: fs.existsSync(CONFIG.serverScriptPath),
+  pythonPath: CONFIG.pythonPath,
+  userConfigFile: path.join(app.getPath('userData'), 'vox.config.json')
+}));
+
+/** 校验用户选的目录里有没有 server.py */
+ipcMain.handle('vox:setup:validate', (_e, dir) => {
+  if (!dir) return { ok: false, message: '未选择目录' };
+  const sp = path.join(dir, String(CONFIG.serverScript || 'server.py'));
+  if (!fs.existsSync(sp)) {
+    return { ok: false, message: '该目录下没有找到 ' + path.basename(sp) };
+  }
+  const model = path.join(dir, 'pretrained_models', 'VoxCPM2', 'model.safetensors');
+  return {
+    ok: true,
+    scriptPath: sp,
+    hasModel: fs.existsSync(model),
+    message: fs.existsSync(model) ? '后端与模型都在' : '找到后端，但还没有模型（首次启动会自动下载约 4.7 GB）'
+  };
+});
+
+/** 把后端目录写进用户级配置并重启后端 */
+ipcMain.handle('vox:setup:apply', async (_e, dir) => {
+  try {
+    const file = path.join(app.getPath('userData'), 'vox.config.json');
+    let cur = {};
+    try { cur = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { /* 首次 */ }
+    cur.serverDir = dir;
+    fs.writeFileSync(file, JSON.stringify(cur, null, 2), 'utf8');
+
+    CONFIG = loadConfig();          // 重新读配置
+    killServerTree();
+    serverState = 'idle';
+    if (enginePoll) { clearInterval(enginePoll); enginePoll = null; }
+    const res = await ensureServer();
+    return { ok: res.ok !== false, message: res.message || '', config: file };
+  } catch (e) {
+    return { ok: false, message: e.message };
+  }
+});
+
 ipcMain.handle('vox:diag:run', async () => {
   const checks = [];
   const add = (name, level, detail, fix) => checks.push({ name, level, detail, fix: fix || '' });

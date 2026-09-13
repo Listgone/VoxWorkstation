@@ -1,5 +1,14 @@
 # VoxWorkstation
 
+[![Release](https://img.shields.io/github/v/release/Listgone/VoxWorkstation?style=flat-square&label=Release&color=blue)](https://github.com/Listgone/VoxWorkstation/releases)
+[![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D6?style=flat-square&logo=windows)](https://github.com/Listgone/VoxWorkstation/releases)
+[![Electron](https://img.shields.io/badge/Electron-31-47848F?style=flat-square&logo=electron)](https://www.electronjs.org/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python)](https://www.python.org/)
+[![Engine](https://img.shields.io/badge/Engine-VoxCPM2%202.0.3-FF6F00?style=flat-square)](https://github.com/OpenBMB/VoxCPM)
+[![Model](https://img.shields.io/badge/Model-ModelScope%20%C2%B7%20OpenBMB%2FVoxCPM2-624AFF?style=flat-square)](https://modelscope.cn/models/OpenBMB/VoxCPM2)
+[![CUDA](https://img.shields.io/badge/CUDA-12.1%20%C2%B7%20NVIDIA%208GB%2B-76B900?style=flat-square&logo=nvidia)](https://developer.nvidia.com/cuda-toolkit)
+[![License](https://img.shields.io/badge/License-个人作品-lightgrey?style=flat-square)](#许可)
+
 > 把小说 / 剧本变成配音成品的桌面工作站 —— 文本处理 → 配音 → 导出，全流程在一个软件里完成。
 
 Electron 桌面端 + [VoxCPM2](https://github.com/OpenBMB/VoxCPM) 语音合成引擎。不依赖任何在线服务即可完成配音；接入大模型后还能自动把原文整理成带角色与情绪的规范剧本。

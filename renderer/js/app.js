@@ -278,6 +278,7 @@ const App = {
       if (!data) return;
       if (data.status === 'ready') this._onServerReady();
       else if (data.status === 'engine-ready') this._onEngineReady();
+      else if (data.status === 'engine-downloading') this._onEngineDownloading(data);
       else if (data.status === 'starting') {
         this._setLoadingText(data.message || '正在启动引擎...');
         this._setSideStatus('启动中', 'loading');
@@ -351,9 +352,80 @@ const App = {
 
   _onServerError(message) {
     clearInterval(this._loadingTimer);
+    const msg = String(message || '未知错误');
+    // 找不到后端脚本 / 路径不对 → 走引导，而不是丢一个死胡同错误
+    if (/找不到后端脚本|server\.py|后端未运行/.test(msg)) {
+      this._showSetupPanel(msg);
+      this._setSideStatus('未配置引擎', 'error');
+      return;
+    }
     document.getElementById('loading-overlay')?.classList.add('is-error');
-    this._setLoadingText('启动失败：' + (message || '未知错误'));
-    this._appendLog('提示：可在设置 → TTS 引擎里检查路径');
+    this._setLoadingText('启动失败：' + msg);
+    this._appendLog('提示：可在设置 → TTS 引擎里检查路径，或用「设置 → 诊断与关于」自检');
+  },
+
+  /** 正在下载模型：显示真实进度（首次启动可能要几十分钟） */
+  _onEngineDownloading(d) {
+    const box = document.getElementById('loading-dl');
+    const fill = document.getElementById('loading-dl-fill');
+    const txt = document.getElementById('loading-dl-text');
+    if (box) box.style.display = '';
+    const pct = Math.round((d.progress || 0) * 100);
+    if (fill) fill.style.width = pct + '%';
+    if (txt) {
+      txt.textContent = '正在下载模型 ' + (d.downloadedMb || 0) + ' / '
+        + (d.expectedMb || 0) + ' MB（' + pct + '%）· 首次使用需要，之后不再下载';
+    }
+    this._setLoadingText('首次启动：正在下载语音模型');
+    this._setSideStatus('下载模型 ' + pct + '%', 'loading');
+  },
+
+  /** 后端启动失败且是「找不到脚本」时，给出引导而不是死路 */
+  _showSetupPanel(message) {
+    const ov = document.getElementById('loading-overlay');
+    ov?.classList.remove('is-error');
+    const box = document.getElementById('loading-setup');
+    if (!box) return;
+    box.style.display = '';
+    document.getElementById('loading-retry').style.display = 'none';
+    const msg = document.getElementById('loading-setup-msg');
+    if (msg) { msg.className = 'ld-setup-msg err'; msg.textContent = message || ''; }
+    this._setLoadingText('需要先指定语音引擎的位置');
+
+    window.electronAPI.setup.status().then((s) => {
+      const p = document.getElementById('loading-setup-path');
+      if (p) p.textContent = '当前查找位置：' + (s.scriptPath || '(未配置)');
+    });
+
+    const pick = document.getElementById('loading-setup-pick');
+    if (pick && !pick.dataset.bound) {
+      pick.dataset.bound = '1';
+      pick.addEventListener('click', async () => {
+        const r = await window.electronAPI.path.pick({ title: '选择 VoxCPM2 后端目录（含 server.py）' });
+        if (!r || !r.ok) return;
+        const v = await window.electronAPI.setup.validate(r.path);
+        const m = document.getElementById('loading-setup-msg');
+        if (!v.ok) { if (m) { m.className = 'ld-setup-msg err'; m.textContent = v.message; } return; }
+        if (m) { m.className = 'ld-setup-msg ok'; m.textContent = v.message; }
+        const a = await window.electronAPI.setup.apply(r.path);
+        if (m) { m.className = 'ld-setup-msg ' + (a.ok ? 'ok' : 'err'); m.textContent = a.message || (a.ok ? '已保存，正在启动…' : '启动失败'); }
+      });
+    }
+    const retry = document.getElementById('loading-setup-retry');
+    if (retry && !retry.dataset.bound) {
+      retry.dataset.bound = '1';
+      retry.addEventListener('click', async () => {
+        const m = document.getElementById('loading-setup-msg');
+        if (m) { m.className = 'ld-setup-msg'; m.textContent = '正在重新检测…'; }
+        const res = await window.electronAPI.restartServer();
+        if (res && res.ok === false) {
+          this._showSetupPanel(res.message || '仍然找不到 server.py');
+        } else if (m) {
+          m.className = 'ld-setup-msg ok';
+          m.textContent = '已启动，正在加载…';
+        }
+      });
+    }
   },
 
   /** 引擎（模型）加载完成 —— 与「服务已响应」是两回事。
