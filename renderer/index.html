@@ -82,9 +82,21 @@
         如果你已经装过，直接选它的目录；没装过请先看 README 的「环境要求」。</p>
       <p class="ld-setup-path" id="loading-setup-path"></p>
       <div class="action-row" style="justify-content:center">
-        <button class="btn" id="loading-setup-pick">选择后端目录…</button>
-        <button class="btn btn-primary" id="loading-setup-retry">重新检测</button>
+        <button class="btn btn-primary" id="loading-setup-auto">一键配置（推荐）</button>
       </div>
+      <p class="ld-setup-sub">软件会自动创建后端目录、安装依赖，并下载模型。
+        需要本机已装 Python 3.10+。</p>
+      <div class="ld-dl" id="setup-prog" style="display:none">
+        <div class="ld-dl-bar"><i id="setup-prog-fill"></i></div>
+        <p class="ld-dl-text" id="setup-prog-text"></p>
+      </div>
+      <details class="ld-setup-more">
+        <summary>我已经有后端了 / 想手动指定目录</summary>
+        <div class="action-row" style="justify-content:center;margin-top:10px">
+          <button class="btn" id="loading-setup-pick">选择后端目录…</button>
+          <button class="btn" id="loading-setup-retry">重新检测</button>
+        </div>
+      </details>
       <p class="ld-setup-msg" id="loading-setup-msg"></p>
     </div>
     <button class="btn btn-secondary" id="loading-retry">重试启动</button>

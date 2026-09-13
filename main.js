@@ -804,6 +804,145 @@ ipcMain.handle('restart-server', async () => {
 /* ══════════════════════════════════════════════════════════
    自检 —— 逐项检测并给出可执行的修复建议
    ══════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════
+   一键配置 —— 让用户不必自己找后端、装依赖
+   ══════════════════════════════════════════════════════════ */
+
+/** 默认安装位置：有 D 盘就放 D:\VoxWorkstation\engine，否则放用户目录 */
+function defaultEngineDir() {
+  const preferred = 'D:\\VoxWorkstation\\engine';
+  try {
+    if (fs.existsSync('D:\\')) return preferred;
+  } catch (e) { /* 没有 D 盘 */ }
+  return path.join(app.getPath('userData'), 'engine');
+}
+
+function pythonCandidates() {
+  const list = [CONFIG.pythonPath || 'python', 'python3', 'py'];
+  return [...new Set(list)];
+}
+
+/** 探测 Python 是否可用，并检查关键依赖装没装 */
+ipcMain.handle('vox:setup:detect', async () => {
+  const probe = `
+import json,sys
+out={"python":sys.version.split()[0],"exe":sys.executable}
+try:
+    import importlib.metadata as md
+    out["voxcpm"]=md.version("voxcpm")
+except Exception:
+    out["voxcpm"]=""
+try:
+    import torch; out["torch"]=torch.__version__
+    out["cuda"]=bool(torch.cuda.is_available())
+    out["gpu"]=torch.cuda.get_device_name(0) if torch.cuda.is_available() else ""
+except Exception:
+    out["torch"]=""; out["cuda"]=False; out["gpu"]=""
+print(json.dumps(out))
+`;
+  for (const py of pythonCandidates()) {
+    const r = await new Promise((resolve) => {
+      try {
+        const c = spawn(py, ['-c', probe], { windowsHide: true });
+        let o = '', e2 = '';
+        c.stdout.on('data', d => o += d);
+        c.stderr.on('data', d => e2 += d);
+        c.on('error', () => resolve(null));
+        c.on('close', () => {
+          try { resolve(JSON.parse(o.trim().split('\n').pop())); }
+          catch (err) { resolve({ error: (e2 || o || '').slice(0, 200) }); }
+        });
+      } catch (e) { resolve(null); }
+    });
+    if (r && !r.error) return { ok: true, ...r, exe: r.exe || py };
+  }
+  return { ok: false, message: '未检测到可用的 Python' };
+});
+
+/** 一键配置：建目录 → 放后端脚本 → 装依赖。模型由后端首次启动时自动下载。 */
+ipcMain.handle('vox:setup:auto', async (_e, opts) => {
+  const dir = (opts && opts.dir) || defaultEngineDir();
+  const emit = (stage, message, progress) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('vox:setup-progress', { stage, message, progress });
+    }
+  };
+  try {
+    // 1) 目录 + 后端脚本
+    emit('files', '正在创建后端目录…', 0.05);
+    fs.mkdirSync(path.join(dir, 'pretrained_models'), { recursive: true });
+    fs.mkdirSync(path.join(dir, 'history'), { recursive: true });
+    fs.mkdirSync(path.join(dir, 'voice_profiles'), { recursive: true });
+    const srcDir = app.isPackaged
+      ? path.join(process.resourcesPath, 'app.asar', 'bootstrap')
+      : path.join(__dirname, 'bootstrap');
+    for (const f of ['server.py', 'requirements.txt']) {
+      const s = path.join(srcDir, f);
+      if (!fs.existsSync(s)) throw new Error('安装包缺少 ' + f);
+      fs.copyFileSync(s, path.join(dir, f));
+    }
+    if (!fs.existsSync(path.join(dir, 'custom_presets.json'))) {
+      fs.writeFileSync(path.join(dir, 'custom_presets.json'), '{}', 'utf8');
+    }
+    emit('files', '后端脚本已就位', 0.1);
+
+    // 2) Python
+    const py = await new Promise((resolve) => {
+      for (const c of pythonCandidates()) {
+        try {
+          const p = spawn(c, ['--version'], { windowsHide: true });
+          p.on('error', () => {});
+          p.on('close', (code) => { if (code === 0) resolve(c); });
+        } catch (e) { /* 下一个 */ }
+      }
+      setTimeout(() => resolve(null), 8000);
+    });
+    if (!py) {
+      return { ok: false, needPython: true, dir,
+               message: '这台电脑没有装 Python。请先安装 Python 3.10 或更高版本（安装时勾选 Add to PATH），再点重试。' };
+    }
+    emit('python', '已找到 ' + py, 0.15);
+
+    // 3) 依赖
+    const req = path.join(dir, 'requirements.txt');
+    const args = ['-m', 'pip', 'install', '-r', req, '--disable-pip-version-check'];
+    emit('pip', '正在安装依赖（首次约 2–3 GB，请耐心等）…', 0.2);
+    await new Promise((resolve, reject) => {
+      const c = spawn(py, args, { windowsHide: true, cwd: dir });
+      let buf = '';
+      const onData = (d) => {
+        buf += String(d);
+        const lines = buf.split(/\r?\n/);
+        buf = lines.pop();
+        const last = lines.filter(Boolean).pop();
+        if (last) send('pip', last.slice(0, 120), null);
+      };
+      c.stdout.on('data', onData);
+      c.stderr.on('data', onData);
+      c.on('error', reject);
+      c.on('close', (code) => code === 0 ? resolve() : reject(new Error('pip 安装失败（退出码 ' + code + '）')));
+    });
+    emit('pip', '依赖安装完成', 0.6);
+
+    // 4) 写配置并启动（模型由后端首次启动时自动下载）
+    emit('config', '正在写入配置…', 0.8);
+    const file = path.join(app.getPath('userData'), 'vox.config.json');
+    let cur = {};
+    try { cur = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { /* 首次 */ }
+    cur.serverDir = dir;
+    cur.pythonPath = py;
+    fs.writeFileSync(file, JSON.stringify(cur, null, 2), 'utf8');
+    CONFIG = loadConfig();
+    killServerTree();
+    serverState = 'idle';
+    if (enginePoll) { clearInterval(enginePoll); enginePoll = null; }
+    emit('start', '正在启动后端，随后会自动下载模型（约 4.7 GB）…', 0.9);
+    const res = await ensureServer();
+    return { ok: res.ok !== false, dir, python: py, message: res.message || '' };
+  } catch (e) {
+    return { ok: false, dir, message: e.message };
+  }
+});
 /* ── 首次启动引导：后端目录设置 ────────────────────── */
 ipcMain.handle('vox:setup:status', () => ({
   serverDir: CONFIG.serverDir,

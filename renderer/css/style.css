@@ -1429,3 +1429,13 @@ table th:last-child,table td:last-child{padding-right:14px}
 .ld-setup-msg{font-size:11.5px;margin-top:10px;text-align:center;min-height:16px}
 .ld-setup-msg.ok{color:var(--ok)}
 .ld-setup-msg.err{color:var(--danger)}
+
+/* 一键配置补充样式 */
+.ld-setup-sub{font-size:11px;color:var(--text-mute);line-height:1.7;
+  margin-top:10px;text-align:center}
+.ld-setup-more{margin-top:14px;border-top:1px solid var(--border-soft);padding-top:10px}
+.ld-setup-more summary{font-size:11.5px;color:var(--text-mute);cursor:pointer;
+  text-align:center;list-style:none;outline:none}
+.ld-setup-more summary::-webkit-details-marker{display:none}
+.ld-setup-more summary:hover{color:var(--text-dim)}
+#setup-prog{margin:12px auto 0}

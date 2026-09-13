@@ -397,6 +397,36 @@ const App = {
       if (p) p.textContent = '当前查找位置：' + (s.scriptPath || '(未配置)');
     });
 
+    const auto = document.getElementById('loading-setup-auto');
+    if (auto && !auto.dataset.bound) {
+      auto.dataset.bound = '1';
+      auto.addEventListener('click', async () => {
+        const m = document.getElementById('loading-setup-msg');
+        const box = document.getElementById('setup-prog');
+        const fill = document.getElementById('setup-prog-fill');
+        const txt = document.getElementById('setup-prog-text');
+        if (box) box.style.display = '';
+        auto.disabled = true;
+        if (m) { m.className = 'ld-setup-msg'; m.textContent = ''; }
+
+        window.electronAPI.setup.onProgress((p) => {
+          if (fill && p.progress != null) fill.style.width = Math.round(p.progress * 100) + '%';
+          if (txt) txt.textContent = p.message || '';
+        });
+
+        const r = await window.electronAPI.setup.auto({});
+        auto.disabled = false;
+        if (r && r.ok) {
+          if (m) { m.className = 'ld-setup-msg ok'; m.textContent = '配置完成，正在启动…'; }
+          this._setLoadingText('配置完成，正在启动后端');
+        } else if (r && r.needPython) {
+          if (m) { m.className = 'ld-setup-msg err'; m.textContent = r.message; }
+        } else {
+          if (m) { m.className = 'ld-setup-msg err'; m.textContent = (r && r.message) || '配置失败'; }
+        }
+      });
+    }
+
     const pick = document.getElementById('loading-setup-pick');
     if (pick && !pick.dataset.bound) {
       pick.dataset.bound = '1';
