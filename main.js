@@ -617,8 +617,11 @@ function startServer() {
     const startedAt = Date.now();
     poll = setInterval(async () => {
       if (await probe(serverPort)) {
-        pushLog('[shell] 后端已就绪');
-        finish({ ok: true });
+        // 端口通了不代表模型就绪：后端改成后台加载，模型可能还在读盘。
+        // 先把界面放出来（状态标为 loading），后台继续等 /api/ready。
+        pushLog('[shell] 后端服务已响应，模型仍在后台加载');
+        finish({ ok: true, engineLoading: true });
+        watchEngineReady();
         return;
       }
       if (Date.now() - startedAt > serverStartTimeoutMs) {
@@ -628,8 +631,44 @@ function startServer() {
   });
 }
 
-async function ensureServer() {
-  if (serverState === 'ready') return { ok: true };
+/** 轮询 /api/ready，模型加载完成后通知渲染层解除生成按钮的禁用 */
+let enginePoll = null;
+function watchEngineReady() {
+  if (enginePoll) return;
+  const deadline = Date.now() + 15 * 60 * 1000;   // 大模型首次加载可能很久
+  enginePoll = setInterval(async () => {
+    if (Date.now() > deadline) { clearInterval(enginePoll); enginePoll = null; return; }
+    const r = await getJson(`http://127.0.0.1:${CONFIG.serverPort}/api/ready`);
+    if (!r) return;
+    if (r.ready) {
+      clearInterval(enginePoll); enginePoll = null;
+      serverState = 'ready';
+      pushLog(`[shell] 引擎就绪（耗时 ${(r.elapsed_ms / 1000).toFixed(1)}s）`);
+      setStatus({ status: 'engine-ready' });
+    } else if (r.error) {
+      clearInterval(enginePoll); enginePoll = null;
+      serverState = 'error';
+      pushLog(`[shell] 引擎加载失败：${r.error}`);
+      setStatus({ status: 'error', message: '引擎加载失败：' + r.error });
+    }
+  }, 1200);
+}
+
+/** 轻量 GET JSON，失败返回 null（不抛） */
+function getJson(url) {
+  return new Promise((resolve) => {
+    const mod = url.startsWith('https') ? require('https') : require('http');
+    const req = mod.get(url, { timeout: 4000 }, (res) => {
+      let d = '';
+      res.on('data', c => d += c);
+      res.on('end', () => { try { resolve(JSON.parse(d)); } catch (e) { resolve(null); } });
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+  });
+}
+
+async function ensureServer() {  if (serverState === 'ready') return { ok: true };
 
   // 端口上已经有服务在跑（例如用户自己启动过 app.py）→ 直接复用，
   // 避免再拉一个绑不上端口、却让健康检查通过第二个进程的假象

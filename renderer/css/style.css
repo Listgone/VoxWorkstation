@@ -1263,3 +1263,9 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 #loading-overlay.is-error .ld-bar{display:none}
 #loading-retry{display:none}
 #loading-overlay.is-error #loading-retry{display:inline-flex}
+
+/* 引擎（模型）仍在后台加载：界面可用，但生成类按钮先禁用 */
+body.engine-loading .btn-gen,
+body.engine-loading [data-act="gen-all"],
+body.engine-loading [data-act="gen-failed"]{opacity:.45;pointer-events:none}
+body.engine-loading #side-status::after{content:' · 模型加载中';color:var(--warn)}

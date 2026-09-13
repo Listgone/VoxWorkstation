@@ -275,6 +275,7 @@ const App = {
     window.electronAPI.onServerStatus((data) => {
       if (!data) return;
       if (data.status === 'ready') this._onServerReady();
+      else if (data.status === 'engine-ready') this._onEngineReady();
       else if (data.status === 'starting') {
         this._setLoadingText(data.message || '正在启动引擎...');
         this._setSideStatus('启动中…');
@@ -345,9 +346,18 @@ const App = {
     this._appendLog('提示：可在设置 → TTS 引擎里检查路径');
   },
 
+  /** 引擎（模型）加载完成 —— 与「服务已响应」是两回事。
+      后端改成后台加载后，界面先放出来，生成按钮等这里再解禁。 */
+  _onEngineReady() {
+    document.body.classList.remove('engine-loading');
+    this._setSideStatus('已就绪');
+    window.dispatchEvent(new CustomEvent('vox:engine-ready'));
+  },
+
   async _onServerReady() {
     clearInterval(this._loadingTimer);
-    this._setSideStatus('已就绪');
+    this._setSideStatus('模型加载中…');
+    document.body.classList.add('engine-loading');
     if (this._ready) return;
     this._ready = true;
     const ov = document.getElementById('loading-overlay');
