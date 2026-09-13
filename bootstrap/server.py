@@ -288,35 +288,38 @@ def _download_model_files():
 
 
 def _gpu_precheck():
-    """加载前先检查显卡是否满足要求。
+    """判断该用什么设备跑，返回 (设备, 说明)。
 
-    为什么需要：实测 GTX 1050 Ti（Pascal 6.1 / 4GB）在 CPU 上加载
-    bfloat16 模型会直接崩（Windows 报 0xC0000005 访问违例），
-    客户端只看到一个没头没尾的退出码。这里提前判断并给出人话原因。
-    返回 (是否可用, 说明)。
+    策略：能上 GPU 就上 GPU；不满足就退 CPU，而不是直接拒绝 ——
+    慢总比不能用强。实测 GTX 1050 Ti（Pascal 6.1 / 4GB）：
+    bf16 在 Pascal 上不支持，且 4GB 显存放不下 4.4GB 的模型，
+    但它有 16GB 内存，用 float32 在 CPU 上能跑（慢）。
     """
     try:
         import torch
     except Exception as e:
-        return False, "PyTorch 未正确安装：" + str(e)
+        return None, "PyTorch 未正确安装：" + str(e)
     try:
         if not torch.cuda.is_available():
-            return False, ("未检测到可用的 CUDA 设备。若使用 NVIDIA 显卡，"
-                           "通常是装了 CPU 版 PyTorch —— 需从 CUDA 源重装："
-                           "pip install torch torchaudio --index-url "
-                           "https://download.pytorch.org/whl/cu121")
+            return "cpu", ("未检测到可用的 CUDA 设备，将使用 CPU 运行（较慢）。"
+                           "若你有 NVIDIA 显卡，多半是装了 CPU 版 PyTorch —— "
+                           "需从 CUDA 源重装：pip install torch torchaudio "
+                           "--index-url https://download.pytorch.org/whl/cu121")
         cap = torch.cuda.get_device_capability(0)
         name = torch.cuda.get_device_name(0)
-        props = torch.cuda.get_device_properties(0)
-        vram = props.total_memory / 1024 ** 3
+        vram = torch.cuda.get_device_properties(0).total_memory / 1024 ** 3
         if cap[0] < 8:
-            return False, (f"{name} 为 {cap[0]}.{cap[1]} 架构，不支持 bfloat16。"
-                           "本模型以 bf16 加载，需要 8.0 及以上（RTX 30 系及以后）。")
-        if vram < 7:
-            return False, f"{name} 显存仅 {vram:.1f} GB，模型需要约 8 GB。"
-        return True, f"{name}（{cap[0]}.{cap[1]}，{vram:.1f} GB）"
+            return "cpu", (f"{name} 为 {cap[0]}.{cap[1]} 架构，不支持 bfloat16"
+                           "（本模型以 bf16 加载，需 8.0 及以上）。"
+                           "已自动改用 CPU 运行 —— 可以出声，但速度会慢很多。")
+        # 实测（RTX 4060 Ti）：模型本体约 5.5 GB，生成峰值约 5.8 GB，
+        # 故 6 GB 为可用下限；8 GB 及以上更宽裕
+        if vram < 6:
+            return "cpu", (f"{name} 显存仅 {vram:.1f} GB，低于实测下限 6 GB。"
+                           "已自动改用 CPU 运行 —— 可以出声，但速度会慢很多。")
+        return "cuda", f"{name}（{cap[0]}.{cap[1]}，{vram:.1f} GB）"
     except Exception as e:
-        return False, "显卡检测失败：" + str(e)
+        return "cpu", "显卡检测失败，改用 CPU 运行：" + str(e)
 
 
 def _bootstrap():
@@ -350,23 +353,33 @@ def _bootstrap():
             _phase.update(progress=1.0, downloaded=_dir_size(MODEL_PATH))
             print("模型下载完成。", flush=True)
 
-        # 2) 加载前检查显卡 —— 不满足就给明确原因，而不是让它崩掉
-        #    （实测 GTX 1050 Ti 在 CPU 上加载 bf16 模型会直接崩，只留一个退出码）
-        _ok_gpu, _gpu_msg = _gpu_precheck()
-        print("显卡检查：" + _gpu_msg, flush=True)
-        if not _ok_gpu:
-            raise RuntimeError("显卡不满足要求 —— " + _gpu_msg)
+        # 2) 选择设备：GPU 可用就用 GPU，否则退 CPU（慢，但能出声）
+        _dev, _dev_msg = _gpu_precheck()
+        print("设备检查：" + _dev_msg, flush=True)
+        _phase['device_note'] = _dev_msg
 
         _phase.update(phase='loading', message='正在加载模型')
         print("正在加载 VoxCPM2 模型...", flush=True)
         _t0 = time.time()
-        # optimize 自 2.0.3 起默认 True（推理提速的关键开关），这里显式写出，
-        # 免得将来默认值变化时静默变慢
-        _model = VoxCPM.from_pretrained(
-            MODEL_PATH,
-            load_denoiser=False,
-            optimize=True,
-        )
+
+        # CPU 上必须用 float32：bf16 在 CPU 上很多算子没实现，
+        # 实测会直接崩（Windows 报 0xC0000005 访问违例）
+        _kw = dict(load_denoiser=False, optimize=True)
+        if _dev == 'cpu':
+            try:
+                import torch as _t
+                _kw['torch_dtype'] = _t.float32
+            except Exception:
+                pass
+        else:
+            _kw['device'] = _dev
+
+        try:
+            _model = VoxCPM.from_pretrained(MODEL_PATH, **_kw)
+        except TypeError as _e:
+            # 该版本不接受 device / torch_dtype 时退回最简调用
+            print(f"（{_e}，改用默认参数加载）", flush=True)
+            _model = VoxCPM.from_pretrained(MODEL_PATH, load_denoiser=False, optimize=True)
         _phase.update(phase='ready', message='就绪', progress=1.0)
         print(f"模型加载完毕，用时 {time.time() - _t0:.1f}s。", flush=True)
     except Exception as e:
@@ -381,6 +394,33 @@ threading.Thread(target=_bootstrap, daemon=True, name="voxcpm-loader").start()
 
 # ---------- FastAPI 应用 ----------
 app = FastAPI()
+
+
+@app.post("/api/selftest")
+async def api_selftest():
+    """生成一句测试语音，用于快速验证「能不能出声」。
+
+    不需要建项目、不需要选音色 —— 设计成一个按钮就能确认链路是否通。
+    """
+    text = "你好，这是一句语音测试。如果你能听到这句话，说明引擎工作正常。"
+    t0 = time.time()
+    try:
+        wav = model.generate(text=text, cfg_value=2.0, inference_timesteps=10)
+        import soundfile as _sf
+        name = f"selftest_{int(time.time())}.wav"
+        out = os.path.join(HISTORY_DIR, name)
+        _sf.write(out, wav, model.tts_model.sample_rate)
+        return {
+            "ok": True,
+            "file": name,
+            "url": f"/api/audio/{name}",
+            "elapsed_ms": int((time.time() - t0) * 1000),
+            "sample_rate": model.tts_model.sample_rate,
+            "device_note": _phase.get("device_note", ""),
+        }
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e),
+                             "elapsed_ms": int((time.time() - t0) * 1000)}, status_code=500)
 
 
 @app.get("/api/ready")
@@ -398,6 +438,7 @@ async def api_ready():
         "error": model_error,
         "elapsed_ms": int((time.time() - _model_started_at) * 1000),
         "engine": _engine_info(),
+        "device_note": _phase.get("device_note", ""),
     }
 
 

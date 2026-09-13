@@ -494,8 +494,10 @@ const SettingsPage = {
       + '逐项检查后端、引擎、目录与配置，发现问题会给出修复办法。</p>'
       + '<div class="action-row"><button class="btn btn-primary" data-act="run-diag">开始自检</button>'
       + '<button class="btn" data-act="export-diag">导出诊断报告</button>'
+      + '<button class="btn" data-act="voice-test">测试语音</button>'
       + '<span class="text-sm text-muted" id="diag-hint"></span></div>'
       + '<div id="diag-list" class="diag-list"></div>'
+      + '<div id="vt-result" class="vt-box"></div>'
       + '</div>'
 
       + '<div class="card"><h2>诊断与关于</h2>'
@@ -933,6 +935,36 @@ const SettingsPage = {
       }
       save({ project: { ...s.project, trashKeepDays: v } }, v === 0 ? '已设为永不清理' : '保留 ' + v + ' 天');
     });
+    el.querySelector('[data-act="voice-test"]')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const box = el.querySelector('#vt-result');
+      btn.disabled = true; btn.textContent = '生成中…';
+      const t0 = Date.now();
+      if (box) box.innerHTML = '<span class="text-sm text-muted">正在生成测试语音，首次可能要十几秒…</span>';
+      try {
+        const r = await API.selftest();
+        const sec = ((Date.now() - t0) / 1000).toFixed(1);
+        if (r && r.ok) {
+          const url = API.getAudioUrl(r.file);
+          if (box) {
+            box.innerHTML = '<div class="vt-ok">✓ 生成成功（' + sec + ' 秒，' +
+              (r.sample_rate / 1000) + ' kHz）</div>' +
+              '<audio controls autoplay src="' + url + '" style="width:100%;margin-top:8px"></audio>' +
+              (r.device_note ? '<p class="text-sm text-muted" style="margin-top:8px">运行设备：' +
+                Util.escapeHtml(r.device_note) + '</p>' : '');
+          }
+          Toast.success('生成成功，用时 ' + sec + ' 秒');
+        } else {
+          const msg = (r && r.error) || '生成失败';
+          if (box) box.innerHTML = '<div class="vt-err">✗ ' + Util.escapeHtml(msg) + '</div>';
+          Toast.error(msg, true);
+        }
+      } catch (err) {
+        if (box) box.innerHTML = '<div class="vt-err">✗ ' + Util.escapeHtml(err.message) + '</div>';
+        Toast.error('生成失败：' + err.message, true);
+      } finally { btn.disabled = false; btn.textContent = '测试语音'; }
+    });
+
     el.querySelector('[data-act="export-diag"]')?.addEventListener('click', async (e) => {
       const btn = e.currentTarget;
       btn.disabled = true; btn.textContent = '导出中…';

@@ -55,6 +55,7 @@ const API = (() => {
 
   return {
     init,
+    async selftest() { return request('/api/selftest', { method: 'POST', timeoutMs: 180000 }); },
     get baseUrl() { return baseUrl; },
 
     // ── Presets ──
