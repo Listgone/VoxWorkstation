@@ -93,32 +93,27 @@ const DashPage = {
         + '<p class="text-sm text-muted" style="margin:0">还没有项目。去「项目管理」新建一个。</p></div>';
     }
     const max = Math.max(10, ...projects.map(p => p.episodeCount));
-    const H = 150, W = 520, base = 122, top = 16;
-    const slot = Math.min(96, (W - 60) / projects.length);
-    const bars = projects.map((p, i) => {
-      const x = 56 + i * slot;
-      const h = Math.max(3, ((p.episodeCount / max) * (base - top)));
-      const dh = p.episodeCount ? (p.doneCount / p.episodeCount) * h : 0;
-      const color = p.status === 'archived' ? '#8c959f' : (p.doneCount === p.episodeCount && p.episodeCount ? '#1a7f37' : '#0969da');
-      return '<rect x="' + x + '" y="' + (base - h) + '" width="' + (slot - 22) + '" height="' + h + '" rx="3" fill="var(--bg-elev)"/>'
-        + '<rect x="' + x + '" y="' + (base - dh) + '" width="' + (slot - 22) + '" height="' + dh + '" rx="3" fill="' + color + '"/>'
-        + '<text x="' + (x + (slot - 22) / 2) + '" y="' + (base + 16) + '" font-size="10" fill="var(--text-mute)" text-anchor="middle">'
-        + Util.escapeHtml(p.name.length > 6 ? p.name.slice(0, 6) + '…' : p.name) + '</text>'
-        + '<text x="' + (x + (slot - 22) / 2) + '" y="' + (base + 29) + '" font-size="9.5" fill="var(--text-mute)" text-anchor="middle">'
-        + p.doneCount + '/' + p.episodeCount + ' 集</text>';
+    // 用 CSS 柱状图而不是固定 viewBox 的 SVG —— 后者在宽屏下会被拉伸留白
+    const cols = projects.map(p => {
+      const totalH = Math.max(2, (p.episodeCount / max) * 100);
+      const doneH = p.episodeCount ? (p.doneCount / p.episodeCount) * totalH : 0;
+      const full = p.episodeCount > 0 && p.doneCount === p.episodeCount;
+      const color = p.status === 'archived' ? 'var(--text-mute)' : (full ? 'var(--ok)' : 'var(--accent)');
+      return '<div class="bc-col" title="' + Util.escapeAttr(p.name + '：' + p.doneCount + '/' + p.episodeCount + ' 集') + '">'
+        + '<div class="bc-bar"><i class="bc-total" style="height:' + totalH + '%"></i>'
+        + '<i class="bc-done" style="height:' + doneH + '%;background:' + color + '"></i></div>'
+        + '<div class="bc-name">' + Util.escapeHtml(p.name) + '</div>'
+        + '<div class="bc-sub">' + p.doneCount + '/' + p.episodeCount + ' 集</div>'
+        + '</div>';
     }).join('');
 
-    return '<div class="card"><h2>各项目进度 <span class="n">单位：集</span></h2>'
-      + '<svg viewBox="0 0 ' + W + ' 176" width="100%" height="176">'
-      + '<line x1="46" y1="122" x2="512" y2="122" stroke="var(--border)"/>'
-      + '<line x1="46" y1="86" x2="512" y2="86" stroke="var(--border-soft)"/>'
-      + '<line x1="46" y1="50" x2="512" y2="50" stroke="var(--border-soft)"/>'
-      + '<text x="38" y="126" font-size="9" fill="var(--text-mute)" text-anchor="end">0</text>'
-      + '<text x="38" y="90" font-size="9" fill="var(--text-mute)" text-anchor="end">' + Math.round(max / 2) + '</text>'
-      + '<text x="38" y="54" font-size="9" fill="var(--text-mute)" text-anchor="end">' + max + '</text>'
-      + bars + '</svg>'
-      + '<div class="legend"><span><i style="background:#0969da"></i>进行中</span>'
-      + '<span><i style="background:#1a7f37"></i>已完成</span>'
+    return '<div class="card"><h2>各项目进度 <span class="n">单位：集 · 上限 ' + max + '</span></h2>'
+      + '<div class="barchart">'
+      + '<div class="bc-axis"><span>' + max + '</span><span>' + Math.round(max / 2) + '</span><span>0</span></div>'
+      + '<div class="bc-plot">' + cols + '</div>'
+      + '</div>'
+      + '<div class="legend"><span><i style="background:var(--accent)"></i>进行中</span>'
+      + '<span><i style="background:var(--ok)"></i>已完成</span>'
       + '<span><i style="background:var(--bg-elev);border:1px solid var(--border)"></i>总数</span></div></div>';
   },
 
