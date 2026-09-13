@@ -494,71 +494,173 @@ const TextPage = {
     return (hit && hit.voice) || p.fallbackVoice || '';
   },
 };
-
 /* ── 本地文本规范化 + 断句（不联网）── */
 const TextTools = {
   _cn: ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'],
 
-  _numToCn(n) {
-    if (n === 0) return '零';
-    if (n < 10) return this._cn[n];
-    if (n < 20) return '十' + (n % 10 ? this._cn[n % 10] : '');
-    if (n < 100) return this._cn[Math.floor(n / 10)] + '十' + (n % 10 ? this._cn[n % 10] : '');
-    return String(n).split('').map(d => this._cn[Number(d)]).join('');
+  /** 整数 → 中文读法（支持到亿，处理零的省略） */
+  _intToCn(num) {
+    if (!isFinite(num)) return String(num);
+    const neg = num < 0; num = Math.abs(Math.round(num));
+    if (num === 0) return '零';
+    const CN = this._cn, U = ['', '十', '百', '千'], G = ['', '万', '亿', '万亿'];
+    let s = '', gi = 0;
+    while (num > 0) {
+      const chunk = num % 10000;
+      if (chunk) {
+        let cs = '', zero = false;
+        const d = String(chunk).split('').map(Number);
+        for (let i = 0; i < d.length; i++) {
+          const digit = d[i], pos = d.length - 1 - i;
+          if (digit === 0) { zero = true; continue; }
+          if (zero) { cs += '零'; zero = false; }
+          cs += CN[digit] + U[pos];
+        }
+        s = cs + G[gi] + s;
+      } else if (s && !s.startsWith('零')) { s = '零' + s; }
+      num = Math.floor(num / 10000); gi++;
+    }
+    s = s.replace(/^一十/, '十').replace(/零+$/, '');
+    return (neg ? '负' : '') + s;
+  },
+
+  /** 小数 → 中文读法：3.14 → 三点一四 */
+  _decToCn(str) {
+    const [i, d] = String(str).split('.');
+    let out = this._intToCn(Number(i));
+    if (d) out += '点' + d.split('').map(x => this._cn[Number(x)]).join('');
+    return out;
+  },
+
+  /** 通用数字读法：整数/小数/千分位 */
+  _num(str) {
+    const s = String(str).replace(/,/g, '');
+    return s.includes('.') ? this._decToCn(s) : this._intToCn(Number(s));
   },
 
   _yearToCn(y) {
     return String(y).split('').map(d => this._cn[Number(d)]).join('');
   },
 
+  /**
+   * 本地文本规范化（不联网）。
+   * 数字怎么读是确定性规则，本地做比 AI 更稳 —— AI 会漏、会飘，
+   * 所以这里把主要 TN 场景尽量覆盖全。
+   * 顺序很重要：从具体到宽泛，长模式先匹配，避免被短规则吃掉。
+   */
   normalize(text) {
     const hits = [];
-    let t = text;
+    const log = (from, to) => { if (from !== to) hits.push([from, to]); };
+    let t = String(text || '');
+    const sub = (re, fn) => {
+      t = t.replace(re, (...a) => { const m = a[0]; const out = fn(...a); log(m, out); return out; });
+    };
+    const n2c = (s) => this._num(s);
 
-    // 年份：2024年 → 二零二四年
-    t = t.replace(/(\d{4})\s*年/g, (m, y) => { hits.push([m, this._yearToCn(y) + '年']); return this._yearToCn(y) + '年'; });
+    // ── 1. 年份（先做，避免被逐位规则拆散）──
+    sub(/(\d{4})\s*年/g, (m, y) => this._yearToCn(y) + '年');
 
-    // 百分比：3.14% → 百分之三点一四
-    t = t.replace(/(\d+(?:\.\d+)?)\s*%/g, (m, v) => {
-      const parts = String(v).split('.');
-      const intPart = this._numToCn(Number(parts[0]));
-      const decPart = parts[1] ? '点' + parts[1].split('').map(d => this._cn[Number(d)]).join('') : '';
-      const out = '百分之' + intPart + decPart;
-      hits.push([m, out]); return out;
+    // ── 2. 金额 ──
+    sub(/[¥￥]\s*(\d[\d,]*(?:\.\d+)?)/g, (m, v) => {
+      const [i, d] = String(v).replace(/,/g, '').split('.');
+      let s = this._intToCn(Number(i)) + '元';
+      if (d) {
+        const jiao = Number(d[0] || 0), fen = Number(d[1] || 0);
+        if (jiao) s += this._cn[jiao] + '角';
+        if (fen) s += this._cn[fen] + '分';
+      }
+      return s;
+    });
+    sub(/\$\s*(\d[\d,]*(?:\.\d+)?)/g, (m, v) => n2c(v) + '美元');
+
+    // ── 3. 百分比 / 千分号 ──
+    sub(/(\d+(?:\.\d+)?)\s*%/g, (m, v) => '百分之' + this._decToCn(v));
+    sub(/(\d+(?:\.\d+)?)\s*‰/g, (m, v) => '千分之' + this._decToCn(v));
+
+    // ── 4. 温度 ──
+    sub(/(-?\d+(?:\.\d+)?)\s*(?:℃|°C)/gi, (m, v) => this._decToCn(v) + '摄氏度');
+    sub(/(-?\d+(?:\.\d+)?)\s*(?:℉|°F)/gi, (m, v) => this._decToCn(v) + '华氏度');
+
+    // ── 5. 时间 15:30 / 9:05 ──
+    sub(/\b(\d{1,2}):(\d{2})\b/g, (m, h, mi) => {
+      const hh = Number(h), mm = Number(mi);
+      if (hh > 23 || mm > 59) return m;
+      return this._intToCn(hh) + '点' + (mm === 0 ? '整'
+        : (mm < 10 ? '零' + this._cn[mm] : this._intToCn(mm))) + '分';
     });
 
-    // 常见英文缩写 → 逐字母
-    const abbr = { 'AI': 'A I', 'IDC': 'I D C', 'GDP': 'G D P', 'CEO': 'C E O', 'API': 'A P I',
-                   'CPU': 'C P U', 'GPU': 'G P U', 'IT': 'I T', 'PC': 'P C', 'USB': 'U S B' };
-    for (const [k, v] of Object.entries(abbr)) {
-      const re = new RegExp('(?<![A-Za-z])' + k + '(?![A-Za-z])', 'g');
-      if (re.test(t)) { hits.push([k, v]); t = t.replace(re, v); }
+    // ── 6. 日期 3月5日 / 3月5号 ──
+    sub(/(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]/g, (m, a, b) => this._intToCn(Number(a)) + '月' + this._intToCn(Number(b)) + '日');
+
+    // ── 7. 分数 1/2（仅当两侧都是小整数）──
+    sub(/(?<![\d/])(\d{1,2})\s*\/\s*(\d{1,2})(?![\d/])/g, (m, a, b) => this._intToCn(Number(b)) + '分之' + this._intToCn(Number(a)));
+
+    // ── 8. 比分 / 比例 3:1（排除时间已处理的情况）──
+    sub(/(?<![\d:])(\d{1,3})\s*:\s*(\d{1,3})(?![\d:])/g, (m, a, b) => this._intToCn(Number(a)) + '比' + this._intToCn(Number(b)));
+
+    // ── 11. 单位（含中文别名），必须跟在数字后 ──
+    const UNITS = [
+      ['km/h', '公里每小时'], ['m/s', '米每秒'], ['kWh', '千瓦时'],
+      ['GB', '吉字节'], ['MB', '兆字节'], ['TB', '太字节'], ['KB', '千字节'],
+      ['km', '公里'], ['kg', '千克'], ['cm', '厘米'], ['mm', '毫米'],
+      ['ml', '毫升'], ['mL', '毫升'], ['Hz', '赫兹'], ['kHz', '千赫'],
+      ['㎡', '平方米'], ['m³', '立方米'], ['W', '瓦'], ['V', '伏']
+    ];
+    for (const [k, v] of UNITS) {
+      const esc = k.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+      sub(new RegExp('(\\d)\\s*' + esc + '(?![A-Za-z])', 'g'), (m, d) => d + v);
     }
 
-    // 单位
-    const units = [['km', '公里'], ['kg', '公斤'], ['cm', '厘米'], ['mm', '毫米'], ['㎡', '平方米']];
-    for (const [k, v] of units) {
-      const re = new RegExp('(\\d)\\s*' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-      t = t.replace(re, (m, d) => { hits.push([m, d + v]); return d + v; });
+    // ── 9. 范围 3-5 / 3~5 / 3—5 ──
+    sub(/(\d+(?:\.\d+)?)\s*[-~～—－]\s*(\d+(?:\.\d+)?)/g, (m, a, b) => this._decToCn(a) + '到' + this._decToCn(b));
+
+    // ── 10. 数学与比较符号 ──
+    const SYM = { '+': '加', '＋': '加', '=': '等于', '＝': '等于',
+                  '≥': '大于等于', '≤': '小于等于', '≠': '不等于',
+                  '×': '乘', '÷': '除以', '±': '正负', '√': '根号',
+                  '→': '变为', '≈': '约等于' };
+    for (const [k, v] of Object.entries(SYM)) {
+      if (t.includes(k)) sub(new RegExp('\\s*\\' + k + '\\s*', 'g'), () => v);
     }
 
-    // 直角引号统一
-    t = t.replace(/「/g, '“').replace(/」/g, '”');
-    t = t.replace(/[ \t]+/g, ' ');
+    // ── 12. 负数 ──
+    sub(/(?<![\d.])-(\d+(?:\.\d+)?)/g, (m, v) => '负' + this._decToCn(v));
+
+    // ── 13. 序数 第3章 / 第12集 ──
+    sub(/第\s*(\d+)\s*(?=[章节集课回卷篇条款项个条])/g, (m, v) => '第' + this._intToCn(Number(v)));
+
+    // ── 14. 英文缩写：全大写 2–6 字母 → 逐字母加空格 ──
+    t = t.replace(/(?<![A-Za-z])([A-Z]{2,6})(?![A-Za-z])/g, (m) => {
+      // 已经是单个字母序列的跳过
+      if (/^[A-Z]$/.test(m)) return m;
+      const out = m.split('').join(' ');
+      log(m, out); return out;
+    });
+
+    // ── 15. 长数字串（电话、编号）逐位读 ──
+    sub(/(?<!\d)(\d{7,})(?!\d)/g, (m, v) => v.split('').map(d => this._cn[Number(d)]).join(''));
+
+    // ── 16. 剩下的裸数字（不是年份/已处理）──
+    sub(/(?<![\d.])(\d{1,6}(?:\.\d+)?)(?![\d.])/g, (m, v) => this._decToCn(v));
+
+    // ── 17. 引号 / 括号统一 ──
+    sub(/[“”]/g, () => '「');
+    sub(/[‘’]/g, () => '「');
+    sub(/[（）]/g, (m) => m === '（' ? '（' : '）');
+
+    // ── 18. 省略号 / 破折号统一（利于断句与停顿）──
+    sub(/\.{3,}|。{3,}/g, () => '……');
+    sub(/—{2,}|-{2,}/g, () => '——');
+
     return { text: t, hits };
   },
 
   /**
    * 解析剧本。AI 按规范输出两段：
-   *   【背景介绍（仅供判断，不配音）】  地点/时间/环境、设定伏笔冲突、
-   *                                     角色形象、谁对谁说话与情绪依据
-   *   【角色（情绪）+台词（用于配音）】 角色名（情绪）+台词
-   *
-   * 关键规则：
-   * - 只有明确说出口的台词进配音；旁白/动作/环境/心理描写归入背景介绍
-   * - 角色名与情绪只是标注，不参与配音
-   * - 分段标题可有可无；没有标题时按行解析，认不出的行归背景（strict）
-   *   或降级成旁白（非 strict，用于「按角色 / 标点分句」按钮）
+   *   【背景介绍（仅供判断，不配音）】
+   *   【角色（情绪）+台词（用于配音）】
+   * 只有明确说出口的台词进配音；旁白/动作/环境/心理描写归入背景介绍；
+   * 角色名与情绪只是标注，不参与配音。
    */
   parseScript(text, maxLen = 25, opts = {}) {
     const strict = opts.strict !== false;
