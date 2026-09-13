@@ -2,6 +2,14 @@
    App —— 外壳、路由、项目上下文
    ========================================== */
 
+// 界面层兜底：任何未捕获错误只记录，不让界面白屏或卡死
+window.addEventListener('error', (e) => {
+  console.error('[guard] 界面异常:', e.message, e.filename, e.lineno);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('[guard] 未处理的拒绝:', e.reason);
+});
+
 const App = {
   current: 'dash',
   _rendered: {},
@@ -495,17 +503,41 @@ const App = {
       if (p) p.textContent = '当前查找位置：' + (s.scriptPath || '(未配置)');
     });
 
-    // 显示模型应放的位置，并允许直接打开 —— 自己下好丢进去就能用
-    window.electronAPI.setup.modelDir().then((m) => {
+    // 显示模型应放的位置，并允许直接打开 —— 自己下好丢进去就能用。
+    // 全部包 try/catch 并先判方法是否存在：旧版 preload 或缺方法时
+    // 不该让整个面板渲染中断（这正是把应用点闪退的那类写法）。
+    const api = window.electronAPI || {};
+    const modelDirFn = (api.setup && api.setup.modelDir) ? api.setup.modelDir.bind(api.setup) : null;
+    const revealFn = (api.path && api.path.reveal) ? api.path.reveal.bind(api.path) : null;
+
+    if (modelDirFn) {
+      Promise.resolve()
+        .then(() => modelDirFn())
+        .then((m) => {
+          const el = document.getElementById('loading-model-dir');
+          if (el && m && m.dir) el.textContent = m.dir;
+          else if (el) el.textContent = '(尚未确定，请先执行一键配置)';
+        })
+        .catch((e) => console.warn('取模型目录失败:', e));
+    } else {
       const el = document.getElementById('loading-model-dir');
-      if (el && m) el.textContent = m.dir;
-    });
+      if (el) el.textContent = '(当前版本不支持，请更新)';
+    }
+
     const openModel = document.getElementById('loading-open-model');
     if (openModel && !openModel.dataset.bound) {
       openModel.dataset.bound = '1';
-      openModel.addEventListener('click', async () => {
-        const m = await window.electronAPI.setup.modelDir();
-        if (m && m.dir) window.electronAPI.path.reveal(m.dir);
+      openModel.addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        try {
+          if (!modelDirFn || !revealFn) { Toast.error('当前版本不支持打开目录', true); return; }
+          const m = await modelDirFn();
+          if (m && m.dir) await revealFn(m.dir);
+          else Toast.error((m && m.message) || '模型目录尚未确定，请先一键配置', true);
+        } catch (e) {
+          console.error('打开模型目录失败:', e);
+          Toast.error('打开失败：' + (e && e.message || e), true);
+        }
       });
     }
 

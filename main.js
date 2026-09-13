@@ -30,6 +30,46 @@ function resolveServerDir(dir) {
   return path.isAbsolute(dir) ? dir : path.join(appBaseDir(), dir);
 }
 
+
+/* ══════════════════════════════════════════════════════════
+   崩溃兜底
+   教训：一个「打开模型目录」按钮能把应用点闪退 —— 说明单点异常
+   没有任何防护。以下三道防线，任何一道都不该让应用退出。
+   ══════════════════════════════════════════════════════════ */
+process.on('uncaughtException', (err) => {
+  console.error('[guard] 未捕获异常（已拦截，应用继续运行）:', err && err.stack || err);
+  try { pushLog('[guard] 未捕获异常：' + (err && err.message || err)); } catch (e) { /* 忽略 */ }
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[guard] 未处理的 Promise 拒绝（已拦截）:', reason);
+  try { pushLog('[guard] 未处理的拒绝：' + (reason && reason.message || reason)); } catch (e) { /* 忽略 */ }
+});
+
+/** 安全打开路径：失败时退回 explorer.exe，绝不抛错 */
+function safeOpenPath(p) {
+  const target = String(p || '').trim();
+  if (!target) return { ok: false, message: '路径为空' };
+  try {
+    if (!fs.existsSync(target)) {
+      try { fs.mkdirSync(target, { recursive: true }); } catch (e) { /* 建不了也试着打开父目录 */ }
+    }
+    const r = shell.openPath(target);
+    if (r && typeof r.then === 'function') {
+      r.then((err) => {
+        if (err) {
+          console.warn('[guard] shell.openPath 失败，改用 explorer:', err);
+          try { spawn('explorer', [target], { detached: true, stdio: 'ignore' }).unref(); } catch (e) { /* 放弃 */ }
+        }
+      }).catch((e) => console.warn('[guard] openPath 异常:', e));
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error('[guard] 打开路径异常:', e);
+    try { spawn('explorer', [target], { detached: true, stdio: 'ignore' }).unref(); } catch (e2) { /* 放弃 */ }
+    return { ok: false, message: String(e && e.message || e) };
+  }
+}
+
 function loadConfig() {
   const cfg = { ...DEFAULTS };
 
@@ -1069,7 +1109,12 @@ ipcMain.handle('vox:setup:status', () => ({
 /** 校验用户选的目录里有没有 server.py */
 /** 返回模型应放的位置（顺带建好目录），供「打开模型目录」使用 */
 ipcMain.handle('vox:setup:modelDir', () => {
-  const dir = path.join(CONFIG.serverDir, 'pretrained_models', 'VoxCPM2');
+  let dir = '';
+  try {
+    const base = CONFIG && CONFIG.serverDir ? String(CONFIG.serverDir) : '';
+    dir = base ? path.join(base, 'pretrained_models', 'VoxCPM2') : '';
+  } catch (e) { dir = ''; }
+  if (!dir) return { ok: false, dir: '', message: '后端目录尚未确定' };
   try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { /* 建不了也返回路径 */ }
   const weight = path.join(dir, 'model.safetensors');
   let mb = 0;
@@ -1366,7 +1411,7 @@ ipcMain.handle('vox:trash:list', () => (store ? store.listTrash() : []));
 ipcMain.handle('vox:trash:restore', (_e, p) => (store ? store.restoreTrash(p) : { ok: false }));
 ipcMain.handle('vox:trash:purge', (_e, p) => (store ? store.purgeTrash(p) : { ok: false }));
 ipcMain.handle('vox:trash:empty', (_e, projectId) => (store ? store.emptyTrash(projectId) : { ok: false }));
-ipcMain.handle('vox:path:reveal', (_e, p) => { shell.openPath(String(p || '')); return { ok: true }; });
+ipcMain.handle('vox:path:reveal', (_e, p) => safeOpenPath(p));
 ipcMain.handle('vox:path:pick', async (_e, { title, defaultPath }) => {
   const r = await dialog.showOpenDialog(mainWindow, {
     title: title || '选择目录', defaultPath: defaultPath || undefined,
@@ -1415,6 +1460,15 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+
+  // 渲染进程崩溃时记录并尝试重载，而不是让整个应用退出
+  app.on('render-process-gone', (_e, contents, details) => {
+    console.error('[guard] 渲染进程异常退出:', details);
+    try { pushLog('[guard] 界面进程异常：' + (details && details.reason)); } catch (e) { /* 忽略 */ }
+    if (mainWindow && !mainWindow.isDestroyed() && details && details.reason !== 'clean-exit') {
+      try { mainWindow.reload(); } catch (e) { /* 放弃 */ }
+    }
   });
 
   app.on('window-all-closed', () => {
