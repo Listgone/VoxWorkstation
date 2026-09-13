@@ -153,7 +153,11 @@ const App = {
     set('nav-voice-count', window.__voiceCount || '');
 
     const ai = document.getElementById('status-ai');
-    if (ai) ai.textContent = Store.hasApiKey ? '✦ AI 已配置' : '✦ AI 未配置';
+    if (ai) {
+      const prov = (Store.settings && Store.settings.ai && Store.settings.ai.provider) || 'deepseek';
+      const ok = !!((Store.keyStatus || {})[prov] || {}).has;
+      ai.textContent = ok ? '✦ AI 已配置' : '✦ AI 未配置';
+    }
   },
 
   /** 轻量下拉菜单（面包屑 / 自定义 select 共用）*/

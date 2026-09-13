@@ -7,7 +7,10 @@ function subscribe(channel, cb) {
   return () => ipcRenderer.removeListener(channel, handler);
 }
 
-const invoke = (channel, payload) => ipcRenderer.invoke(channel, payload);
+/* 注意：必须转发全部参数。原先只写 (channel, payload)，
+   多参数调用（如 setApiKey(provider, key)）会丢掉后面的参数，
+   主进程收到 undefined 后会把已有 key 当成空值处理 —— 静默删库。 */
+const invoke = (channel, ...args) => ipcRenderer.invoke(channel, ...args);
 
 contextBridge.exposeInMainWorld('electronAPI', {
   /* 窗口 */
@@ -26,14 +29,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   settings: {
     get: () => invoke('vox:settings:get'),
     save: (patch) => invoke('vox:settings:save', patch),
-    setApiKey: (key) => invoke('vox:settings:setApiKey', key),
-    clearApiKey: () => invoke('vox:settings:clearApiKey'),
-    getApiKey: () => invoke('vox:settings:getApiKey')
+    setApiKey: (provider, key) => invoke('vox:settings:setApiKey', provider, key),
+    clearApiKey: (provider) => invoke('vox:settings:clearApiKey', provider),
+    getApiKey: (provider) => invoke('vox:settings:getApiKey', provider)
   },
 
   /* AI 服务 */
   ai: {
-    test: () => invoke('vox:ai:test'),
+    test: (provider) => invoke('vox:ai:test', { provider }),
     process: (task, text, options) => invoke('vox:ai:process', { task, text, options }),
     models: (override) => invoke('vox:ai:models', override),
     onProgress: (cb) => subscribe('vox:ai-progress', cb)

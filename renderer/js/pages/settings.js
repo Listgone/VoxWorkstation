@@ -123,13 +123,16 @@ const SettingsPage = {
   _ai(s) {
     const ai = s.ai || {};
     const cur = AI_PROVIDERS.find(x => x.id === ai.provider) || AI_PROVIDERS[0];
+    const prov = ai.provider || 'deepseek';
+    const ks = (Store.keyStatus || {})[prov] || {};
+    const hasKey = !!ks.has;
     const models = cur.models || [];
     const freeSet = new Set(cur.free || []);
     const allFree = freeSet.has('*');
     const isFree = (m) => allFree || freeSet.has(m);
     const isCustomModel = !!ai.model && models.length > 0 && !models.includes(ai.model);
     return '<div class="card"><h2>AI 服务 <span class="n">'
-      + (Store.hasApiKey
+      + (hasKey
           ? '已配置 Key' + (Store.keyEncrypted ? '（加密存储）' : '（未加密）')
           : '<span style="color:var(--danger)">未配置 Key</span>')
       + '</span></h2>'
@@ -171,14 +174,14 @@ const SettingsPage = {
           + '</div>')
       + this._row('视觉模型（OCR）', '图片取字用，留空则关闭该功能。智谱可填 glm-ocr',
           '<input type="text" id="ai-vision" value="' + Util.escapeAttr(ai.visionModel || '') + '" placeholder="留空即关闭" style="width:220px">')
-      + this._row('API Key', Store.hasApiKey
-            ? '已加密保存在本机。要换就直接输入新的，留空则不改动'
-            : '用系统凭据加密存储，不落明文。「测试连接」会先自动保存',
-          '<input type="text" id="ai-key" class="key-input' + (Store.hasApiKey ? ' is-set' : '') + '" '
-          + 'value="' + Util.escapeAttr(Store.hasApiKey ? (Store.keyHint || '已保存') : '') + '" '
+      + this._row('API Key', (hasKey
+              ? '<b>' + Util.escapeHtml(cur.name) + '</b> 的 Key 已加密保存在本机。要换就直接输入新的，留空则不改动'
+              : '每个服务商分开保存。「测试连接」会先自动保存'),
+          '<input type="text" id="ai-key" class="key-input' + (hasKey ? ' is-set' : '') + '" '
+          + 'value="' + Util.escapeAttr(hasKey ? (ks.hint || '已保存') : '') + '" '
           + 'placeholder="粘贴 API Key" style="width:230px" autocomplete="off" spellcheck="false">'
           + '<button class="btn btn-sm" data-act="test">测试连接</button>'
-          + (Store.hasApiKey ? '<button class="btn btn-sm btn-ghost btn-danger" data-act="clear-key">清除</button>' : ''))
+          + (hasKey ? '<button class="btn btn-sm btn-ghost btn-danger" data-act="clear-key">清除</button>' : ''))
       + this._row('超时 / 重试', '长文本处理建议调大超时',
           '<input type="number" id="ai-timeout" value="' + (ai.timeoutSec || 60) + '" style="width:74px"><span class="text-sm text-muted">秒</span>'
           + '<input type="number" id="ai-retries" value="' + (ai.retries || 2) + '" style="width:66px"><span class="text-sm text-muted">次</span>')
@@ -391,15 +394,15 @@ const SettingsPage = {
     const refreshKeyState = async () => {
       try {
         const r = await window.electronAPI.settings.get();
-        Store.hasApiKey = r.hasApiKey;
-        Store.keyHint = r.keyHint || '';
+        Store.keyStatus = r.keyStatus || {};
         Store.keyEncrypted = r.keyEncrypted;
       } catch (e) { /* 忽略 */ }
     };
 
     /* key 输入框：有 key 时显示掩码；内容是掩码就说明用户没动过。
        只比对值本身，不依赖任何状态标记 —— 标记一旦和真实内容不同步就会误判 */
-    const isMask = (v) => !!Store.hasApiKey && String(v).trim() === (Store.keyHint || '');
+    const curKey = () => ((Store.keyStatus || {})[pickedProvider] || {});
+    const isMask = (v) => curKey().has && String(v).trim() === (curKey().hint || '');
     const keyInp = el.querySelector('#ai-key');
     const enterEdit = () => {
       if (keyInp && isMask(keyInp.value)) {
@@ -411,8 +414,8 @@ const SettingsPage = {
     keyInp?.addEventListener('mousedown', enterEdit);
     keyInp?.addEventListener('blur', () => {
       // 没输入任何东西就离开 → 恢复掩码，免得看起来像被清空了
-      if (keyInp && !keyInp.value.trim() && Store.hasApiKey) {
-        keyInp.value = Store.keyHint || '已保存';
+      if (keyInp && !keyInp.value.trim() && curKey().has) {
+        keyInp.value = curKey().hint || '已保存';
         keyInp.classList.add('is-set');
       }
     });
@@ -423,7 +426,7 @@ const SettingsPage = {
       if (!inp) return { ok: true, skipped: true };
       const key = inp.value.trim();
       if (!key || isMask(key)) return { ok: true, skipped: true };
-      const r = await window.electronAPI.settings.setApiKey(key);
+      const r = await window.electronAPI.settings.setApiKey(pickedProvider, key);
       if (r && r.ok) {
         await refreshKeyState();     // 掩码由主进程算，渲染层不重复实现
         return { ok: true, saved: true };
@@ -435,10 +438,10 @@ const SettingsPage = {
     el.querySelector('[data-act="clear-key"]')?.addEventListener('click', async () => {
       const ok = await Modal.confirm({
         title: '清除 API Key', okText: '清除', danger: true,
-        message: '清除后 AI 文本处理会不可用，需要重新填写。音频与项目文件不受影响。'
+        message: '只清除<b>当前服务商</b>的 Key，其它服务商的 Key 保留。<br>清除后这家就不能用了，需要重新填写。'
       });
       if (!ok) return;
-      const r = await window.electronAPI.settings.clearApiKey();
+      const r = await window.electronAPI.settings.clearApiKey(pickedProvider);
       if (r && r.ok) {
         await refreshKeyState();
         Toast.success('已清除 API Key');
@@ -512,10 +515,20 @@ const SettingsPage = {
 
     bindModelRow();
     el.querySelectorAll('[data-provider]').forEach(b =>
-      b.addEventListener('click', () => {
+      b.addEventListener('click', async () => {
         pickedProvider = b.dataset.provider;
         el.querySelectorAll('[data-provider]').forEach(x => x.classList.toggle('on', x === b));
         fillProvider(pickedProvider);
+        // 立刻记下这家的地址与模型并重渲染 —— 关键是让 API Key 栏
+        // 切到这家自己的 key，否则会拿着上一家的 key 去测，报「令牌无效」
+        await Store.saveSettings({ ai: {
+          ...(Store.settings.ai || {}),
+          provider: pickedProvider,
+          baseURL: el.querySelector('#ai-base').value.trim(),
+          model: el.querySelector('#ai-model').value.trim(),
+          visionModel: el.querySelector('#ai-vision').value.trim()
+        }});
+        App.go('settings');
       }));
     el.querySelector('#ai-model')?.addEventListener('input', (e) => {
       el.querySelectorAll('#ai-models .mchip').forEach(x =>
@@ -535,6 +548,7 @@ const SettingsPage = {
         const kr = await persistKey();            // 先存 key，否则拉不动
         if (!kr.ok) throw new Error('API Key 保存失败：' + kr.message);
         const r = await window.electronAPI.ai.models({
+          provider: pickedProvider,
           baseURL: el.querySelector('#ai-base').value.trim()
         });
         if (!r.ok) throw new Error(r.message);
@@ -557,7 +571,7 @@ const SettingsPage = {
         // 关键：先把输入框里的 key 存下来，否则测的是磁盘上的旧 key
         const kr = await persistKey();
         if (!kr.ok) throw new Error('API Key 保存失败：' + kr.message);
-        const r = await window.electronAPI.ai.test();
+        const r = await window.electronAPI.ai.test(pickedProvider);
         if (out) out.textContent = (r.ok ? '✓ ' : '✕ ') + r.message + (r.reply ? '（' + r.reply + '）' : '');
         if (r.ok) { Toast.success('AI 连接正常'); App.go('settings'); }
         else Toast.error('连接失败：' + r.message, true);

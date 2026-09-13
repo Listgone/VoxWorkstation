@@ -5,7 +5,7 @@
 
 const Store = {
   settings: null,
-  hasApiKey: false,
+  keyStatus: {},          // { providerId: { has, hint } } —— 各家 key 分开存
   keyEncrypted: false,
   userData: '',
 
@@ -26,8 +26,7 @@ const Store = {
   async init() {
     const r = await window.electronAPI.settings.get();
     this.settings = r.settings;
-    this.hasApiKey = r.hasApiKey;
-    this.keyHint = r.keyHint || '';
+    this.keyStatus = r.keyStatus || {};
     this.keyEncrypted = r.keyEncrypted;
     this.userData = r.userData;
     await this.reloadProjects();

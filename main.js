@@ -87,7 +87,91 @@ const APP_SETTINGS_DEFAULTS = {
 let appSettings = null;
 
 function settingsFile() { return path.join(app.getPath('userData'), 'app-settings.json'); }
-function keyFile() { return path.join(app.getPath('userData'), 'ai-key.bin'); }
+/* API Key 按「服务商」分别存储 —— 各家的 key 互不相同，
+   全局存一份会导致切服务商后拿错 key 去请求，报「令牌无效/过期」 */
+function keysFile() { return path.join(app.getPath('userData'), 'ai-keys.json'); }
+function legacyKeyFile() { return path.join(app.getPath('userData'), 'ai-key.bin'); }
+
+function loadKeys() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(keysFile(), 'utf8'));
+    return (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+  } catch (e) { return {}; }
+}
+function writeKeys(map) {
+  try { fs.writeFileSync(keysFile(), JSON.stringify(map), 'utf8'); return true; }
+  catch (e) { return false; }
+}
+function encKey(plain) {
+  return safeStorage.isEncryptionAvailable()
+    ? safeStorage.encryptString(String(plain)).toString('base64')
+    : Buffer.from(String(plain), 'utf8').toString('base64');
+}
+function decKey(b64) {
+  try {
+    const buf = Buffer.from(String(b64), 'base64');
+    return safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : buf.toString('utf8');
+  } catch (e) { return ''; }
+}
+
+/** 老版本只存了一份全局 key，迁移到当前服务商名下 */
+function migrateLegacyKey() {
+  try {
+    if (!fs.existsSync(legacyKeyFile())) return;
+    let plain = '';
+    try {
+      const buf = fs.readFileSync(legacyKeyFile());
+      plain = safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : buf.toString('utf8');
+    } catch (e) { plain = ''; }
+    if (plain && plain.trim()) {
+      const map = loadKeys();
+      const p = (appSettings && appSettings.ai && appSettings.ai.provider) || 'deepseek';
+      if (!map[p]) { map[p] = encKey(plain.trim()); writeKeys(map); }
+    }
+    fs.renameSync(legacyKeyFile(), legacyKeyFile() + '.migrated');
+  } catch (e) { /* 迁移失败不阻塞启动 */ }
+}
+
+function saveApiKey(provider, key) {
+  const p = String(provider || 'deepseek');
+  // undefined 说明调用链传参丢了，绝不能当成「清空」——直接拒绝，避免静默删库
+  if (key === undefined) return { ok: false, message: '未收到 API Key（内部传参错误）' };
+  const map = loadKeys();
+  const v = String(key).trim();
+  if (!v) delete map[p]; else map[p] = encKey(v);
+  return writeKeys(map)
+    ? { ok: true, encrypted: safeStorage.isEncryptionAvailable() }
+    : { ok: false, message: '密钥文件写入失败' };
+}
+function readApiKey(provider) {
+  const map = loadKeys();
+  const v = map[String(provider || 'deepseek')];
+  return v ? decKey(v) : '';
+}
+function clearApiKey(provider) {
+  const p = String(provider || 'deepseek');
+  const map = loadKeys();
+  delete map[p];
+  return writeKeys(map) ? { ok: true } : { ok: false, message: '密钥文件写入失败' };
+}
+
+/** 只给渲染层看「有没有、大概长什么样」，永远不返回明文 */
+function maskApiKey(k) {
+  if (!k) return '';
+  if (k.length <= 10) return '•'.repeat(k.length);
+  return k.slice(0, 3) + '•'.repeat(Math.min(24, k.length - 7)) + k.slice(-4);
+}
+
+/** 所有服务商的 key 状态（只有掩码与布尔值，没有明文） */
+function keyStatus() {
+  const map = loadKeys();
+  const out = {};
+  for (const p of Object.keys(map)) {
+    const plain = decKey(map[p]);
+    out[p] = { has: !!plain, hint: maskApiKey(plain) };
+  }
+  return out;
+}
 
 function loadAppSettings() {
   const s = JSON.parse(JSON.stringify(APP_SETTINGS_DEFAULTS));
@@ -116,36 +200,7 @@ function saveAppSettings(patch) {
   return { ok: true, settings: appSettings };
 }
 
-function saveApiKey(key) {
-  try {
-    const payload = safeStorage.isEncryptionAvailable()
-      ? safeStorage.encryptString(String(key))
-      : Buffer.from(String(key), 'utf8');
-    fs.writeFileSync(keyFile(), payload);
-    return { ok: true, encrypted: safeStorage.isEncryptionAvailable() };
-  } catch (e) { return { ok: false, message: e.message }; }
-}
 
-function readApiKey() {
-  try {
-    const buf = fs.readFileSync(keyFile());
-    return safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : buf.toString('utf8');
-  } catch (e) { return ''; }
-}
-
-/** 只给渲染层看「有没有、大概长什么样」，永远不返回明文 */
-function maskApiKey(k) {
-  if (!k) return '';
-  if (k.length <= 10) return '•'.repeat(k.length);
-  const head = k.slice(0, 3);
-  const tail = k.slice(-4);
-  return head + '•'.repeat(Math.min(24, k.length - 7)) + tail;
-}
-
-function clearApiKey() {
-  try { fs.rmSync(keyFile(), { force: true }); return { ok: true }; }
-  catch (e) { return { ok: false, message: e.message }; }
-}
 
 /* ══════════════════════════════════════════════════════════
    项目存储
@@ -200,16 +255,18 @@ function aiRequest(baseURL, key, bodyObj, timeoutMs) {
   });
 }
 
-function currentAI() {
+function currentAI(providerOverride) {
   appSettings = appSettings || loadAppSettings();
   const ai = appSettings.ai || {};
+  const prov = providerOverride || ai.provider || 'deepseek';
   return {
+    provider: prov,
     baseURL: ai.baseURL || '',
     model: ai.model || 'deepseek-chat',
     timeoutSec: ai.timeoutSec || 60,
     retries: Math.max(0, ai.retries || 0),
     maxChars: ai.maxCharsPerCall || 4000,
-    key: readApiKey()
+    key: readApiKey(prov)
   };
 }
 
@@ -598,19 +655,18 @@ ipcMain.handle('vox:settings:get', () => {
   appSettings = appSettings || loadAppSettings();
   return {
     settings: appSettings,
-    hasApiKey: !!readApiKey(),
-    keyHint: maskApiKey(readApiKey()),
+    keyStatus: keyStatus(),
     keyEncrypted: safeStorage.isEncryptionAvailable(),
     userData: app.getPath('userData')
   };
 });
 ipcMain.handle('vox:settings:save', (_e, patch) => saveAppSettings(patch || {}));
-ipcMain.handle('vox:settings:setApiKey', (_e, key) => saveApiKey(key));
-ipcMain.handle('vox:settings:getApiKey', () => readApiKey());
-ipcMain.handle('vox:settings:clearApiKey', () => clearApiKey());
+ipcMain.handle('vox:settings:setApiKey', (_e, provider, key) => saveApiKey(provider, key));
+ipcMain.handle('vox:settings:getApiKey', (_e, provider) => readApiKey(provider));
+ipcMain.handle('vox:settings:clearApiKey', (_e, provider) => clearApiKey(provider));
 
-ipcMain.handle('vox:ai:test', async () => {
-  const cfg = currentAI();
+ipcMain.handle('vox:ai:test', async (_e, override) => {
+  const cfg = currentAI(override && override.provider);
   if (!cfg.key) return { ok: false, message: '未配置 API Key' };
   if (!cfg.baseURL) return { ok: false, message: '未配置接口地址' };
   const r = await aiRequest(cfg.baseURL, cfg.key, {
@@ -630,7 +686,7 @@ ipcMain.handle('vox:ai:process', async (_e, { task, text, options }) => {
 
 /** 拉取服务商真实可用的模型列表 —— 免得内置清单过期 */
 ipcMain.handle('vox:ai:models', async (_e, override) => {
-  const cfg = currentAI();
+  const cfg = currentAI(override && override.provider);
   const base = (override && override.baseURL) || cfg.baseURL;
   const key = (override && override.key) || cfg.key;
   if (!base) return { ok: false, message: '未配置接口地址' };
@@ -719,6 +775,7 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     CONFIG = loadConfig();
     appSettings = loadAppSettings();
+  migrateLegacyKey();
     store = new ProjectStore(appSettings.output.root);
     console.log('[shell] 配置:', JSON.stringify({
       serverDir: CONFIG.serverDir,
