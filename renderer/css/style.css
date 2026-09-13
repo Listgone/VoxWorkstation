@@ -735,9 +735,10 @@ code{background:var(--bg-elev);padding:1px 6px;border-radius:4px;font-size:11.5p
   .subnav a{white-space:nowrap;padding:0 12px}
 }
 
-/* 全屏（超宽）时限制超长文本行，避免一行读到底 */
+/* 全屏时只限制表格里长文本的行宽，避免一行读到底。
+   注意：绝不能限制 .pane-text —— 那是编辑区，
+   限宽会让文字提前换行、右侧空出一大片，看着像没铺满。 */
 @media (min-width:1800px){
-  .pane-text,.ptext{max-width:78ch}
   .tx{max-width:78ch}
 }
 
@@ -1342,3 +1343,8 @@ table th:last-child,table td:last-child{padding-right:14px}
 .engine-chip{align-self:center;margin-top:0}
 .titlebar-actions{padding-right:4px}
 #titlebar .engine-chip + #btn-theme{margin-left:2px}
+
+/* 文本对照区：编辑框必须吃满各自那一栏，不允许任何限宽 */
+.pane-text{max-width:none!important;width:100%}
+.pane{min-width:0}
+.duo .pane-text{resize:vertical}
