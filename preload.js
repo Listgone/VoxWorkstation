@@ -73,7 +73,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   /* 路径工具 */
-  diag: { run: () => invoke('vox:diag:run') },
+  diag: { run: () => invoke('vox:diag:run'), exportReport: () => invoke('vox:diag:export') },
 
   setup: {
     status: () => invoke('vox:setup:status'),

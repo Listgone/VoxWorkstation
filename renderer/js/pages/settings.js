@@ -493,6 +493,7 @@ const SettingsPage = {
       + '<p class="text-sm text-muted" style="margin:-6px 0 10px">'
       + '逐项检查后端、引擎、目录与配置，发现问题会给出修复办法。</p>'
       + '<div class="action-row"><button class="btn btn-primary" data-act="run-diag">开始自检</button>'
+      + '<button class="btn" data-act="export-diag">导出诊断报告</button>'
       + '<span class="text-sm text-muted" id="diag-hint"></span></div>'
       + '<div id="diag-list" class="diag-list"></div>'
       + '</div>'
@@ -932,6 +933,21 @@ const SettingsPage = {
       }
       save({ project: { ...s.project, trashKeepDays: v } }, v === 0 ? '已设为永不清理' : '保留 ' + v + ' 天');
     });
+    el.querySelector('[data-act="export-diag"]')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true; btn.textContent = '导出中…';
+      try {
+        const r = await window.electronAPI.diag.exportReport();
+        if (r && r.ok) {
+          Toast.success('已导出到 ' + r.path);
+          window.electronAPI.path.reveal(r.path.replace(/[\\/][^\\/]+$/, ''));
+        } else {
+          Toast.error((r && r.message) || '导出失败', true);
+        }
+      } catch (err) { Toast.error('导出失败：' + err.message, true); }
+      finally { btn.disabled = false; btn.textContent = '导出诊断报告'; }
+    });
+
     el.querySelector('[data-act="run-diag"]')?.addEventListener('click', async (e) => {
       const btn = e.currentTarget;
       const list = el.querySelector('#diag-list');

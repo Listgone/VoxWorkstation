@@ -541,6 +541,32 @@ const App = {
       });
     }
 
+    // 启动失败时进不去设置页，所以这里也放一个导出入口
+    const expDiag = document.getElementById('loading-export-diag');
+    if (expDiag && !expDiag.dataset.bound) {
+      expDiag.dataset.bound = '1';
+      expDiag.addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        expDiag.disabled = true;
+        const old = expDiag.textContent;
+        expDiag.textContent = '导出中…';
+        try {
+          const r = await window.electronAPI.diag.exportReport();
+          if (r && r.ok) {
+            Toast.success('已导出：' + r.path);
+            window.electronAPI.path.reveal(String(r.path).replace(/[\\/][^\\/]+$/, ''));
+          } else {
+            Toast.error((r && r.message) || '导出失败', true);
+          }
+        } catch (e) {
+          Toast.error('导出失败：' + (e && e.message || e), true);
+        } finally {
+          expDiag.disabled = false;
+          expDiag.textContent = old;
+        }
+      });
+    }
+
     const auto = document.getElementById('loading-setup-auto');
     if (auto && !auto.dataset.bound) {
       auto.dataset.bound = '1';

@@ -1,9 +1,13 @@
 const { app, BrowserWindow, ipcMain, shell, safeStorage, dialog } = require('electron');
+const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const { spawn, execFile, spawnSync } = require('child_process');
 const { ProjectStore } = require('./project-store');
+
+// 后端实际报告的监听端口（可能因端口占用/排除段而不同于配置值）
+let serverPortActual = 0;
 
 /* ══════════════════════════════════════════════════════════
    配置：环境变量 > vox.config.json > 内置默认值
@@ -694,8 +698,10 @@ function startServer() {
         const actual = Number(mm[1]);
         _portScan = '!done';
         if (actual !== CONFIG.serverPort) {
+          serverPortActual = actual;
           pushLog('[shell] 后端实际监听 ' + actual + '（配置为 ' + CONFIG.serverPort + '），已同步');
           CONFIG.serverPort = actual;
+          serverPortActual = actual;
         }
       }
     });
@@ -1227,6 +1233,175 @@ ipcMain.handle('vox:setup:apply', async (_e, dir) => {
   } catch (e) {
     return { ok: false, message: e.message };
   }
+});
+
+
+/* ══════════════════════════════════════════════════════════
+   诊断报告导出
+   目的：一次拿到全部现场信息，避免反复来回问「那台机器上 X 是什么情况」。
+   包含系统、运行环境、端口实况、配置、日志 —— Key 自动打码。
+   ══════════════════════════════════════════════════════════ */
+
+/** 逐个端口试绑，找出真正可用的（Windows 端口排除段会让整段不可绑） */
+function probeBindablePorts(start, count) {
+  return new Promise((resolve) => {
+    const net = require('net');
+    const out = [];
+    let i = 0;
+    const next = () => {
+      if (i >= count) return resolve(out);
+      const p = start + i++;
+      const srv = net.createServer();
+      const done = (state, code) => {
+        out.push({ port: p, ok: state === 'ok', code: code || '' });
+        try { srv.close(); } catch (e) { /* ignore */ }
+        next();
+      };
+      srv.once('error', (e) => done('fail', e.code || String(e.errno)));
+      srv.once('listening', () => done('ok'));
+      try { srv.listen(p, '127.0.0.1'); } catch (e) { done('fail', e.code || 'throw'); }
+    };
+    next();
+  });
+}
+
+/** 跑一条命令并取回 stdout（失败返回错误说明，不抛） */
+function runCapture(cmd, args, timeoutMs) {
+  return new Promise((resolve) => {
+    try {
+      const c = spawn(cmd, args, { windowsHide: true });
+      let o = '', e2 = '';
+      const t = setTimeout(() => { try { c.kill(); } catch (err) {} resolve('(超时)'); }, timeoutMs || 8000);
+      c.stdout.on('data', (d) => { o += String(d); });
+      c.stderr.on('data', (d) => { e2 += String(d); });
+      c.on('error', (err) => { clearTimeout(t); resolve('(无法执行: ' + err.message + ')'); });
+      c.on('close', () => { clearTimeout(t); resolve((o || e2 || '').trim()); });
+    } catch (e) { resolve('(异常: ' + e.message + ')'); }
+  });
+}
+
+function maskDeep(obj) {
+  if (obj == null) return obj;
+  if (typeof obj === 'string') return obj;
+  if (Array.isArray(obj)) return obj.map(maskDeep);
+  if (typeof obj === 'object') {
+    const o = {};
+    for (const k of Object.keys(obj)) {
+      if (/key|token|secret|password/i.test(k)) o[k] = '***已打码***';
+      else o[k] = maskDeep(obj[k]);
+    }
+    return o;
+  }
+  return obj;
+}
+
+ipcMain.handle('vox:diag:export', async () => {
+  const L = [];
+  const add = (s) => L.push(s);
+  const now = new Date();
+
+  add('VoxWorkstation 诊断报告');
+  add('生成时间：' + now.toLocaleString('zh-CN'));
+  // app.getVersion() 在开发态返回的是 Electron 版本，所以优先读 package.json
+  let _ver = '';
+  try { _ver = JSON.parse(fs.readFileSync(path.join(appBaseDir(), 'package.json'), 'utf8')).version || ''; }
+  catch (e) { /* 打包后 package.json 在 asar 里，读不到就用 app.getVersion */ }
+  if (!_ver) { try { _ver = app.getVersion(); } catch (e) { _ver = '?'; } }
+  add('软件版本：' + _ver + (app.isPackaged ? '' : '（开发态）'));
+  add('='.repeat(64));
+  add('');
+
+  /* 系统 */
+  add('【系统】');
+  add('  平台：' + process.platform + ' ' + process.arch);
+  add('  Windows：' + (await runCapture('cmd', ['/c', 'ver'])).replace(/\r?\n/g, ' '));
+  add('  内存：' + (os.totalmem() / 1024 ** 3).toFixed(1) + ' GB');
+  add('  CPU：' + (os.cpus()[0] || {}).model + ' × ' + os.cpus().length);
+  const smi = await runCapture('nvidia-smi', ['--query-gpu=name,memory.total,driver_version', '--format=csv,noheader']);
+  add('  显卡：' + (smi && !smi.startsWith('(') ? smi.split('\n')[0] : '未检测到 nvidia-smi'));
+  add('');
+
+  /* 运行环境 */
+  add('【运行环境】');
+  add('  Node：' + process.versions.node + '   Electron：' + process.versions.electron
+      + '   Chromium：' + process.versions.chrome);
+  add('  是否打包运行：' + app.isPackaged);
+  add('  应用目录：' + appBaseDir());
+  add('  用户数据：' + app.getPath('userData'));
+  add('  后端目录：' + CONFIG.serverDir);
+  add('  后端脚本：' + CONFIG.serverScriptPath
+      + '  ' + (fs.existsSync(CONFIG.serverScriptPath) ? '存在' : '【不存在】'));
+  add('  Python：' + CONFIG.pythonPath);
+  const pyv = await runCapture(CONFIG.pythonPath || 'python', ['--version']);
+  add('  Python 版本：' + pyv.split('\n')[0]);
+  add('');
+
+  /* 模型 */
+  add('【模型】');
+  const mdir = path.join(CONFIG.serverDir || '', 'pretrained_models', 'VoxCPM2');
+  add('  模型目录：' + mdir);
+  if (fs.existsSync(mdir)) {
+    let total = 0;
+    const files = fs.readdirSync(mdir).filter(f => fs.statSync(path.join(mdir, f)).isFile());
+    for (const f of files) {
+      const sz = fs.statSync(path.join(mdir, f)).size;
+      total += sz;
+      add('    ' + f.padEnd(30) + (sz / 1048576).toFixed(1) + ' MB');
+    }
+    add('  合计：' + (total / 1048576).toFixed(0) + ' MB');
+    add('  关键文件 model.safetensors：'
+        + (fs.existsSync(path.join(mdir, 'model.safetensors')) ? '存在（不会重复下载）' : '【缺失，会触发下载】'));
+  } else {
+    add('  【目录不存在】');
+  }
+  add('');
+
+  /* 端口 —— 这次问题的重灾区 */
+  add('【端口】');
+  add('  配置端口：' + CONFIG.serverPort);
+  add('  实际监听：' + (serverPortActual || '(后端未报告)'));
+  add('  TCP 端口排除段（Windows/Hyper-V 预留，落在段内的端口无法绑定）：');
+  const excl = await runCapture('netsh', ['interface', 'ipv4', 'show', 'excludedportrange', 'protocol=tcp']);
+  add(excl.split('\n').map(l => '    ' + l).join('\n'));
+  add('  实际试绑 ' + CONFIG.serverPort + ' 起 30 个端口：');
+  const binds = await probeBindablePorts(Number(CONFIG.serverPort) || 8000, 30);
+  const okList = binds.filter(b => b.ok).map(b => b.port);
+  const badList = binds.filter(b => !b.ok);
+  add('    可用：' + (okList.length ? okList.join(', ') : '（无）'));
+  add('    不可用：' + (badList.length ? badList.map(b => b.port + '(' + b.code + ')').join(', ') : '（无）'));
+  add('');
+
+  /* 配置 */
+  add('【配置】');
+  const uc = path.join(app.getPath('userData'), 'vox.config.json');
+  add('  用户级配置 ' + uc + '：');
+  try { add('    ' + fs.readFileSync(uc, 'utf8').replace(/\n/g, '\n    ')); }
+  catch (e) { add('    （不存在）'); }
+  try {
+    add('  应用目录配置：');
+    add('    ' + fs.readFileSync(path.join(appBaseDir(), 'vox.config.json'), 'utf8').replace(/\n/g, '\n    '));
+  } catch (e) { add('    （不存在）'); }
+  add('  API Key 状态：');
+  try {
+    const ks = keyStatus();
+    for (const k of Object.keys(ks)) {
+      add('    ' + k.padEnd(12) + (ks[k].has ? '已配置 ' + (ks[k].hint || '') : '未配置'));
+    }
+  } catch (e) { add('    （读取失败）'); }
+  add('');
+
+  /* 日志 */
+  add('【后端 / 应用日志（最近 ' + logBuffer.length + ' 行）】');
+  add(logBuffer.slice(-400).join(''));
+  add('');
+  add('='.repeat(64));
+  add('报告结束');
+
+  const text = L.join('\n');
+  const outFile = path.join(app.getPath('userData'), 'vox-diagnostic.txt');
+  try { fs.writeFileSync(outFile, text, 'utf8'); }
+  catch (e) { return { ok: false, message: '写入失败：' + e.message }; }
+  return { ok: true, path: outFile, size: text.length };
 });
 
 ipcMain.handle('vox:diag:run', async () => {
