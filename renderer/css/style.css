@@ -1204,3 +1204,8 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
   background:var(--border)}
 [data-theme="construct"] .thprev-c::after{content:'';position:absolute;left:8px;top:20px;width:46px;height:28px;
   background:var(--accent);border:2px solid var(--border)}
+
+/* 情绪/动作列 */
+.emo-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+@media (max-width:1240px){#page-dub th:nth-child(3),#page-dub td:nth-child(3){display:none}}
+

@@ -28,7 +28,7 @@ const DubPage = {
 
       + '<div class="card"><h2>台词 <span class="n">来自文本处理页</span></h2>'
       + (lines.length
-        ? '<table><tr><th style="width:34px">#</th><th style="width:64px">角色</th><th>台词</th>'
+        ? '<table><tr><th style="width:34px">#</th><th style="width:70px">角色</th><th style="width:88px">情绪 / 动作</th><th>台词</th>'
           + '<th style="width:96px">音色</th><th style="width:92px">状态</th><th style="width:124px"></th></tr>'
           + lines.map((l, i) => this._row(l, i)).join('') + '</table>'
         : '<p class="text-sm text-muted" style="margin:0">还没有台词。先去「文本处理」把文本切好句。</p>')
@@ -107,6 +107,7 @@ const DubPage = {
     return '<tr><td class="num">' + (i + 1) + '</td>'
       + '<td><button class="pill pill-btn" data-act="set-role" data-i="' + i + '" title="改这一句的角色">'
       + Util.escapeHtml(role) + ' ▾</button></td>'
+      + '<td class="text-sm text-muted emo-cell">' + (l.emotion ? Util.escapeHtml(l.emotion) : '—') + '</td>'
       + '<td class="tx">' + Util.escapeHtml(l.text || '') + '</td>'
       + '<td><button class="pill pill-btn" data-act="set-voice" data-i="' + i + '" title="单独指定这一句的音色">'
       + Util.escapeHtml(l.voice || '跟随角色') + ' ▾</button></td>'

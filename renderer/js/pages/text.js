@@ -54,8 +54,8 @@ const TextPage = {
       + '<button class="btn btn-sm" data-act="use-import">作为原文</button>'
       + '<button class="btn btn-sm btn-ghost" data-act="clear-all">清空</button>'
       + '</div>'
-      + '<p class="text-sm text-muted mt-8" style="margin-bottom:0">推荐格式：<code>背景：一句话交代场景与语气</code> 换行后逐行写 <code>角色：台词</code>。'
-      + '没有角色前缀时会全部归给「旁白」。</p>'
+      + '<p class="text-sm text-muted mt-8" style="margin-bottom:0">推荐格式：第一行 <code>总结：这段对话在讲什么</code>（只做总览，不配音），'
+      + '之后逐行 <code>角色（情绪或动作）：台词</code>。情绪可省略；没有角色前缀时全部归给「旁白」。</p>'
       + '</div>'
 
       + '<div class="card"><h2>对照 <span class="n">原文永不改动，处理结果只写右栏</span></h2>'
@@ -70,8 +70,8 @@ const TextPage = {
       + '</div></div>'
 
       + (d.background
-        ? '<div class="card"><h2>背景 <span class="n">作为 AI 处理的上下文，不参与配音</span></h2>'
-          + '<div class="bg-line"><span class="pill pill-p">背景</span>'
+        ? '<div class="card"><h2>对话总览 <span class="n">只做文本总览，不参与配音</span></h2>'
+          + '<div class="bg-line"><span class="pill pill-p">总结</span>'
           + '<span class="bg-text">' + Util.escapeHtml(d.background) + '</span>'
           + '<button class="btn btn-sm btn-ghost" data-act="edit-bg">改</button></div></div>'
         : '')
@@ -86,14 +86,14 @@ const TextPage = {
       + '<button class="btn btn-ghost" data-act="reset-proc">恢复为原文</button>'
       + '</div>'
       + '<p class="text-sm text-muted mt-8" style="margin-bottom:0">'
-      + '「整理成剧本格式」把整段文本拆成 <code>背景：…</code> + <code>角色：台词</code>；'
+      + '「整理成剧本格式」把整段对话拆成 <code>总结：…</code> + <code>角色（情绪或动作）：台词</code>；'
       + '「本地规范化」不联网；「AI 处理…」需要先配置服务商。</p></div>'
 
       + '<div class="card"><h2>分句 <span class="n">' + d.lines.length + ' 句'
       + (roles.length ? ' · ' + roles.map(r => Util.escapeHtml(r)).join(' / ') : '') + '</span></h2>'
       + (d.lines.length
-        ? '<table><tr><th style="width:36px">#</th><th style="width:96px">角色</th><th>台词</th>'
-          + '<th style="width:64px">字数</th><th style="width:110px">音色</th><th style="width:60px">状态</th></tr>'
+        ? '<table><tr><th style="width:36px">#</th><th style="width:88px">角色</th><th style="width:92px">情绪 / 动作</th><th>台词</th>'
+          + '<th style="width:56px">字数</th><th style="width:104px">音色</th><th style="width:56px">状态</th></tr>'
           + d.lines.map((l, i) => this._lineRow(l, i)).join('') + '</table>'
         : '<p class="text-sm text-muted" style="margin:0">还没有分句。先填原文，再点「按角色 / 标点分句」。</p>')
       + '</div>'
@@ -120,6 +120,7 @@ const TextPage = {
     const st = l.audio ? '<span class="pill pill-ok">✓</span>' : '<span class="text-muted">·</span>';
     return '<tr><td class="num">' + (i + 1) + '</td>'
       + '<td><span class="pill">' + Util.escapeHtml(l.role || '旁白') + '</span></td>'
+      + '<td class="text-sm text-muted">' + (l.emotion ? Util.escapeHtml(l.emotion) : '—') + '</td>'
       + '<td class="tx">' + Util.escapeHtml(l.text || '') + '</td>'
       + '<td class="num">' + (l.text || '').length + '</td>'
       + '<td class="text-sm text-muted">' + Util.escapeHtml(l.voice || '—') + '</td>'
@@ -134,11 +135,13 @@ const TextPage = {
     };
     this._draft.background = parsed.background || '';
     this._draft.lines = parsed.lines.map(l => ({
-      text: l.text, role: l.role || '旁白', voice: voiceFor(l.role || '旁白'),
-      audio: '', error: ''
+      text: l.text, role: l.role || '旁白', emotion: l.emotion || '',
+      voice: voiceFor(l.role || '旁白'), audio: '', error: ''
     }));
-    this._draft.processed = (parsed.background ? '背景：' + parsed.background + '\n' : '')
-      + parsed.lines.map(l => (l.role || '旁白') + '：' + l.text).join('\n');
+    // 处理后文本按统一格式回写，方便人工核对
+    this._draft.processed = (parsed.background ? '总结：' + parsed.background + '\n' : '')
+      + parsed.lines.map(l => (l.role || '旁白')
+          + (l.emotion ? '（' + l.emotion + '）' : '') + '：' + l.text).join('\n');
   },
 
   async mount(el) {
@@ -287,7 +290,7 @@ const TextPage = {
     const saved = (proj.ai && Array.isArray(proj.ai.features)) ? proj.ai.features : [];
     const on = saved.length ? saved : DEFAULT_TASKS;
     const TASKS = [
-      ['script', '整理成剧本格式', '拆成「背景：…」+「角色：台词」，先做这一步效果最好'],
+      ['script', '整理成剧本格式', '先输出「总结：…」总览，再逐行输出「角色（情绪或动作）：台词」'],
       ['normalize', '文本规范化', '数字 / 日期 / 百分比 / 单位 / 英文缩写 → 口语读法'],
       ['split', '智能断句', '按语义切分，每句不超过 ' + ((proj.defaults || {}).maxLineLen || 25) + ' 字'],
       ['tone', '语气标注', '自动插入 [laughing] / [sigh] 等 VoxCPM2 标记'],
@@ -477,33 +480,42 @@ const TextTools = {
 
   /**
    * 解析剧本格式：
-   *   背景：一句话交代场景与语气
-   *   角色：台词
+   *   总结：这段对话在讲什么（只做文本总览，不参与配音）
+   *   角色1（情绪或动作）：台词
+   *   角色2：台词            ← 情绪可省
    * 没有角色前缀的行归给「旁白」，过长的再按标点切。
    */
   parseScript(text, maxLen = 25) {
     const src = String(text || '').replace(/\r\n/g, '\n');
     let background = '';
     const lines = [];
+    const push = (role, emotion, body) => {
+      for (const piece of this.split(body, maxLen)) lines.push({ role, emotion, text: piece });
+    };
 
     for (const raw of src.split('\n')) {
       const s = raw.trim();
       if (!s) continue;
 
-      const bg = s.match(/^背景\s*[：:]\s*(.+)$/);
-      if (bg) { background = bg[1].trim(); continue; }
+      // 总结（兼容旧写法「背景」，以及总览/概要/简介/场景）
+      const bg = s.match(/^(总结|背景|总览|概要|简介|场景)\s*[：:]\s*(.+)$/);
+      if (bg) { background = bg[2].trim(); continue; }
 
-      const m = s.match(/^([^：:\n]{1,10})\s*[：:]\s*(.+)$/);
+      // 角色（情绪或动作）：台词
+      const me = s.match(/^([^：:\n（(]{1,12})\s*[（(]([^）)]{1,24})[）)]\s*[：:]\s*(.+)$/);
+      if (me) {
+        const role = me[1].trim();
+        if (role && !/[。！？，,；;.!?]/.test(role)) { push(role, me[2].trim(), me[3].trim()); continue; }
+      }
+
+      // 角色：台词（无情绪）
+      const m = s.match(/^([^：:\n]{1,12})\s*[：:]\s*(.+)$/);
       if (m) {
         const role = m[1].trim();
-        const body = m[2].trim();
-        // 角色名不能像句子（含标点就当成普通文本）
-        if (role && !/[。！？，,；;.!?]/.test(role)) {
-          for (const piece of this.split(body, maxLen)) lines.push({ role, text: piece });
-          continue;
-        }
+        if (role && !/[。！？，,；;.!?]/.test(role)) { push(role, '', m[2].trim()); continue; }
       }
-      for (const piece of this.split(s, maxLen)) lines.push({ role: '旁白', text: piece });
+
+      push('旁白', '', s);
     }
     return { background, lines };
   },
