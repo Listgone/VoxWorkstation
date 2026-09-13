@@ -624,10 +624,16 @@ code{background:var(--bg-elev);padding:1px 6px;border-radius:4px;font-size:11.5p
   background:var(--purple-soft);border:1px solid rgba(130,80,223,.28)}
 .bg-text{flex:1;font-size:12.5px;line-height:1.7;color:var(--text)}
 
-/* --- AI 模型 chips ---------------------------------- */
-.mrow{display:flex;gap:8px;align-items:flex-start;flex:1;min-width:0}
-.mrow .model-chips{flex:1}
-.model-chips{display:flex;gap:6px;flex-wrap:wrap;flex:1;min-width:220px}
+/* --- AI 模型选择（chips 与下拉两种形态）------------ */
+/* .srow 是 flex，这一格里有多个元素时必须整体包一层，
+   否则自定义输入框一显示就会被挤成并列的第四个 flex item */
+.ctrl-col{display:flex;flex-direction:column;gap:9px;align-items:flex-start;
+  min-width:0;flex:0 1 auto;max-width:min(560px,58vw)}
+.ctrl-col > input{width:100%;max-width:100%}
+.mrow{display:flex;gap:8px;align-items:center;width:100%;min-width:0}
+.mrow .model-chips{flex:1;min-width:0}
+.mrow > .btn,.mrow > .cselect{flex-shrink:0}
+.model-chips{display:flex;gap:6px;flex-wrap:wrap;min-width:0}
 .mchip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--border);
   border-radius:20px;background:var(--bg-card);color:var(--text-dim);font-family:inherit;
   font-size:12px;cursor:pointer;white-space:nowrap;transition:all var(--transition)}

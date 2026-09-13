@@ -142,19 +142,33 @@ const SettingsPage = {
       + '</div>'
       + this._row('接口地址', 'OpenAI 兼容 baseURL，末尾不用带 /chat/completions',
           '<input type="text" id="ai-base" value="' + Util.escapeAttr(ai.baseURL || cur.base) + '" style="width:320px">')
-      + this._row('模型', '标「免费」的是已知有免费额度的；模型迭代快，建议点右侧按钮拉取真实列表',
-          '<div class="mrow">'
-          + '<div class="model-chips" id="ai-models">'
-          + models.map(m => '<button type="button" class="mchip' + (ai.model === m ? ' on' : '')
-              + '" data-model="' + Util.escapeAttr(m) + '">' + Util.escapeHtml(m)
-              + (isFree(m) ? '<i class="free-tag">免费</i>' : '') + '</button>').join('')
-          + '<button type="button" class="mchip' + (isCustomModel || !models.length ? ' on' : '')
-          + '" data-model="__custom__">自定义…</button>'
-          + '</div>'
-          + '<button class="btn btn-sm" data-act="fetch-models" title="向服务商请求 /models，拿到真实可用列表">⟳ 拉取</button>'
-          + '</div>'
-          + '<input type="text" id="ai-model" value="' + Util.escapeAttr(ai.model || '') + '" style="width:230px;'
-          + (isCustomModel || !models.length ? '' : 'display:none') + '" placeholder="手填模型名">')
+      + this._row('模型', '标「免费」的是已知有免费额度的；模型多时自动改为下拉省地方',
+          '<div class="ctrl-col">'
+          + (models.length > 6
+            // 模型多：用下拉（Select.enhance 会把它换成统一样式）
+            ? '<div class="mrow">'
+              + '<select id="ai-model-pick" style="width:240px">'
+              + models.map(m => '<option value="' + Util.escapeAttr(m) + '"'
+                  + (ai.model === m ? ' selected' : '') + '>' + Util.escapeHtml(m)
+                  + (isFree(m) ? '　免费' : '') + '</option>').join('')
+              + '<option value="__custom__"' + (isCustomModel ? ' selected' : '') + '>自定义…</option>'
+              + '</select>'
+              + '<button class="btn btn-sm" data-act="fetch-models" title="向服务商请求 /models">⟳ 拉取</button>'
+              + '</div>'
+            // 模型少：铺开成 chips，一眼看全
+            : '<div class="mrow">'
+              + '<div class="model-chips" id="ai-models">'
+              + models.map(m => '<button type="button" class="mchip' + (ai.model === m ? ' on' : '')
+                  + '" data-model="' + Util.escapeAttr(m) + '">' + Util.escapeHtml(m)
+                  + (isFree(m) ? '<i class="free-tag">免费</i>' : '') + '</button>').join('')
+              + '<button type="button" class="mchip' + (isCustomModel || !models.length ? ' on' : '')
+              + '" data-model="__custom__">自定义…</button>'
+              + '</div>'
+              + '<button class="btn btn-sm" data-act="fetch-models" title="向服务商请求 /models，拿真实列表">⟳ 拉取</button>'
+              + '</div>')
+          + '<input type="text" id="ai-model" value="' + Util.escapeAttr(ai.model || '') + '" style="width:240px;'
+          + (isCustomModel || !models.length ? '' : 'display:none') + '" placeholder="手填模型名">'
+          + '</div>')
       + this._row('视觉模型（OCR）', '图片取字用，留空则关闭该功能（哪些模型支持视觉请问服务商）',
           '<input type="text" id="ai-vision" value="' + Util.escapeAttr(ai.visionModel || '') + '" placeholder="留空即关闭" style="width:220px">')
       + this._row('API Key', '用系统凭据加密存储，不落明文。<b>改完记得保存</b>，「测试连接」会先自动保存',
@@ -384,45 +398,71 @@ const SettingsPage = {
       return { ok: false, message: (r && r.message) || '未知错误' };
     };
 
-    /* 服务商选择 → 自动填地址，模型变成可点的 chips */
+    /* 模型区：≤6 个铺 chips，>6 个自动变下拉省地方 */
     let pickedProvider = (s.ai || {}).provider || 'deepseek';
-    const renderModels = (list, freeList, keep) => {
-      const wrap = el.querySelector('#ai-models');
-      const inp = el.querySelector('#ai-model');
-      if (!wrap || !inp) return;
+    const buildModelRow = (list, freeList, keep) => {
+      const arr = list || [];
       const freeSet = new Set(freeList || []);
       const allFree = freeSet.has('*');
-      wrap.innerHTML = (list || []).map(m =>
-          '<button type="button" class="mchip' + (keep === m ? ' on' : '') + '" data-model="'
-          + Util.escapeAttr(m) + '">' + Util.escapeHtml(m)
-          + ((allFree || freeSet.has(m)) ? '<i class="free-tag">免费</i>' : '') + '</button>').join('')
-        + '<button type="button" class="mchip' + (list && list.length ? '' : ' on')
-        + '" data-model="__custom__">自定义…</button>';
-      if (list && list.length) {
-        inp.value = keep || list[0];
-        inp.style.display = 'none';
-      } else {
-        inp.style.display = '';
+      const isFree = (m) => allFree || freeSet.has(m);
+      const pull = '<button class="btn btn-sm" data-act="fetch-models" '
+        + 'title="向服务商请求 /models，拿真实可用列表">⟳ 拉取</button>';
+      if (arr.length > 6) {
+        const sel = arr.includes(keep) ? keep : '__custom__';
+        return '<div class="mrow"><select id="ai-model-pick" style="width:240px">'
+          + arr.map(m => '<option value="' + Util.escapeAttr(m) + '"'
+              + (sel === m ? ' selected' : '') + '>' + Util.escapeHtml(m)
+              + (isFree(m) ? '　免费' : '') + '</option>').join('')
+          + '<option value="__custom__"' + (sel === '__custom__' ? ' selected' : '') + '>自定义…</option>'
+          + '</select>' + pull + '</div>';
       }
-      bindChips();
+      return '<div class="mrow"><div class="model-chips" id="ai-models">'
+        + arr.map(m => '<button type="button" class="mchip' + (keep === m ? ' on' : '')
+            + '" data-model="' + Util.escapeAttr(m) + '">' + Util.escapeHtml(m)
+            + (isFree(m) ? '<i class="free-tag">免费</i>' : '') + '</button>').join('')
+        + '<button type="button" class="mchip' + (arr.includes(keep) ? '' : ' on')
+        + '" data-model="__custom__">自定义…</button></div>' + pull + '</div>';
     };
+
+    const bindModelRow = () => {
+      const inp = el.querySelector('#ai-model');
+      if (!inp) return;
+      const sel = el.querySelector('#ai-model-pick');
+      if (sel && !sel.dataset.selReady) {
+        Select.enhance(el.querySelector('.ctrl-col'));
+        const s2 = el.querySelector('#ai-model-pick');
+        s2?.addEventListener('change', () => {
+          if (s2.value === '__custom__') { inp.style.display = ''; inp.focus(); }
+          else { inp.style.display = 'none'; inp.value = s2.value; }
+        });
+      }
+      el.querySelectorAll('#ai-models .mchip').forEach(c =>
+        c.addEventListener('click', () => {
+          el.querySelectorAll('#ai-models .mchip').forEach(x => x.classList.toggle('on', x === c));
+          if (c.dataset.model === '__custom__') { inp.style.display = ''; inp.focus(); }
+          else { inp.style.display = 'none'; inp.value = c.dataset.model; }
+        }));
+    };
+
+    const renderModels = (list, freeList, keep) => {
+      const inp = el.querySelector('#ai-model');
+      const mrow = el.querySelector('.ctrl-col .mrow');
+      if (!inp || !mrow) return;
+      mrow.outerHTML = buildModelRow(list, freeList, keep);
+      const arr = list || [];
+      if (arr.length) { inp.value = arr.includes(keep) ? keep : arr[0]; inp.style.display = 'none'; }
+      else { inp.style.display = ''; }
+      bindModelRow();
+    };
+
     const fillProvider = (id) => {
       const p = AI_PROVIDERS.find(x => x.id === id) || AI_PROVIDERS[0];
       const baseEl = el.querySelector('#ai-base');
       if (baseEl && p.base) baseEl.value = p.base;
       renderModels(p.models || [], p.free || [], '');
     };
-    const bindChips = () => {
-      const wrap = el.querySelector('#ai-models');
-      const inp = el.querySelector('#ai-model');
-      wrap?.querySelectorAll('.mchip').forEach(c =>
-        c.addEventListener('click', () => {
-          wrap.querySelectorAll('.mchip').forEach(x => x.classList.toggle('on', x === c));
-          if (c.dataset.model === '__custom__') { inp.style.display = ''; inp.focus(); }
-          else { inp.style.display = 'none'; inp.value = c.dataset.model; }
-        }));
-    };
-    bindChips();
+
+    bindModelRow();
     el.querySelectorAll('[data-provider]').forEach(b =>
       b.addEventListener('click', () => {
         pickedProvider = b.dataset.provider;
@@ -430,10 +470,11 @@ const SettingsPage = {
         fillProvider(pickedProvider);
       }));
     el.querySelector('#ai-model')?.addEventListener('input', (e) => {
-      const wrap = el.querySelector('#ai-models');
-      wrap?.querySelectorAll('.mchip').forEach(x =>
+      el.querySelectorAll('#ai-models .mchip').forEach(x =>
         x.classList.toggle('on', x.dataset.model === '__custom__'
-          || (![...wrap.querySelectorAll('.mchip')].some(c => c.dataset.model === e.target.value))));
+          || (![...el.querySelectorAll('#ai-models .mchip')].some(c => c.dataset.model === e.target.value))));
+      const sel = el.querySelector('#ai-model-pick');
+      if (sel && ![...sel.options].some(o => o.value === e.target.value)) sel.value = '__custom__';
     });
 
     /* 拉取服务商真实模型列表 */
