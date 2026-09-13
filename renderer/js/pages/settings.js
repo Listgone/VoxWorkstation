@@ -81,15 +81,26 @@ const SettingsPage = {
     const theme = document.documentElement.getAttribute('data-theme') || 'light';
     const TH = [
       ['light', '明亮现代', '默认 · 干净 · 无动效', 'thprev-a'],
+      ['bento', 'Bento 看板', '圆角分格 · 彩色便当盒', 'thprev-b2'],
       ['glass', '液态玻璃', '毛玻璃 + 彩色光斑', 'thprev-g'],
       ['construct', '构成主义', '粗边分格 + 苏式红', 'thprev-c']
     ];
+    const mono = App.monoInfo || { ok: false, fallback: '检测中…' };
+    const isMono = (s.font === 'mono');
     return '<div class="card"><h2>外观与主题</h2>'
       + '<div class="themes">'
       + TH.map(([id, name, sub, prev]) =>
           '<div class="th' + (theme === id ? ' on' : '') + '" data-theme-pick="' + id + '">'
           + '<div class="thprev ' + prev + '"></div><b>' + name + '</b><span>' + sub + '</span></div>').join('')
       + '</div>'
+      + this._row('字体', 'JetBrains Mono 已内置（可变字体，随应用分发，无需系统安装）',
+          '<div class="model-chips" id="font-chips">'
+          + '<button type="button" class="mchip' + (!isMono ? ' on' : '') + '" data-font="system">系统默认</button>'
+          + '<button type="button" class="mchip' + (isMono ? ' on' : '') + '" data-font="mono">JetBrains Mono</button>'
+          + '</div>'
+          + (isMono ? '<span class="text-sm text-muted" style="margin-left:10px">'
+              + (mono.ok ? '✓ 已加载' : '✕ 加载失败，已回退到 ' + Util.escapeHtml(mono.fallback))
+              + '</span>' : ''))
       + this._row('界面缩放', '高分屏可调大（立即生效）',
           '<select id="s-scale" style="width:120px">'
           + [1, 1.1, 1.25].map(v => '<option value="' + v + '"' + (Number(s.uiScale) === v ? ' selected' : '') + '>'
@@ -266,6 +277,14 @@ const SettingsPage = {
     el.querySelectorAll('[data-theme-pick]').forEach(t =>
       t.addEventListener('click', () => {
         App.applyTheme(t.dataset.themePick);
+        App.go('settings');
+      }));
+
+    /* 字体 */
+    el.querySelectorAll('#font-chips [data-font]').forEach(c =>
+      c.addEventListener('click', async () => {
+        App.applyFont(c.dataset.font);
+        if (c.dataset.font === 'mono') await App.detectMonoFont();
         App.go('settings');
       }));
 

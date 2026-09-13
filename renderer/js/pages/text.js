@@ -3,19 +3,38 @@
    ══════════════════════════════════════════ */
 
 const TextPage = {
-  _draft: null,      // { original, processed, lines }
+  _draft: null,      // { original, processed, background, lines }
+  _draftKey: null,   // 这份草稿属于哪一集 —— 换集必须作废，否则会串文本
+
+  _keyOf() {
+    const p = Store.currentProject;
+    const ep = Store.currentEpisode;
+    if (!p || !ep) return null;
+    return p.id + ':' + ep.episode.no;
+  },
+
+  /** 保证 _draft 一定是当前集的；换集就重新从磁盘读 */
+  _ensureDraft() {
+    const key = this._keyOf();
+    if (this._draftKey !== key) { this._draftKey = key; this._draft = null; }
+    if (this._draft) return this._draft;
+    const ep = Store.currentEpisode;
+    if (!ep) return null;
+    this._draft = {
+      original: ep.scriptOriginal || '',
+      processed: ep.script || '',
+      background: ep.episode.background || '',
+      lines: (ep.lines || []).map(l => ({ ...l }))
+    };
+    return this._draft;
+  },
 
   render() {
     const p = Store.currentProject;
     const ep = Store.currentEpisode;
     if (!p || !ep) return this._empty();
 
-    const d = this._draft || (this._draft = {
-      original: ep.scriptOriginal || '',
-      processed: ep.script || '',
-      background: ep.episode.background || '',
-      lines: (ep.lines || []).map(l => ({ ...l }))
-    });
+    const d = this._ensureDraft();
     const chars = (d.processed || '').length;
     const roles = [...new Set(d.lines.map(l => l.role).filter(Boolean))];
 
@@ -126,6 +145,7 @@ const TextPage = {
     el.querySelector('[data-act="goto-projects"]')?.addEventListener('click', () => App.go('projects'));
     el.querySelector('[data-act="goto-eps"]')?.addEventListener('click', () => App.go('episodes'));
     if (!Store.currentProject || !Store.currentEpisode) return;
+    this._ensureDraft();
 
     const orig = el.querySelector('#tx-orig');
     const proc = el.querySelector('#tx-proc');
@@ -152,7 +172,7 @@ const TextPage = {
     });
 
     el.querySelector('[data-act="clear-all"]')?.addEventListener('click', () => {
-      this._draft = { original: '', processed: '', lines: [] };
+      this._draft = { original: '', processed: '', background: '', lines: [] };
       App.go('text');
     });
 

@@ -85,7 +85,7 @@ const ProjectSettingsPage = {
         + '<div class="hd"><b>' + Util.escapeHtml(s.name) + '</b>'
         + '<span class="rng">第 ' + s.from + ' – ' + s.to + ' 集 · 共 ' + total + ' 集</span>'
         + '<span style="flex:1"></span>'
-        + '<button class="btn btn-sm" data-act="rename-season" data-i="' + i + '">重命名</button>'
+        + '<button class="btn btn-sm" data-act="edit-season" data-i="' + i + '">编辑</button>'
         + '<button class="btn btn-sm btn-ghost btn-danger" data-act="del-season" data-i="' + i + '">删除</button></div>'
         + '<div class="season-bar"><i style="width:' + pd + '%;background:var(--ok)"></i>'
         + '<i style="width:' + pdu + '%;background:var(--accent)"></i></div>'
@@ -317,15 +317,8 @@ const ProjectSettingsPage = {
       await save({ seasons }, '已添加：' + name);
     });
 
-    el.querySelectorAll('[data-act="rename-season"]').forEach(b =>
-      b.addEventListener('click', async () => {
-        const i = Number(b.dataset.i);
-        const seasons = [...(p.seasons || [])];
-        const name = await Modal.prompt({ title: '重命名季', label: '季名称', value: seasons[i].name });
-        if (!name) return;
-        seasons[i] = { ...seasons[i], name };
-        await save({ seasons }, '已重命名');
-      }));
+    el.querySelectorAll('[data-act="edit-season"]').forEach(b =>
+      b.addEventListener('click', () => this._editSeason(Number(b.dataset.i))));
 
     el.querySelectorAll('[data-act="del-season"]').forEach(b =>
       b.addEventListener('click', async () => {
@@ -370,6 +363,61 @@ const ProjectSettingsPage = {
     el.querySelector('[data-act="toggle-keep"]')?.addEventListener('click', (e) => {
       const on = !e.currentTarget.classList.contains('off');
       save({ storage: { ...(p.storage || {}), keepLineAudio: !on } }, '已更新');
+    });
+  },
+
+  /** 编辑季：名称 + 起止集号都能改 */
+  async _editSeason(i) {
+    const p = Store.currentProject;
+    const s = (p.seasons || [])[i];
+    if (!s) return;
+    const template = Store.episodes.length || 0;
+    const overlay = Modal.open({
+      title: '编辑季划分', width: 470,
+      body:
+        '<div class="form-group"><label class="form-label">季名称</label>'
+        + '<input type="text" id="es-name" value="' + Util.escapeAttr(s.name) + '"></div>'
+        + '<div class="form-row mt-12" style="align-items:flex-end">'
+        + '<div class="form-group"><label class="form-label">起始集号</label>'
+        + '<input type="number" id="es-from" min="1" value="' + s.from + '" style="width:120px"></div>'
+        + '<div class="form-group"><label class="form-label">结束集号</label>'
+        + '<input type="number" id="es-to" min="1" value="' + s.to + '" style="width:120px"></div>'
+        + '</div>'
+        + '<div class="bg-line mt-12" style="background:var(--accent-soft);border-color:var(--accent)">'
+        + '<div class="bg-text" style="font-size:12px">'
+        + '季只是<b>集号区间</b>，集文件夹本身平铺在项目目录下，不会因为改区间而移动或删除任何文件。'
+        + '区间可以重叠或留空，但建议按顺序划分。</div></div>'
+        + '<p class="text-sm text-muted mt-8" id="es-hint" style="margin-bottom:0">'
+        + '当前共 ' + template + ' 集。改完记得保存。</p>',
+      footer: '<button class="btn" data-act="cancel">取消</button>'
+            + '<button class="btn btn-primary" data-act="ok">保存</button>'
+    });
+    const hint = overlay.querySelector('#es-hint');
+    const upd = () => {
+      const f = parseInt(overlay.querySelector('#es-from').value, 10);
+      const t = parseInt(overlay.querySelector('#es-to').value, 10);
+      if (Number.isFinite(f) && Number.isFinite(t)) {
+        hint.textContent = '将覆盖第 ' + f + ' – ' + t + ' 集，共 ' + Math.max(0, t - f + 1) + ' 集';
+      }
+    };
+    overlay.querySelector('#es-from').addEventListener('input', upd);
+    overlay.querySelector('#es-to').addEventListener('input', upd);
+    upd();
+
+    overlay.querySelector('[data-act="cancel"]').addEventListener('click', () => Modal.close());
+    overlay.querySelector('[data-act="ok"]').addEventListener('click', async () => {
+      const name = overlay.querySelector('#es-name').value.trim();
+      const from = parseInt(overlay.querySelector('#es-from').value, 10);
+      const to = parseInt(overlay.querySelector('#es-to').value, 10);
+      if (!name) { Toast.error('季名称不能为空', true); return; }
+      if (!(from > 0) || !(to >= from)) { Toast.error('集号区间不对：起始需 ≤ 结束，且都大于 0', true); return; }
+      const seasons = [...(p.seasons || [])];
+      seasons[i] = { name, from, to };
+      seasons.sort((a, b) => a.from - b.from);
+      Modal.close();
+      const r = await Store.saveProject({ seasons });
+      if (r && r.ok) { Toast.success('已更新：' + name); App.go('project-settings'); }
+      else Toast.error(r && r.message || '保存失败', true);
     });
   },
 

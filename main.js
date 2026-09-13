@@ -57,6 +57,7 @@ const logBuffer = [];
    ══════════════════════════════════════════════════════════ */
 const APP_SETTINGS_DEFAULTS = {
   theme: 'light',
+  font: 'system',              // system | mono（JetBrains Mono，缺失时自动回退）
   reduceMotion: false,
   uiScale: 1,
   language: 'zh-CN',

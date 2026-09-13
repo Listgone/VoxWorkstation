@@ -34,10 +34,12 @@ const App = {
 
     await Store.init();
 
-    // 用设置里的主题 / 动效 / 缩放覆盖本地缓存
+    // 用设置里的主题 / 字体 / 动效 / 缩放覆盖本地缓存
     const st = Store.settings || {};
     if (st.theme) document.documentElement.setAttribute('data-theme',
-      ['glass', 'construct'].includes(st.theme) ? st.theme : 'light');
+      ['glass', 'construct', 'bento'].includes(st.theme) ? st.theme : 'light');
+    this.applyFont(st.font);
+    this.detectMonoFont();   // 异步探测内置字体是否加载成功，结果给设置页用
     document.documentElement.setAttribute('data-reduce-motion', st.reduceMotion ? 'true' : 'false');
     if (Number(st.uiScale) && Number(st.uiScale) !== 1) {
       document.body.style.zoom = String(Number(st.uiScale));
@@ -114,12 +116,28 @@ const App = {
     });
     crumb.querySelector('[data-act="pick-episode"]')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (!Store.episodes.length) { Toast.show('这个项目还没有集'); return; }
-      this._menu(e.currentTarget, Store.episodes.map(ep => ({
-        label: '第' + String(ep.no).padStart(p.padWidth || 2, '0') + '集' + (ep.title ? ' · ' + ep.title : ''),
-        value: ep.no, active: ep.no === Store.currentEpisodeNo,
-        sub: (Util.epStatus(ep.status) || [''])[0]
-      })), async (no) => {
+      const eps = Store.episodes;
+      if (!eps.length) { Toast.show('这个项目还没有集'); return; }
+      const cur = Store.currentEpisodeNo;
+      const idx = eps.findIndex(x => x.no === cur);
+      // 只展开附近 3 集 —— 集多时这里列全部会淹死人，看全量去集管理
+      const NEAR = 3;
+      const start = idx < 0 ? 0 : Math.max(0, Math.min(idx - 1, Math.max(0, eps.length - NEAR)));
+      const items = [];
+      if (idx > 0) items.push({ label: '← 上一集', value: 'no:' + eps[idx - 1].no });
+      eps.slice(start, start + NEAR).forEach(ep => {
+        items.push({
+          label: '第' + String(ep.no).padStart(p.padWidth || 2, '0') + '集' + (ep.title ? ' · ' + ep.title : ''),
+          value: 'no:' + ep.no, active: ep.no === cur,
+          sub: (Util.epStatus(ep.status) || [''])[0]
+        });
+      });
+      if (idx >= 0 && idx < eps.length - 1) items.push({ label: '下一集 →', value: 'no:' + eps[idx + 1].no });
+      if (eps.length > NEAR) items.push({ label: '查看全部 ' + eps.length + ' 集 →', value: 'all' });
+
+      this._menu(e.currentTarget, items, async (v) => {
+        if (v === 'all') { await App.go('episodes'); return; }
+        const no = Number(String(v).replace('no:', ''));
         const r = await Store.openEpisode(no);
         if (r && r.ok) await App.go(this.current);
       });
@@ -179,9 +197,54 @@ const App = {
     }
   },
 
-  /* ── 主题（明亮现代 / 液态玻璃 / 构成主义）── */
+  /* ── 字体 ─────────────────────────────────── */
+  applyFont(font) {
+    const mode = font === 'mono' ? 'mono' : 'system';
+    document.documentElement.setAttribute('data-font', mode);
+    localStorage.setItem('vox-font', mode);
+    if (Store.settings) Store.saveSettings({ font: mode });
+  },
+
+  /** 某个字体是否真的可用。
+   *  注意：document.fonts.check() 对缺失字体也返回 true（浏览器会静默回退），
+   *  所以用 canvas 量文字宽度比对 —— 与基准等宽字体宽度一致就说明在回退。 */
+  _fontAvailable(name) {
+    try {
+      const ctx = document.createElement('canvas').getContext('2d');
+      const probe = 'mmmmmmmmmmlliWWW@#%0123456789';
+      const bases = ['monospace', 'sans-serif', 'serif'];
+      return bases.some(b => {
+        ctx.font = '72px ' + b;
+        const w0 = ctx.measureText(probe).width;
+        ctx.font = '72px "' + name + '", ' + b;
+        return Math.abs(ctx.measureText(probe).width - w0) > 0.5;
+      });
+    } catch (e) { return false; }
+  },
+
+  /** 内置的 JetBrains Mono 是否真的加载成功；失败时报出回退到哪个字体 */
+  async detectMonoFont() {
+    try {
+      if (document.fonts) await document.fonts.load('13px "JetBrains Mono"');
+    } catch (e) { /* 忽略 */ }
+    if (this._fontAvailable('JetBrains Mono')) {
+      this.monoInfo = { ok: true, name: 'JetBrains Mono', fallback: '' };
+      return this.monoInfo;
+    }
+    const chain = ['Cascadia Mono', 'Cascadia Code', 'Consolas', 'Ubuntu Mono'];
+    for (const f of chain) {
+      if (this._fontAvailable(f)) {
+        this.monoInfo = { ok: false, name: f, fallback: f };
+        return this.monoInfo;
+      }
+    }
+    this.monoInfo = { ok: false, name: '系统等宽', fallback: '系统等宽' };
+    return this.monoInfo;
+  },
+
+  /* ── 主题（明亮现代 / 液态玻璃 / 构成主义 / Bento）── */
   _setupThemeToggle() {
-    const THEMES = ['light', 'glass', 'construct'];
+    const THEMES = ['light', 'glass', 'construct', 'bento'];
     const apply = (theme) => {
       if (!THEMES.includes(theme)) theme = 'light';
       document.documentElement.setAttribute('data-theme', theme);
