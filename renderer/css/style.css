@@ -1454,3 +1454,11 @@ table th:last-child,table td:last-child{padding-right:14px}
   animation:ldFlow 1.3s linear infinite}
 #setup-prog .ld-dl-bar{position:relative;overflow:hidden}
 @keyframes ldFlow{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+
+/* 引导面板底部的手动入口（原来是 details，展开后空白，改为内联文字链接） */
+.ld-setup-alt{margin-top:12px;padding-top:11px;border-top:1px solid var(--border-soft);
+  font-size:11.5px;color:var(--text-mute);text-align:center}
+.ld-setup-alt a{color:var(--accent);text-decoration:none;border-bottom:1px dashed currentColor}
+.ld-setup-alt a:hover{opacity:.75}
+.ld-dot{margin:0 6px;opacity:.5}
+.ld-setup-path{margin-top:12px}

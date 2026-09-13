@@ -367,8 +367,19 @@ const App = {
   /** 正在下载模型：显示真实进度（首次启动可能要几十分钟） */
   _onEngineDownloading(d) {
     const pct = Math.round((d.progress || 0) * 100);
-    const dlText = '正在下载模型 ' + (d.downloadedMb || 0) + ' / '
+    let dlText = '正在下载模型 ' + (d.downloadedMb || 0) + ' / '
       + (d.expectedMb || 0) + ' MB（' + pct + '%）';
+    // 速度和剩余时间是等待时最需要的信息
+    const sp = Number(d.mbps || 0);
+    if (sp > 0.05) {
+      dlText += ' · ' + sp.toFixed(1) + ' MB/s';
+      const left = (d.expectedMb || 0) - (d.downloadedMb || 0);
+      if (left > 0) {
+        const sec = left / sp;
+        const eta = sec > 90 ? Math.round(sec / 60) + ' 分钟' : Math.round(sec) + ' 秒';
+        dlText += ' · 约剩 ' + eta;
+      }
+    }
 
     // 若一键配置的进度条还在（刚配置完就进入下载），接着它走完最后一段
     const setupBox = document.getElementById('setup-prog');
@@ -468,7 +479,8 @@ const App = {
     const pick = document.getElementById('loading-setup-pick');
     if (pick && !pick.dataset.bound) {
       pick.dataset.bound = '1';
-      pick.addEventListener('click', async () => {
+      pick.addEventListener('click', async (ev) => {
+        ev.preventDefault();
         const r = await window.electronAPI.path.pick({ title: '选择 VoxCPM2 后端目录（含 server.py）' });
         if (!r || !r.ok) return;
         const v = await window.electronAPI.setup.validate(r.path);
@@ -482,7 +494,8 @@ const App = {
     const retry = document.getElementById('loading-setup-retry');
     if (retry && !retry.dataset.bound) {
       retry.dataset.bound = '1';
-      retry.addEventListener('click', async () => {
+      retry.addEventListener('click', async (ev) => {
+        ev.preventDefault();
         const m = document.getElementById('loading-setup-msg');
         if (m) { m.className = 'ld-setup-msg'; m.textContent = '正在重新检测…'; }
         const res = await window.electronAPI.restartServer();
