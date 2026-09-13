@@ -608,6 +608,29 @@ function probe(port, timeoutMs = 1500) {
 
 /** 结束整个后端进程树。
  *  Windows 上 child.kill() 只杀直接子进程，server.py 里再 spawn 的东西会变僵尸。*/
+/**
+ * 找一个能用的端口：先试配置里的，被占用就依次往后试。
+ * 端口冲突是「后端进程启动后立即退出（code=3）」最常见的原因 ——
+ * uvicorn 绑不上会直接退出，而客户端只看到一个没头没尾的退出码。
+ */
+function findFreePort(start, tries = 20) {
+  return new Promise((resolve) => {
+    let port = start;
+    let n = 0;
+    const attempt = () => {
+      if (n++ >= tries) return resolve(start);   // 都占着就退回原端口，让错误显式暴露
+      const srv = require('net').createServer();
+      srv.once('error', (err) => {
+        if (err.code === 'EADDRINUSE' || err.code === 'EACCES') { port++; attempt(); }
+        else resolve(port);
+      });
+      srv.once('listening', () => srv.close(() => resolve(port)));
+      try { srv.listen(port, '127.0.0.1'); } catch (e) { port++; attempt(); }
+    };
+    attempt();
+  });
+}
+
 function killServerTree() {
   const child = serverProcess;
   serverProcess = null;
@@ -622,8 +645,16 @@ function killServerTree() {
 }
 
 function startServer() {
-  return new Promise((resolve) => {
-    const { serverScriptPath, serverDir, pythonPath, serverPort, serverStartTimeoutMs } = CONFIG;
+  return new Promise(async (resolve) => {
+    const { serverScriptPath, serverDir, pythonPath } = CONFIG;
+    const serverStartTimeoutMs = CONFIG.serverStartTimeoutMs;
+    // 配置端口被别的程序占用时自动换一个，用户不必操心
+    const usePort = await findFreePort(CONFIG.serverPort);
+    if (usePort !== CONFIG.serverPort) {
+      pushLog(`[shell] 端口 ${CONFIG.serverPort} 被占用，改用 ${usePort}`);
+      CONFIG.serverPort = usePort;          // 让 getServerUrl / 自检都跟着走
+    }
+    const serverPort = usePort;
 
     if (!fs.existsSync(serverScriptPath)) {
       resolve({ ok: false, message: `找不到后端脚本：${serverScriptPath}（可在 vox.config.json 配置 serverDir）` });
@@ -637,6 +668,7 @@ function startServer() {
     try {
       child = spawn(pythonPath, [serverScriptPath], {
         cwd: serverDir,
+      env: { ...process.env, VOX_PORT: String(serverPort), PYTHONIOENCODING: 'utf-8' },
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe']
       });
