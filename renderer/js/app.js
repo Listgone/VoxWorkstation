@@ -384,15 +384,27 @@ const App = {
     if (wrap) wrap.style.display = text ? '' : 'none';
   },
 
+  /** 展开日志（出错时自动调用，免得让用户去点一个折叠区找原因） */
+  _openLog() {
+    const wrap = document.getElementById('loading-logwrap');
+    const log = document.getElementById('loading-log');
+    const tgl = document.getElementById('loading-toggle-log');
+    if (wrap) wrap.style.display = '';
+    if (log) log.classList.add('show');
+    if (tgl) tgl.textContent = '收起详情';
+  },
+
   _onServerError(message) {
     clearInterval(this._loadingTimer);
+    this._openLog();
     const msg = String(message || '未知错误');
-    // 找不到后端脚本 / 路径不对 → 走引导，而不是丢一个死胡同错误
-    if (/找不到后端脚本|server\.py|后端未运行/.test(msg)) {
-      this._showSetupPanel(msg);
-      this._setSideStatus('未配置引擎', 'error');
-      return;
-    }
+    // 后端起不来的原因很多（脚本缺失 / Python 异常 / 依赖没装 / 端口占用 / 进程秒退…），
+    // 但补救办法都是同一套 —— 所以只要失败就走引导面板，不按错误文案分流。
+    // 原先只匹配「找不到后端脚本」等几种，导致「进程启动后立即退出（code=3）」
+    // 落进死胡同错误分支，一键配置反而不见了。
+    this._showSetupPanel(msg);
+    this._setSideStatus('引擎未就绪', 'error');
+    return;
     document.getElementById('loading-overlay')?.classList.add('is-error');
     this._setLoadingText('启动失败：' + msg);
     this._appendLog('提示：可在设置 → TTS 引擎里检查路径，或用「设置 → 诊断与关于」自检');
@@ -452,9 +464,19 @@ const App = {
     if (!box) return;
     box.style.display = '';
     document.getElementById('loading-retry').style.display = 'none';
+    // 标题按情况变：纯粹没配置 vs 配置了但起不来
+    const h = box.querySelector('.ld-setup-h');
+    const p = box.querySelector('.ld-setup-p');
+    const isMissing = /找不到后端脚本|不存在|ENOENT/.test(message || '');
+    if (h) h.textContent = isMissing ? '还差最后一步' : '语音引擎启动失败';
+    if (p) {
+      p.textContent = isMissing
+        ? '点下面的按钮，软件会自动装好语音引擎（含 Python 运行环境）并下载语音模型，全程不用你操作。'
+        : '下面是一键配置，会重新准备引擎与依赖。失败原因见下方「详情」里的日志。';
+    }
     const msg = document.getElementById('loading-setup-msg');
     if (msg) { msg.className = 'ld-setup-msg err'; msg.textContent = message || ''; }
-    this._setLoadingText('需要先指定语音引擎的位置');
+    this._setLoadingText(isMissing ? '需要先指定语音引擎的位置' : '语音引擎启动失败');
 
     window.electronAPI.setup.status().then((s) => {
       const p = document.getElementById('loading-setup-path');
