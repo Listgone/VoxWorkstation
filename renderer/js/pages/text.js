@@ -54,8 +54,9 @@ const TextPage = {
       + '<button class="btn btn-sm" data-act="use-import">作为原文</button>'
       + '<button class="btn btn-sm btn-ghost" data-act="clear-all">清空</button>'
       + '</div>'
-      + '<p class="text-sm text-muted mt-8" style="margin-bottom:0">推荐格式：第一行 <code>总结：这段对话在讲什么</code>（只做总览，不配音），'
-      + '之后逐行 <code>角色（情绪或动作）：台词</code>。情绪可省略；没有角色前缀时全部归给「旁白」。</p>'
+      + '<p class="text-sm text-muted mt-8" style="margin-bottom:0">两段式：<code>【背景介绍（仅供判断，不配音）】</code> 写地点时间环境、设定伏笔、人物关系与谁对谁说话；'
+      + '<code>【角色（情绪）+台词（用于配音）】</code> 逐行写 <code>角色（情绪）+台词</code>。'
+      + '只有明确说出口的台词会配音，旁白/动作/心理描写归入背景介绍。</p>'
       + '</div>'
 
       + '<div class="card"><h2>对照 <span class="n">原文永不改动，处理结果只写右栏</span></h2>'
@@ -70,23 +71,23 @@ const TextPage = {
       + '</div></div>'
 
       + (d.background
-        ? '<div class="card"><h2>对话总览 <span class="n">只做文本总览，不参与配音</span></h2>'
+        ? '<div class="card"><h2>背景介绍 <span class="n">仅供判断，不参与配音</span></h2>'
           + '<div class="bg-line"><span class="pill pill-p">总结</span>'
-          + '<span class="bg-text">' + Util.escapeHtml(d.background) + '</span>'
+          + '<span class="bg-text">' + Util.nl2br(Util.escapeHtml(d.background)) + '</span>'
           + '<button class="btn btn-sm btn-ghost" data-act="edit-bg">改</button></div></div>'
         : '')
 
       + '<div class="card"><h2>处理 <span class="n" id="tx-ai-state">'
       + (Store.hasApiKey ? 'AI 已配置' : 'AI 未配置 —— 本地规则仍可用') + '</span></h2>'
       + '<div class="action-row">'
-      + '<button class="btn btn-ai" data-act="script">✦ 整理成剧本格式</button>'
+      + '<button class="btn btn-ai" data-act="script">✦ 整理成剧本</button>'
       + '<button class="btn btn-ai" data-act="tn">✦ 本地规范化</button>'
       + '<button class="btn" data-act="split">按角色 / 标点分句</button>'
       + '<button class="btn" data-act="ai-proc">✦ AI 处理…</button>'
       + '<button class="btn btn-ghost" data-act="reset-proc">恢复为原文</button>'
       + '</div>'
       + '<p class="text-sm text-muted mt-8" style="margin-bottom:0">'
-      + '「整理成剧本格式」把整段对话拆成 <code>总结：…</code> + <code>角色（情绪或动作）：台词</code>；'
+      + '「整理成剧本」按规范拆成【背景介绍】+【角色（情绪）+台词】两段；'
       + '「本地规范化」不联网；「AI 处理…」需要先配置服务商。</p></div>'
 
       + '<div class="card"><h2>分句 <span class="n">' + d.lines.length + ' 句'
@@ -138,10 +139,12 @@ const TextPage = {
       text: l.text, role: l.role || '旁白', emotion: l.emotion || '',
       voice: voiceFor(l.role || '旁白'), audio: '', error: ''
     }));
-    // 处理后文本按统一格式回写，方便人工核对
-    this._draft.processed = (parsed.background ? '总结：' + parsed.background + '\n' : '')
+    // 按规范的两段式回写，方便人工核对
+    this._draft.processed =
+      (parsed.background ? '【背景介绍（仅供判断，不配音）】\n' + parsed.background + '\n\n' : '')
+      + '【角色（情绪）+台词（用于配音）】\n'
       + parsed.lines.map(l => (l.role || '旁白')
-          + (l.emotion ? '（' + l.emotion + '）' : '') + '：' + l.text).join('\n');
+          + (l.emotion ? '（' + l.emotion + '）' : '') + '+' + l.text).join('\n');
   },
 
   async mount(el) {
@@ -197,7 +200,7 @@ const TextPage = {
       const src = this._draft.processed || this._draft.original;
       if (!src.trim()) { Toast.error('没有可分句的文本', true); return; }
       const maxLen = (Store.currentProject.defaults || {}).maxLineLen || 25;
-      const parsed = TextTools.parseScript(src, maxLen);
+      const parsed = TextTools.parseScript(src, maxLen, { strict: false });
       this._applyParsed(parsed);
       App.go('text');
       const roleList = [...new Set(parsed.lines.map(l => l.role))];
@@ -290,7 +293,7 @@ const TextPage = {
     const saved = (proj.ai && Array.isArray(proj.ai.features)) ? proj.ai.features : [];
     const on = saved.length ? saved : DEFAULT_TASKS;
     const TASKS = [
-      ['script', '整理成剧本格式', '先输出「总结：…」总览，再逐行输出「角色（情绪或动作）：台词」'],
+      ['script', '整理成剧本', '只提取说出口的台词，旁白/动作/心理描写全部归入背景介绍'],
       ['normalize', '文本规范化', '数字 / 日期 / 百分比 / 单位 / 英文缩写 → 口语读法'],
       ['split', '智能断句', '按语义切分，每句不超过 ' + ((proj.defaults || {}).maxLineLen || 25) + ' 字'],
       ['tone', '语气标注', '自动插入 [laughing] / [sigh] 等 VoxCPM2 标记'],
@@ -479,45 +482,63 @@ const TextTools = {
   },
 
   /**
-   * 解析剧本格式：
-   *   总结：这段对话在讲什么（只做文本总览，不参与配音）
-   *   角色1（情绪或动作）：台词
-   *   角色2：台词            ← 情绪可省
-   * 没有角色前缀的行归给「旁白」，过长的再按标点切。
+   * 解析剧本。AI 按规范输出两段：
+   *   【背景介绍（仅供判断，不配音）】  地点/时间/环境、设定伏笔冲突、
+   *                                     角色形象、谁对谁说话与情绪依据
+   *   【角色（情绪）+台词（用于配音）】 角色名（情绪）+台词
+   *
+   * 关键规则：
+   * - 只有明确说出口的台词进配音；旁白/动作/环境/心理描写归入背景介绍
+   * - 角色名与情绪只是标注，不参与配音
+   * - 分段标题可有可无；没有标题时按行解析，认不出的行归背景（strict）
+   *   或降级成旁白（非 strict，用于「按角色 / 标点分句」按钮）
    */
-  parseScript(text, maxLen = 25) {
+  parseScript(text, maxLen = 25, opts = {}) {
+    const strict = opts.strict !== false;
     const src = String(text || '').replace(/\r\n/g, '\n');
-    let background = '';
+    const bgParts = [];
     const lines = [];
+    let mode = null;                       // 'bg' | 'dlg' | null
+
     const push = (role, emotion, body) => {
       for (const piece of this.split(body, maxLen)) lines.push({ role, emotion, text: piece });
     };
+    const isRole = (r) => r && r.length <= 12 && !/[+＋：:。！？，,；;.!?、]/.test(r);
 
     for (const raw of src.split('\n')) {
       const s = raw.trim();
       if (!s) continue;
 
-      // 总结（兼容旧写法「背景」，以及总览/概要/简介/场景）
-      const bg = s.match(/^(总结|背景|总览|概要|简介|场景)\s*[：:]\s*(.+)$/);
-      if (bg) { background = bg[2].trim(); continue; }
-
-      // 角色（情绪或动作）：台词
-      const me = s.match(/^([^：:\n（(]{1,12})\s*[（(]([^）)]{1,24})[）)]\s*[：:]\s*(.+)$/);
-      if (me) {
-        const role = me[1].trim();
-        if (role && !/[。！？，,；;.!?]/.test(role)) { push(role, me[2].trim(), me[3].trim()); continue; }
+      // 段落标题：【背景介绍（…）】/【角色（情绪）+台词（…）】/【总结】…
+      const sec = s.match(/^[【\[]\s*(.+?)\s*[】\]]\s*[：:]?\s*$/);
+      if (sec) {
+        const t = sec[1];
+        if (/背景|总览|概要|简介|说明|设定/.test(t)) mode = 'bg';
+        else if (/角色|台词|对白|配音/.test(t)) mode = 'dlg';
+        continue;
       }
 
-      // 角色：台词（无情绪）
-      const m = s.match(/^([^：:\n]{1,12})\s*[：:]\s*(.+)$/);
-      if (m) {
-        const role = m[1].trim();
-        if (role && !/[。！？，,；;.!?]/.test(role)) { push(role, '', m[2].trim()); continue; }
-      }
+      // 单行总结（兼容「总结：…」「背景：…」）
+      const one = s.match(/^(总结|背景|总览|概要|简介|场景)\s*[：:]\s*(.+)$/);
+      if (one && mode !== 'dlg') { bgParts.push(one[2].trim()); continue; }
 
-      push('旁白', '', s);
+      if (mode === 'bg') { bgParts.push(s); continue; }
+
+      // 角色（情绪）+台词  /  角色（情绪）：台词
+      const me = s.match(/^([^+＋：:\n（(]{1,12})\s*[（(]([^）)]{1,24})[）)]\s*[+＋：:]\s*(.+)$/);
+      if (me && isRole(me[1].trim())) { push(me[1].trim(), me[2].trim(), me[3].trim()); continue; }
+
+      // 角色+台词  /  角色：台词（无情绪）
+      const m = s.match(/^([^+＋：:\n]{1,12})\s*[+＋：:]\s*(.+)$/);
+      if (m && isRole(m[1].trim())) { push(m[1].trim(), '', m[2].trim()); continue; }
+
+      // 认不出的行：严格模式归背景（旁白/动作/心理描写不配音），
+      // 宽松模式降级为旁白（用户明确要求全篇配音时）
+      if (mode === 'dlg') continue;
+      if (strict) bgParts.push(s);
+      else push('旁白', '', s);
     }
-    return { background, lines };
+    return { background: bgParts.join('\n'), lines };
   },
 
   /** 按标点断句，长句再按逗号切 */
