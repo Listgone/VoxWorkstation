@@ -4,10 +4,18 @@
    主题：明亮现代 / Bento 看板 / 液态玻璃 / 构成主义
    ======================================== */
 
-/* --- 内置字体：JetBrains Mono（可变字体，100–800 全字重）
-       随应用分发，授权见 assets/fonts/OFL.txt --- */
+/* --- 内置字体：JetBrains Mono（随应用分发，授权见 assets/fonts/OFL.txt）
+       JetBrains Mono     = NL ExtraBold Italic（你指定的那个字重/字形）
+       JetBrains Mono Var = 可变字体，100–800 全字重、正体 --- */
 @font-face{
   font-family:"JetBrains Mono";
+  src:url("../../assets/fonts/JetBrainsMonoNL-ExtraBoldItalic.ttf") format("truetype");
+  font-weight:100 900;
+  font-style:normal;
+  font-display:swap;
+}
+@font-face{
+  font-family:"JetBrains Mono Var";
   src:url("../../assets/fonts/JetBrainsMono-Variable.ttf") format("truetype-variations");
   font-weight:100 800;
   font-style:normal;
@@ -753,7 +761,7 @@ code{background:var(--bg-elev);padding:1px 6px;border-radius:4px;font-size:11.5p
 [data-theme="construct"] .bc-total{background:var(--bg-elev)}
 [data-theme="glass"] .bc-total{background:rgba(31,41,55,.10)}
 
-/* --- 字体方案：系统默认 / 等宽（JetBrains Mono 优先）--- */
+/* --- 字体方案：系统默认 / JetBrains Mono（NL ExtraBold Italic）/ 可变字重 --- */
 html[data-font="mono"] body,
 html[data-font="mono"] input,
 html[data-font="mono"] textarea,
@@ -772,51 +780,75 @@ html[data-font="mono"] .titlebar-logo,
 html[data-font="mono"] .crumb,
 html[data-font="mono"] table,
 html[data-font="mono"] .pill,
-html[data-font="mono"] .btn{
-  font-family:var(--font-mono);
-}
-/* 等宽字体偏小，微调字号与字距 */
-html[data-font="mono"] body{font-size:12.5px}
+html[data-font="mono"] .btn{ font-family:var(--font-mono); }
+
+html[data-font="monovar"] body,
+html[data-font="monovar"] input,
+html[data-font="monovar"] textarea,
+html[data-font="monovar"] select,
+html[data-font="monovar"] button,
+html[data-font="monovar"] .cselect-btn,
+html[data-font="monovar"] .mchip,
+html[data-font="monovar"] .nav-item,
+html[data-font="monovar"] .subnav a,
+html[data-font="monovar"] .tab-btn,
+html[data-font="monovar"] .card h2,
+html[data-font="monovar"] .section-title,
+html[data-font="monovar"] .phead h1,
+html[data-font="monovar"] .modal-box h3,
+html[data-font="monovar"] .titlebar-logo,
+html[data-font="monovar"] .crumb,
+html[data-font="monovar"] table,
+html[data-font="monovar"] .pill,
+html[data-font="monovar"] .btn{ font-family:"JetBrains Mono Var",var(--font-mono); }
+
+/* 特粗斜体更占宽，字号收一点 */
+html[data-font="mono"] body{font-size:12px;letter-spacing:-.012em}
 html[data-font="mono"] .phead h1,
-html[data-font="mono"] .card h2{letter-spacing:.01em}
+html[data-font="mono"] .card h2{letter-spacing:0}
+html[data-font="mono"] .kpi .vl,
+html[data-font="mono"] .btn{letter-spacing:-.02em}
+html[data-font="monovar"] body{font-size:12.5px}
 
 /* ══════════════════════════════════════════════════
    Bento 看板主题
-   便当盒分格：大圆角、柔和投影、每格一个马卡龙色
+   参考 web-styles/30-bento-dashboard：深色底 + 柠檬绿 #c8ff4d
+   便当盒网格：卡片跨格排布、大写小标签、超大等宽数字、悬浮上浮
    ══════════════════════════════════════════════════ */
 [data-theme="bento"] {
-  --bg-app:#eef0f5;
-  --bg-side:#f7f8fb;
-  --bg-card:#ffffff;
-  --bg-elev:#f2f4f8;
-  --bg-hover:#e9ecf3;
-  --bg-input:#f6f7fa;
-  --border:#e2e6ee;
-  --border-soft:#eef0f5;
-  --text:#1c1f26;
-  --text-dim:#5c6270;
-  --text-mute:#929aa8;
-  --accent:#3b6bf5;
-  --accent-hover:#2b58dd;
-  --accent-soft:rgba(59,107,245,.12);
-  --accent-fg:#ffffff;
-  --ok:#12996b;  --ok-soft:rgba(18,153,107,.12);
-  --warn:#c47f17; --warn-soft:rgba(196,127,23,.14);
-  --danger:#e0483f; --danger-soft:rgba(224,72,63,.12);
-  --purple:#7c5cf5; --purple-soft:rgba(124,92,245,.12);
-  --overlay:rgba(28,31,38,.38);
-  --shadow:0 2px 4px rgba(28,31,38,.04), 0 8px 24px rgba(28,31,38,.06);
-  --shadow-lg:0 12px 40px rgba(28,31,38,.14);
+  --bg-app:#0c0c0e;
+  --bg-side:#101014;
+  --bg-card:#17171b;
+  --bg-elev:#1e1e24;
+  --bg-hover:#23232b;
+  --bg-input:#1a1a20;
+  --border:#2c2c34;
+  --border-soft:#23232a;
+  --text:#f2f2f5;
+  --text-dim:#b6b6c2;
+  --text-mute:#8b8b98;
+  --accent:#c8ff4d;
+  --accent-hover:#d9ff7a;
+  --accent-soft:rgba(200,255,77,.14);
+  --accent-fg:#0c0c0e;
+  --ok:#c8ff4d;   --ok-soft:rgba(200,255,77,.14);
+  --warn:#ffb648; --warn-soft:rgba(255,182,72,.15);
+  --danger:#ff6b6b; --danger-soft:rgba(255,107,107,.15);
+  --purple:#7c5cff; --purple-soft:rgba(124,92,255,.18);
+  --overlay:rgba(6,6,8,.72);
+  --shadow:0 1px 2px rgba(0,0,0,.5);
+  --shadow-lg:0 24px 60px rgba(0,0,0,.6);
   --font-head:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-  --titlebar-bg:#f7f8fb;
-  --radius-sm:10px; --radius:12px; --radius-lg:20px; --radius-xl:26px;
+  --titlebar-bg:#101014;
+  --radius-sm:8px; --radius:10px; --radius-lg:20px; --radius-xl:24px;
+  --bento-gap:14px;
 }
 
-[data-theme="bento"] #sidebar{border-right:1px solid var(--border)}
-[data-theme="bento"] #titlebar{border-bottom:1px solid var(--border)}
-[data-theme="bento"] #status-bar{border-top:1px solid var(--border)}
+[data-theme="bento"] #sidebar,
+[data-theme="bento"] #titlebar,
+[data-theme="bento"] #status-bar{background:var(--bg-side)}
 
-/* 卡片：大圆角 + 柔和投影，去掉硬边 */
+/* 卡片：深色 + 细边 + 20px 圆角，悬浮上浮并提亮描边 */
 [data-theme="bento"] .card,
 [data-theme="bento"] table,
 [data-theme="bento"] .kpi,
@@ -834,79 +866,112 @@ html[data-font="mono"] .card h2{letter-spacing:.01em}
 [data-theme="bento"] .duo,
 [data-theme="bento"] .popmenu,
 [data-theme="bento"] .toast{
-  border:1px solid var(--border);box-shadow:var(--shadow)}
-[data-theme="bento"] .card{border-radius:var(--radius-lg);padding:18px 20px}
-[data-theme="bento"] .card h2{border-bottom:none;font-size:13px;margin-bottom:14px}
+  border:1px solid var(--border);box-shadow:none}
+[data-theme="bento"] .card{
+  border-radius:var(--radius-lg);padding:18px;
+  display:flex;flex-direction:column;position:relative;overflow:hidden;
+  transition:border-color .22s,transform .22s}
+[data-theme="bento"] .card:hover{border-color:#3d3d47;transform:translateY(-2px)}
+[data-theme="bento"] .card h2{
+  border-bottom:none;font-size:11px;font-weight:600;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--text-mute);margin-bottom:14px}
+[data-theme="bento"] .pcard:hover,
+[data-theme="bento"] .vcard:hover{border-color:#3d3d47;transform:translateY(-2px)}
+[data-theme="bento"] .pcard,[data-theme="bento"] .vcard{transition:border-color .22s,transform .22s}
 [data-theme="bento"] .seasonhead{border-bottom:1px solid var(--border);
   border-radius:var(--radius-lg) var(--radius-lg) 0 0}
 [data-theme="bento"] .seasonblock table{border-radius:0 0 var(--radius-lg) var(--radius-lg)}
 
-/* KPI：每格一个马卡龙色，便当盒的分格感 */
-[data-theme="bento"] .kpis{gap:16px}
-[data-theme="bento"] .kpi{border-radius:var(--radius-lg);padding:18px 20px;border:1px solid transparent}
-[data-theme="bento"] .kpi:nth-child(6n+1){background:linear-gradient(160deg,#e8efff,#f4f7ff);border-color:#dbe4fb}
-[data-theme="bento"] .kpi:nth-child(6n+2){background:linear-gradient(160deg,#e6f7f0,#f3fbf7);border-color:#d4efe3}
-[data-theme="bento"] .kpi:nth-child(6n+3){background:linear-gradient(160deg,#fdf0e6,#fff8f2);border-color:#f6e2cf}
-[data-theme="bento"] .kpi:nth-child(6n+4){background:linear-gradient(160deg,#f3ecff,#f9f5ff);border-color:#e6dcfb}
-[data-theme="bento"] .kpi:nth-child(6n+5){background:linear-gradient(160deg,#fdeaf0,#fff5f8);border-color:#f8d9e3}
-[data-theme="bento"] .kpi:nth-child(6n+6){background:linear-gradient(160deg,#e9f4f8,#f4fafc);border-color:#d5e9f0}
-[data-theme="bento"] .kpi .vl{font-size:26px;letter-spacing:-.02em}
-[data-theme="bento"] .kpi .lb{font-weight:600;color:var(--text-dim)}
+/* KPI：真正的 bento 跨格 —— 每 3 格的第 1 格占两列，6 张正好铺满两行 */
+[data-theme="bento"] .kpis{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:var(--bento-gap);grid-auto-rows:minmax(112px,auto)}
+[data-theme="bento"] .kpi{
+  border-radius:var(--radius-lg);padding:18px;position:relative;overflow:hidden;
+  display:flex;flex-direction:column;justify-content:space-between;
+  transition:border-color .22s,transform .22s}
+[data-theme="bento"] .kpi:hover{border-color:#3d3d47;transform:translateY(-2px)}
+[data-theme="bento"] .kpi:nth-child(3n+1){grid-column:span 2;
+  background:linear-gradient(150deg,#243300,#1a2400);border-color:#3c5a00}
+[data-theme="bento"] .kpi:nth-child(3n+1):nth-child(even){grid-column:span 2;
+  background:linear-gradient(150deg,#241c3d,#171326);border-color:#3a2f5e}
+[data-theme="bento"] .kpi .lb{
+  font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--text-mute);display:flex;align-items:center;gap:8px}
+[data-theme="bento"] .kpi .lb::before{content:'';width:8px;height:8px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 10px var(--accent);flex-shrink:0}
+[data-theme="bento"] .kpi:nth-child(3n+2) .lb::before{background:var(--purple);box-shadow:0 0 10px var(--purple)}
+[data-theme="bento"] .kpi:nth-child(3n+3) .lb::before{background:var(--warn);box-shadow:0 0 10px var(--warn)}
+[data-theme="bento"] .kpi:nth-child(4n+4) .lb::before{background:var(--purple);box-shadow:0 0 10px var(--purple)}
+[data-theme="bento"] .kpi .vl{
+  font-size:clamp(26px,3.4vw,38px);font-weight:700;letter-spacing:-.03em;line-height:1;
+  font-variant-numeric:tabular-nums}
+[data-theme="bento"] .kpi .sub{font-size:12.4px;color:var(--text-mute);letter-spacing:0}
 
-/* 按钮：药丸 */
-[data-theme="bento"] .btn{border-radius:999px;border-color:var(--border);background:var(--bg-card);
-  box-shadow:0 1px 2px rgba(28,31,38,.05)}
-[data-theme="bento"] .btn:hover:not(:disabled){background:var(--bg-elev);border-color:#d2d8e4}
-[data-theme="bento"] .btn-primary{background:var(--accent);border-color:var(--accent);
-  box-shadow:0 2px 8px rgba(59,107,245,.28)}
+/* 按钮：药丸 + 柠檬绿主按钮（文字用深色才够对比） */
+[data-theme="bento"] .btn{border-radius:99px;border-color:var(--border);background:var(--bg-card)}
+[data-theme="bento"] .btn:hover:not(:disabled){background:var(--bg-elev);border-color:#3d3d47}
+[data-theme="bento"] .btn-primary{background:var(--accent);border-color:var(--accent);color:#0c0c0e;
+  font-weight:700;box-shadow:0 0 0 0 rgba(200,255,77,.5)}
+[data-theme="bento"] .btn-primary:hover:not(:disabled){background:var(--accent-hover);
+  box-shadow:0 0 18px rgba(200,255,77,.35)}
 [data-theme="bento"] .btn-ai{background:var(--purple);border-color:var(--purple);color:#fff;
-  box-shadow:0 2px 8px rgba(124,92,245,.28)}
+  box-shadow:0 0 18px rgba(124,92,255,.28)}
 [data-theme="bento"] .btn-gen{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
-[data-theme="bento"] .btn-ghost{box-shadow:none;background:transparent}
+[data-theme="bento"] .btn-gen:hover:not(:disabled){background:var(--accent);color:#0c0c0e}
+[data-theme="bento"] .btn-ghost{background:transparent}
 
-/* 侧栏：选中项是柔和的彩色药丸 */
+/* 侧栏：选中项是柠檬绿实块 */
 [data-theme="bento"] #sidebar{padding:12px 10px}
-[data-theme="bento"] .nav-item{border-radius:14px;height:40px;font-size:13.5px}
-[data-theme="bento"] .nav-item.active{background:var(--accent);color:#fff;font-weight:600;
-  box-shadow:0 4px 14px rgba(59,107,245,.30)}
+[data-theme="bento"] .nav-item{border-radius:12px;height:40px;font-size:13.5px;color:var(--text-dim)}
+[data-theme="bento"] .nav-item:hover{background:var(--bg-elev);color:var(--text)}
+[data-theme="bento"] .nav-item.active{background:var(--accent);color:#0c0c0e;font-weight:700;
+  box-shadow:0 0 22px rgba(200,255,77,.28)}
 [data-theme="bento"] .nav-item.active::before{display:none}
-[data-theme="bento"] .nav-item .badge{background:rgba(255,255,255,.9);color:var(--text-dim)}
-[data-theme="bento"] .nav-item.active .badge{background:rgba(255,255,255,.25);color:#fff}
-[data-theme="bento"] .nav-group{letter-spacing:.12em;padding:14px 12px 7px}
+[data-theme="bento"] .nav-item .badge{background:var(--bg-elev);color:var(--text-mute)}
+[data-theme="bento"] .nav-item.active .badge{background:rgba(12,12,14,.18);color:#0c0c0e}
+[data-theme="bento"] .nav-group{letter-spacing:.2em;font-size:10px;color:var(--text-mute)}
 
 /* 表单与徽标 */
 [data-theme="bento"] input[type="text"],[data-theme="bento"] input[type="password"],
 [data-theme="bento"] input[type="number"],[data-theme="bento"] textarea,
 [data-theme="bento"] select,[data-theme="bento"] .cselect-btn{
-  border-radius:12px;background:var(--bg-input);border-color:var(--border)}
-[data-theme="bento"] .pill{border-radius:999px;border:1px solid var(--border);background:var(--bg-card)}
-[data-theme="bento"] .pill-ok{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
-[data-theme="bento"] .pill-run{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+  border-radius:12px;background:var(--bg-input);border-color:var(--border);color:var(--text)}
+[data-theme="bento"] .cselect-caret{border-top-color:var(--text-mute)}
+[data-theme="bento"] .pill{border-radius:99px;border:1px solid var(--border);background:var(--bg-elev);
+  color:var(--text-mute)}
+[data-theme="bento"] .pill-ok{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+[data-theme="bento"] .pill-run{background:var(--purple-soft);border-color:transparent;color:#b9a6ff}
 [data-theme="bento"] .pill-warn{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
 [data-theme="bento"] .pill-err{background:var(--danger-soft);border-color:transparent;color:var(--danger)}
-[data-theme="bento"] .pill-p{background:var(--purple-soft);border-color:transparent;color:var(--purple)}
-[data-theme="bento"] .pill-btn{border-color:var(--border)}
-[data-theme="bento"] .mchip{border-radius:999px}
+[data-theme="bento"] .pill-p{background:var(--purple-soft);border-color:transparent;color:#b9a6ff}
+[data-theme="bento"] .mchip{background:var(--bg-card);color:var(--text-dim);border-color:var(--border)}
+[data-theme="bento"] .mchip.on{background:var(--accent);border-color:var(--accent);color:#0c0c0e}
+[data-theme="bento"] th{background:var(--bg-elev);color:var(--text-mute);
+  letter-spacing:.14em;text-transform:uppercase;font-size:10.5px}
+[data-theme="bento"] tr:hover{background:var(--bg-elev)}
 [data-theme="bento"] .phead{border-bottom:none;padding-bottom:4px}
-[data-theme="bento"] .phead h1{font-size:20px;letter-spacing:-.02em}
+[data-theme="bento"] .phead h1{font-size:22px;font-weight:700;letter-spacing:-.03em}
+[data-theme="bento"] .phead .desc{font-size:11.5px;letter-spacing:.12em;text-transform:uppercase}
+[data-theme="bento"] .bc-total{background:var(--bg-elev)}
 [data-theme="bento"] .barchart .bc-plot{border-bottom:1px solid var(--border);
   background:repeating-linear-gradient(to top,transparent 0 calc(50% - 1px),var(--border-soft) calc(50% - 1px) 50%)}
-[data-theme="bento"] .bc-bar i{border-radius:8px}
-[data-theme="bento"] .thprev-b2{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
-  gap:5px;padding:6px;background:#eef0f5}
-[data-theme="bento"] .thprev-b2::before{content:'';grid-column:1;grid-row:1/3;border-radius:8px;
-  background:linear-gradient(160deg,#e8efff,#f4f7ff);border:1px solid #dbe4fb}
-[data-theme="bento"] .thprev-b2::after{content:'';grid-column:2;grid-row:1/3;
-  background:
-    radial-gradient(circle at 50% 25%, #e6f7f0 0 40%, transparent 41%),
-    radial-gradient(circle at 50% 75%, #fdf0e6 0 40%, transparent 41%);
-  border-radius:8px}
+[data-theme="bento"] .bc-bar i{border-radius:3px 3px 0 0}
+[data-theme="bento"] .bc-done{background:linear-gradient(180deg,var(--accent),rgba(200,255,77,.25))!important}
+[data-theme="bento"] .cselect-btn:focus-visible{box-shadow:0 0 0 3px var(--accent-soft)}
+[data-theme="bento"] .card.danger{border-color:rgba(255,107,107,.4)}
+[data-theme="bento"] .bg-line{background:var(--purple-soft);border-color:rgba(124,92,255,.32)}
+[data-theme="bento"] .audio-player .ap-waveform{background:var(--bg-input);border-color:var(--border)}
+[data-theme="bento"] code{background:var(--bg-elev);color:var(--accent)}
+
+/* 主题预览缩略图 */
 .thprev-b2{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:5px;padding:6px;
-  background:#eef0f5}
-.thprev-b2::before{content:'';grid-column:1;grid-row:1/3;border-radius:8px;
-  background:linear-gradient(160deg,#e8efff,#f4f7ff);border:1px solid #dbe4fb}
-.thprev-b2::after{content:'';grid-column:2;grid-row:1/3;border-radius:8px;
-  background:linear-gradient(160deg,#e6f7f0,#fdf0e6);border:1px solid #d4efe3}
+  background:#0c0c0e}
+.thprev-b2::before{content:'';grid-column:1;grid-row:1/3;border-radius:9px;
+  background:linear-gradient(150deg,#243300,#1a2400);border:1px solid #3c5a00}
+.thprev-b2::after{content:'';grid-column:2;grid-row:1/3;border-radius:9px;
+  background:linear-gradient(150deg,#241c3d,#171326);border:1px solid #3a2f5e;
+  box-shadow:inset 0 -22px 0 -20px #c8ff4d}
 
 /* --- 焦点 / 滚动条 / 降级 --------------------------- */
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}

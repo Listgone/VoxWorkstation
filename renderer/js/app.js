@@ -21,7 +21,10 @@ const App = {
     // 主题（在 Store 就绪前先用本地缓存，避免闪白）
     const savedTheme = localStorage.getItem('vox-theme') || 'light';
     document.documentElement.setAttribute('data-theme',
-      ['glass', 'construct'].includes(savedTheme) ? savedTheme : 'light');
+      ['glass', 'construct', 'bento'].includes(savedTheme) ? savedTheme : 'light');
+    const savedFont = localStorage.getItem('vox-font') || 'system';
+    document.documentElement.setAttribute('data-font',
+      ['mono', 'monovar'].includes(savedFont) ? savedFont : 'system');
 
     this._setupWindowControls();
     this._setupThemeToggle();
@@ -199,7 +202,7 @@ const App = {
 
   /* ── 字体 ─────────────────────────────────── */
   applyFont(font) {
-    const mode = font === 'mono' ? 'mono' : 'system';
+    const mode = ['mono', 'monovar'].includes(font) ? font : 'system';
     document.documentElement.setAttribute('data-font', mode);
     localStorage.setItem('vox-font', mode);
     if (Store.settings) Store.saveSettings({ font: mode });
