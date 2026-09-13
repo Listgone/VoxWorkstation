@@ -152,25 +152,6 @@ input,textarea,[contenteditable]{user-select:text !important;-webkit-user-select
 .titlebar-actions button:hover{background:var(--bg-hover);color:var(--text)}
 #btn-close:hover{background:var(--danger);color:#fff}
 
-/* --- 加载页 ---------------------------------------- */
-#loading-overlay{position:fixed;inset:0;background:var(--bg-app);z-index:1000;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
-.loading-spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);
-  border-radius:50%;animation:spin .7s linear infinite}
-#loading-text{color:var(--text-dim);font-size:13px}
-.loading-progress{width:240px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;position:relative}
-.loading-progress::after{content:'';position:absolute;inset:0;width:40%;background:var(--accent);
-  border-radius:2px;animation:loadShimmer 1.6s ease-in-out infinite}
-#loading-elapsed{font-size:11px;color:var(--text-mute);font-variant-numeric:tabular-nums}
-#loading-log{width:min(560px,80vw);max-height:56px;overflow:hidden;
-  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:10.5px;line-height:1.5;
-  color:var(--text-mute);text-align:left;white-space:pre-wrap;word-break:break-all}
-#loading-overlay.is-error .loading-spinner{border-top-color:var(--danger);animation:none}
-#loading-overlay.is-error #loading-text{color:var(--danger)}
-#loading-overlay.is-error .loading-progress{display:none}
-#loading-retry{display:none}
-#loading-overlay.is-error #loading-retry{display:inline-flex}
-
 /* --- 外壳 ------------------------------------------ */
 #app-shell{position:relative;z-index:1;display:flex;flex:1;overflow:hidden}
 
@@ -1217,3 +1198,68 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 .emo-none{border-color:transparent;background:transparent;color:var(--text-mute);opacity:.75}
 [data-theme="construct"] .emo-tag{border-radius:0}
 [data-theme="minimal"] .emo-tag{background:transparent}
+
+/* AI / 本地 处理分组：颜色区分，避免误以为本地按钮也要联网 */
+.actgrp{border-radius:var(--radius);padding:10px 12px;margin-bottom:9px;
+  border:1px solid var(--border);background:var(--bg-app)}
+.actgrp-ai{border-color:rgba(130,80,223,.38);background:var(--purple-soft)}
+.actgrp-local{border-color:var(--border);background:var(--bg-elev)}
+.actgrp-tag{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;
+  letter-spacing:.04em;margin-bottom:8px}
+.actgrp-ai .actgrp-tag{color:var(--purple)}
+.actgrp-local .actgrp-tag{color:var(--text-mute)}
+.actgrp-tag i{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot-ai{background:var(--purple);box-shadow:0 0 8px var(--purple)}
+.dot-local{background:var(--text-mute)}
+/* 本地按钮：中性色，与 AI 的紫形成对比 */
+.btn-local{background:var(--bg-card);border-color:var(--border);color:var(--text-dim)}
+.btn-local:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+[data-theme="minimal"] .actgrp-ai{background:var(--bg-elev);border-color:var(--border)}
+[data-theme="minimal"] .actgrp-ai .actgrp-tag{color:var(--text)}
+[data-theme="minimal"] .dot-ai{background:var(--text);box-shadow:none}
+[data-theme="minimal"] .btn-ai{background:var(--bg-card);border-color:var(--border);color:var(--text)}
+[data-theme="construct"] .actgrp{border-width:2px}
+[data-theme="construct"] .actgrp-ai .actgrp-tag{color:var(--text)}
+[data-theme="construct"] .dot-ai{background:var(--accent);box-shadow:none}
+
+/* ══════════════════════════════════════════════════
+   启动加载页 —— 用动画代替滚动的原始日志
+   ══════════════════════════════════════════════════ */
+#loading-overlay{position:fixed;inset:0;z-index:1000;background:var(--bg-app);
+  display:flex;align-items:center;justify-content:center}
+.ld-stage{display:flex;flex-direction:column;align-items:center;gap:14px;
+  padding:32px 40px;max-width:min(520px,84vw);text-align:center}
+.ld-mark{animation:ldFloat 3.2s ease-in-out infinite}
+@keyframes ldFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.ld-ring{stroke:var(--accent);opacity:.32;transform-origin:32px 32px;
+  animation:ldSpin 3.4s linear infinite}
+.ld-ring2{opacity:.6;animation:ldSpin 2.2s linear infinite reverse}
+@keyframes ldSpin{to{transform:rotate(360deg)}}
+.ld-core{fill:var(--accent);transform-origin:32px 32px;
+  animation:ldPulse 1.6s ease-in-out infinite}
+@keyframes ldPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.35);opacity:.72}}
+[data-theme="glass"] .ld-core{fill:#0a84ff}
+[data-theme="construct"] .ld-ring{border:none}
+.ld-title{font-family:var(--font-head);font-size:17px;font-weight:600;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--text)}
+.ld-text{font-size:13.5px;color:var(--text-dim);min-height:20px}
+.ld-bar{width:220px;height:4px;border-radius:99px;background:var(--bg-elev);overflow:hidden}
+.ld-bar i{display:block;height:100%;width:35%;border-radius:99px;background:var(--accent);
+  animation:ldSlide 1.5s cubic-bezier(.4,0,.6,1) infinite}
+@keyframes ldSlide{0%{transform:translateX(-110%)}100%{transform:translateX(320%)}}
+.ld-elapsed{font-size:11.5px;color:var(--text-mute)}
+.ld-more{background:none;border:none;color:var(--text-mute);font-family:inherit;
+  font-size:11.5px;cursor:pointer;text-decoration:underline;padding:2px 6px}
+.ld-more:hover{color:var(--text-dim)}
+.ld-log{display:none;width:min(560px,80vw);max-height:180px;overflow:auto;text-align:left;
+  font-family:var(--font-code);font-size:10.5px;line-height:1.6;color:var(--text-mute);
+  background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);
+  padding:10px 12px;white-space:pre-wrap;word-break:break-all}
+.ld-log.show{display:block}
+#loading-overlay.is-error .ld-mark{animation:none}
+#loading-overlay.is-error .ld-ring{stroke:var(--danger);animation:none;opacity:.6}
+#loading-overlay.is-error .ld-core{fill:var(--danger);animation:none}
+#loading-overlay.is-error .ld-text{color:var(--danger)}
+#loading-overlay.is-error .ld-bar{display:none}
+#loading-retry{display:none}
+#loading-overlay.is-error #loading-retry{display:inline-flex}

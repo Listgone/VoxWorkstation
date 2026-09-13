@@ -57,12 +57,22 @@
 </div>
 
 <div id="loading-overlay">
-  <div class="loading-spinner"></div>
-  <p id="loading-text">正在启动 VoxCPM2 引擎...</p>
-  <div class="loading-progress"></div>
-  <div id="loading-elapsed">已等待 0 秒</div>
-  <div id="loading-log"></div>
-  <button class="btn btn-secondary" id="loading-retry">重试启动</button>
+  <div class="ld-stage">
+    <div class="ld-mark" aria-hidden="true">
+      <svg viewBox="0 0 64 64" width="64" height="64">
+        <circle class="ld-ring" cx="32" cy="32" r="26" fill="none" stroke-width="2"/>
+        <circle class="ld-ring ld-ring2" cx="32" cy="32" r="18" fill="none" stroke-width="2"/>
+        <circle class="ld-core" cx="32" cy="32" r="6"/>
+      </svg>
+    </div>
+    <h1 class="ld-title">VoxWorkstation</h1>
+    <p id="loading-text" class="ld-text">正在启动语音引擎…</p>
+    <div class="ld-bar"><i id="loading-bar"></i></div>
+    <p id="loading-elapsed" class="ld-elapsed">首次加载模型需要 1–3 分钟，之后会快很多</p>
+    <button class="ld-more" id="loading-toggle-log" type="button">查看详情</button>
+    <pre id="loading-log" class="ld-log"></pre>
+    <button class="btn btn-secondary" id="loading-retry">重试启动</button>
+  </div>
 </div>
 
 <div id="app-shell" style="display:none">

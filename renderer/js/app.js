@@ -301,15 +301,39 @@ const App = {
     this._loadingStart = Date.now();
     clearInterval(this._loadingTimer);
     const el = document.getElementById('loading-elapsed');
-    const tick = () => { if (el) el.textContent = '已等待 ' + Math.round((Date.now() - this._loadingStart) / 1000) + ' 秒'; };
+    const STAGES = [
+      [0,   '正在启动语音引擎…'],
+      [8,   '正在加载声学模型…'],
+      [30,  '正在初始化声码器…'],
+      [60,  '首次加载较慢，正在预热显存…'],
+      [110, '马上就好，模型较大请再等等…']
+    ];
+    const tick = () => {
+      const s = Math.round((Date.now() - this._loadingStart) / 1000);
+      if (el) el.textContent = '已等待 ' + s + ' 秒';
+      // 按时间推进阶段文案，让用户知道不是卡住了
+      for (let i = STAGES.length - 1; i >= 0; i--) {
+        if (s >= STAGES[i][0]) { this._setLoadingText(STAGES[i][1]); break; }
+      }
+    };
     tick();
     this._loadingTimer = setInterval(tick, 1000);
+    // 日志默认收起，需要排查时再展开。
+    // 注意只绑一次：这个方法可能被多次调用，绑两次会让 toggle 互相抵消
+    if (this._logToggleBound) return;
+    this._logToggleBound = true;
+    const tgl = document.getElementById('loading-toggle-log');
+    const log = document.getElementById('loading-log');
+    tgl?.addEventListener('click', () => {
+      const on = log?.classList.toggle('show');
+      tgl.textContent = on ? '收起详情' : '查看详情';
+    });
   },
 
   _setLoadingText(t) { const e = document.getElementById('loading-text'); if (e) e.textContent = t; },
 
   _appendLog(line) {
-    this._logLines = (this._logLines || []).concat(line).slice(-4);
+    this._logLines = (this._logLines || []).concat(line).slice(-200);
     const el = document.getElementById('loading-log');
     if (el) el.textContent = this._logLines.join('\n').trim();
   },
