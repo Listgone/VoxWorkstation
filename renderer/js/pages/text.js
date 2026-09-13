@@ -78,7 +78,7 @@ const TextPage = {
         : '')
 
       + '<div class="card"><h2>处理 <span class="n" id="tx-ai-state">'
-      + (Store.hasApiKey ? 'AI 已配置' : 'AI 未配置 —— 本地规则仍可用') + '</span></h2>'
+      + (Store.hasKey() ? 'AI 已配置' : 'AI 未配置 —— 本地规则仍可用') + '</span></h2>'
       + '<div class="action-row">'
       + '<button class="btn btn-ai" data-act="script">✦ 整理成剧本</button>'
       + '<button class="btn btn-ai" data-act="tn">✦ 本地规范化</button>'
@@ -293,7 +293,7 @@ const TextPage = {
     if (!src.trim()) { Toast.error('没有可整理的文本', true); return; }
     const maxLen = (Store.currentProject.defaults || {}).maxLineLen || 25;
 
-    if (!Store.hasApiKey) {
+    if (!Store.hasKey()) {
       const parsed = TextTools.parseScript(src, maxLen);
       this._applyParsed(parsed);
       App.go('text');
@@ -337,7 +337,7 @@ const TextPage = {
       ['tone', '语气标注', '自动插入 [laughing] / [sigh] 等 VoxCPM2 标记'],
       ['roles', '角色分离', '识别「小明：……」拆成角色 + 台词']
     ];
-    const hasKey = Store.hasApiKey;
+    const hasKey = Store.hasKey();
 
     Modal.open({
       title: '✦ AI 文本处理', width: 620,

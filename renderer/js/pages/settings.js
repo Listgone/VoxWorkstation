@@ -34,6 +34,37 @@ const AI_PROVIDERS = [
     base: '', models: [], free: [] }
 ];
 
+/* 拉取回来的模型往往几十上百个，夹杂大量历史版本。
+   只保留「免费」与「每个家族里版本号最高的那个」——
+   老模型首先不如新模型，列出来只是干扰。 */
+function filterLatestModels(list, freeSet) {
+  const arr = (list || []).filter(Boolean);
+  const free = freeSet instanceof Set ? freeSet : new Set(freeSet || []);
+  const allFree = free.has('*');
+  const verOf = (id) => {
+    const m = String(id).match(/\d+(?:\.\d+)?/g);
+    return m ? Math.max.apply(null, m.map(Number)) : -1;   // 无版本号多为最新别名
+  };
+  const famOf = (id) => String(id).toLowerCase()
+    .replace(/\d+(\.\d+)?/g, '')                 // 去掉版本号与参数量
+    .replace(/[-_.]?(latest|chat|instruct|preview|beta|exp|stable|v\d+)\b/g, '')
+    .replace(/[^a-z\u4e00-\u9fa5]+/g, '')
+    .slice(0, 12);
+  const best = new Map();
+  for (const id of arr) {
+    const f = famOf(id) || id;
+    const v = verOf(id);
+    const cur = best.get(f);
+    if (!cur || v > cur.v || (v === cur.v && String(id).length < String(cur.id).length)) {
+      best.set(f, { id, v });
+    }
+  }
+  const keep = new Set();
+  for (const x of best.values()) keep.add(x.id);
+  if (allFree) return arr;                       // 全免费就不用筛了
+  for (const id of arr) if (free.has(id)) keep.add(id);   // 免费的一律保留
+  return arr.filter(id => keep.has(id));
+}
 const SettingsPage = {
   _sec: 'appearance',
 
@@ -127,11 +158,19 @@ const SettingsPage = {
     const ks = (Store.keyStatus || {})[prov] || {};
     const hasKey = !!ks.has;
     const fetched = ((s.aiModels || {})[prov] || null);
-    const models = (fetched && fetched.list && fetched.list.length) ? fetched.list : (cur.models || []);
+    const showAll = !!(fetched && fetched.showAll);
+    const models = fetched
+      ? ((showAll && fetched.all && fetched.all.length) ? fetched.all : (fetched.list || []))
+      : (cur.models || []);
     const freeSet = new Set(cur.free || []);
     const fetchedAt = fetched && fetched.at ? new Date(fetched.at) : null;
     const fetchedLabel = fetchedAt
-      ? '✓ 已拉取 ' + models.length + ' 个 · ' + fetchedAt.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      ? (showAll
+          ? '显示全部 ' + models.length + ' 个（含历史版本）'
+          : '✓ 最新/免费 ' + models.length + ' 个'
+            + (fetched.all && fetched.all.length > models.length
+                ? '（共拉到 ' + fetched.all.length + ' 个，已滤掉旧版本）' : ''))
+        + ' · ' + fetchedAt.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
       : '';
     const allFree = freeSet.has('*');
     const isFree = (m) => allFree || freeSet.has(m);
@@ -177,8 +216,12 @@ const SettingsPage = {
           + '<input type="text" id="ai-model" value="' + Util.escapeAttr(ai.model || '') + '" style="width:240px;'
           + (isCustomModel || !models.length ? '' : 'display:none') + '" placeholder="手填模型名">'
           + (fetchedLabel
-              ? '<div class="text-sm" style="display:flex;gap:10px;align-items:center;color:var(--ok)">'
+              ? '<div class="text-sm" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:var(--ok)">'
                 + Util.escapeHtml(fetchedLabel)
+                + (fetched && fetched.all && fetched.all.length > (fetched.list || []).length
+                    ? '<a data-act="toggle-all" style="cursor:pointer;text-decoration:underline">'
+                      + (showAll ? '只看最新/免费' : '显示全部 ' + fetched.all.length + ' 个') + '</a>'
+                    : '')
                 + '<a data-act="reset-models" style="cursor:pointer;color:var(--text-mute);'
                 + 'text-decoration:underline">恢复内置清单</a></div>'
               : '')
@@ -564,18 +607,30 @@ const SettingsPage = {
         });
         if (!r.ok) throw new Error(r.message);
         const p = AI_PROVIDERS.find(x => x.id === pickedProvider) || {};
+        const freeSet = new Set(p.free || []);
+        const kept = filterLatestModels(r.models, freeSet);
         // 关键：把结果存进设置，否则一切页面就回到内置清单，看起来像没刷新
         const aiModels = { ...(Store.settings.aiModels || {}) };
-        aiModels[pickedProvider] = { list: r.models, at: Date.now() };
+        aiModels[pickedProvider] = { list: kept, all: r.models, showAll: false, at: Date.now() };
         await Store.saveSettings({ aiModels });
-        renderModels(r.models, p.free || [], el.querySelector('#ai-model').value.trim());
-        if (out) out.textContent = '✓ 拉取到 ' + r.models.length + ' 个模型';
-        Toast.success('已拉取并保存 ' + r.models.length + ' 个模型');
-        setTimeout(() => App.go('settings'), 700);
+        renderModels(kept, p.free || [], el.querySelector('#ai-model').value.trim());
+        if (out) {
+          out.textContent = '✓ 拉到 ' + r.models.length + ' 个，筛出最新/免费 ' + kept.length + ' 个';
+        }
+        Toast.success('已筛出 ' + kept.length + ' 个（共拉到 ' + r.models.length + ' 个）');
+        setTimeout(() => App.go('settings'), 800);
       } catch (err) {
         if (out) out.textContent = '✕ ' + err.message;
         Toast.error('拉取失败：' + err.message, true);
       } finally { btn.disabled = false; btn.textContent = old; }
+    });
+
+    el.querySelector('[data-act="toggle-all"]')?.addEventListener('click', async () => {
+      const aiModels = { ...(Store.settings.aiModels || {}) };
+      const cur2 = aiModels[pickedProvider];
+      if (cur2) { aiModels[pickedProvider] = { ...cur2, showAll: !cur2.showAll }; }
+      await Store.saveSettings({ aiModels });
+      App.go('settings');
     });
 
     el.querySelector('[data-act="reset-models"]')?.addEventListener('click', async () => {

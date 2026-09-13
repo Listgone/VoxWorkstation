@@ -22,6 +22,14 @@ const Store = {
   on(fn) { this._subs.push(fn); return () => { this._subs = this._subs.filter(f => f !== fn); }; },
   emit() { this._subs.forEach(fn => { try { fn(); } catch (e) { console.error(e); } }); },
 
+  /** 当前（或指定）服务商是否配了 key —— 取代旧的全局 hasApiKey */
+  hasKey(provider) {
+    const p = provider
+      || (this.settings && this.settings.ai && this.settings.ai.provider)
+      || 'deepseek';
+    return !!(((this.keyStatus || {})[p]) || {}).has;
+  },
+
   /* ── 初始化 ── */
   async init() {
     const r = await window.electronAPI.settings.get();
