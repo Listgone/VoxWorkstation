@@ -782,6 +782,12 @@ function watchEngineReady() {
       setStatus({ status: 'error', message: '引擎加载失败：' + r.error });
       return;
     }
+    // 下载完成转入加载：这一步不发事件的话，进度条会冻在 98% 不动
+    if (r.phase === 'loading') {
+      deadline = Math.max(deadline, Date.now() + 15 * 60 * 1000);
+      setStatus({ status: 'engine-loading', message: r.message || '正在加载模型' });
+    }
+
     // 正在下载模型：下载可能要几十分钟，不能按「加载超时」算，
     // 每次都把截止时间往后推，并把进度报给界面
     if (r.phase === 'downloading') {
@@ -1091,12 +1097,34 @@ ipcMain.handle('vox:setup:auto', async (_e, opts) => {
       emit('python', 'Python 运行环境已就绪', 0.12, '步骤 2/5 · Python 环境');
     }
 
-    /* 3) 依赖 */
-    emit('pip', '正在安装依赖（首次约 2–3 GB，可以放着不管）…', 0.12, '步骤 3/5 · 安装依赖');
+    /* 3) 依赖：分两步，先单独装 CUDA 版 torch，再装其余。
+       为什么不能用 --extra-index-url：那只是「备用源」，pip 仍优先 PyPI，
+       而 PyPI 上 Windows 的 torch 是 CPU-only 构建 —— 结果模型跑在 CPU 上，
+       实测加载时直接崩（0xC0000005）。必须用 --index-url 指定 CUDA 源。 */
     const req = path.join(dir, 'requirements.txt');
+    emit('pip', '正在安装 PyTorch（CUDA 版，约 2.5 GB）…', 0.14, '步骤 3/5 · 安装 PyTorch');
+    await new Promise((resolve, reject) => {
+      const c = spawn(py, ['-m', 'pip', 'install', 'torch', 'torchaudio',
+                           '--index-url', 'https://download.pytorch.org/whl/cu121',
+                           '--disable-pip-version-check', '--no-warn-script-location'],
+                      { windowsHide: true, cwd: dir });
+      let b1 = '';
+      const od = (d) => {
+        b1 += String(d);
+        const ls = b1.split(/\r?\n/);
+        b1 = ls.pop();
+        const last = ls.filter(Boolean).pop();
+        if (last) emit('pip', last.trim().slice(0, 130), null, '步骤 3/5 · 安装 PyTorch（CUDA 版）');
+      };
+      c.stdout.on('data', od);
+      c.stderr.on('data', od);
+      c.on('error', reject);
+      c.on('close', (code) => code === 0 ? resolve() : reject(new Error('PyTorch 安装失败（退出码 ' + code + '）')));
+    });
+    emit('pip', 'PyTorch 就绪，继续安装其余依赖…', 0.55, '步骤 3/5 · 安装其余依赖');
+
     await new Promise((resolve, reject) => {
       const c = spawn(py, ['-m', 'pip', 'install', '-r', req,
-                           '--extra-index-url', 'https://download.pytorch.org/whl/cu121',
                            '--disable-pip-version-check', '--no-warn-script-location'],
                       { windowsHide: true, cwd: dir });
       let buf = '';
@@ -1130,10 +1158,10 @@ ipcMain.handle('vox:setup:auto', async (_e, opts) => {
       c.on('error', reject);
       c.on('close', (code) => code === 0 ? resolve() : reject(new Error('依赖安装失败（退出码 ' + code + '）')));
     });
-    emit('pip', '依赖安装完成', 0.55, '依赖已就绪');
+    emit('pip', '依赖安装完成', 0.85, '依赖已就绪');
 
     /* 4) 写配置并启动（模型由后端自动下载） */
-    emit('config', '正在写入配置…', 0.56, '步骤 4/5 · 写入配置');
+    emit('config', '正在写入配置…', 0.87, '步骤 4/5 · 写入配置');
     const file = path.join(app.getPath('userData'), 'vox.config.json');
     let cur = {};
     try { cur = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (err) { /* 首次 */ }
@@ -1144,7 +1172,7 @@ ipcMain.handle('vox:setup:auto', async (_e, opts) => {
     killServerTree();
     serverState = 'idle';
     if (enginePoll) { clearInterval(enginePoll); enginePoll = null; }
-    emit('start', '正在启动后端…', 0.58, '步骤 5/5 · 下载语音模型');
+    emit('start', '正在启动后端…', 0.90, '步骤 5/5 · 下载语音模型');
     const res = await ensureServer();
     return { ok: res.ok !== false, dir, python: py, message: res.message || '' };
   } catch (e) {

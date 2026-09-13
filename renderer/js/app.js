@@ -287,6 +287,7 @@ const App = {
       if (data.status === 'ready') this._onServerReady();
       else if (data.status === 'engine-ready') this._onEngineReady();
       else if (data.status === 'engine-downloading') this._onEngineDownloading(data);
+      else if (data.status === 'engine-loading') this._onEngineLoading(data);
       else if (data.status === 'starting') {
         this._setLoadingText(data.message || '正在启动引擎...');
         this._setSideStatus('启动中', 'loading');
@@ -428,6 +429,23 @@ const App = {
   },
 
   /** 正在下载模型：显示真实进度（首次启动可能要几十分钟） */
+  /** 模型下载完成、转入加载：把两条进度条都推到 100%，并换文案 */
+  _onEngineLoading(d) {
+    this._pgPaused = true;
+    this._smoothTo('loading-bar', 100);
+    const setupBox = document.getElementById('setup-prog');
+    if (setupBox && setupBox.style.display !== 'none') {
+      this._smoothTo('setup-prog-fill', 100);
+      const cap = document.getElementById('setup-prog-cap');
+      if (cap) cap.textContent = '步骤 5/5 · 正在加载模型';
+      const txt = document.getElementById('setup-prog-text');
+      if (txt) txt.textContent = '模型已下载完成，正在加载到显卡（首次约 30–60 秒）…';
+    }
+    this._setLoadingText('正在加载模型到显卡…');
+    this._setSideStatus('加载模型', 'loading');
+    this._openLog();
+  },
+
   _onEngineDownloading(d) {
     const pct = Math.round((d.progress || 0) * 100);
     let dlText = '正在下载模型 ' + (d.downloadedMb || 0) + ' / '

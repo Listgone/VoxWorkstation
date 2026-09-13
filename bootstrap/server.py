@@ -286,6 +286,39 @@ def _download_model_files():
         from modelscope import snapshot_download
         snapshot_download(MODEL_REPO, local_dir=MODEL_PATH)
 
+
+def _gpu_precheck():
+    """加载前先检查显卡是否满足要求。
+
+    为什么需要：实测 GTX 1050 Ti（Pascal 6.1 / 4GB）在 CPU 上加载
+    bfloat16 模型会直接崩（Windows 报 0xC0000005 访问违例），
+    客户端只看到一个没头没尾的退出码。这里提前判断并给出人话原因。
+    返回 (是否可用, 说明)。
+    """
+    try:
+        import torch
+    except Exception as e:
+        return False, "PyTorch 未正确安装：" + str(e)
+    try:
+        if not torch.cuda.is_available():
+            return False, ("未检测到可用的 CUDA 设备。若使用 NVIDIA 显卡，"
+                           "通常是装了 CPU 版 PyTorch —— 需从 CUDA 源重装："
+                           "pip install torch torchaudio --index-url "
+                           "https://download.pytorch.org/whl/cu121")
+        cap = torch.cuda.get_device_capability(0)
+        name = torch.cuda.get_device_name(0)
+        props = torch.cuda.get_device_properties(0)
+        vram = props.total_memory / 1024 ** 3
+        if cap[0] < 8:
+            return False, (f"{name} 为 {cap[0]}.{cap[1]} 架构，不支持 bfloat16。"
+                           "本模型以 bf16 加载，需要 8.0 及以上（RTX 30 系及以后）。")
+        if vram < 7:
+            return False, f"{name} 显存仅 {vram:.1f} GB，模型需要约 8 GB。"
+        return True, f"{name}（{cap[0]}.{cap[1]}，{vram:.1f} GB）"
+    except Exception as e:
+        return False, "显卡检测失败：" + str(e)
+
+
 def _bootstrap():
     """后台线程：确保模型文件（必要时下载）→ 加载模型。
 
@@ -317,7 +350,13 @@ def _bootstrap():
             _phase.update(progress=1.0, downloaded=_dir_size(MODEL_PATH))
             print("模型下载完成。", flush=True)
 
-        # 2) 加载
+        # 2) 加载前检查显卡 —— 不满足就给明确原因，而不是让它崩掉
+        #    （实测 GTX 1050 Ti 在 CPU 上加载 bf16 模型会直接崩，只留一个退出码）
+        _ok_gpu, _gpu_msg = _gpu_precheck()
+        print("显卡检查：" + _gpu_msg, flush=True)
+        if not _ok_gpu:
+            raise RuntimeError("显卡不满足要求 —— " + _gpu_msg)
+
         _phase.update(phase='loading', message='正在加载模型')
         print("正在加载 VoxCPM2 模型...", flush=True)
         _t0 = time.time()

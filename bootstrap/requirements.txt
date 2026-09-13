@@ -1,13 +1,9 @@
-# PyTorch (GPU 版本，对应 CUDA 12.1)
-# 注意：实际部署用的是 2.5.1；原先写死的 2.0.1 与新版 voxcpm 不兼容。
-# 安装建议直接用官方源，别钉死小版本：
+# 注意：torch / torchaudio 由客户端单独从 CUDA 源安装
 #   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
-torch>=2.5.1
-torchaudio>=2.5.1
+# 不要写在这里 —— 写在这里 pip 会从 PyPI 拿 Windows 的 CPU-only 构建，
+# 结果就是模型跑在 CPU 上（实测：慢到不可用，且加载时直接崩）。
+# torch / torchaudio 见上方注释
 
-# VoxCPM 及相关依赖
-# 2.0.3 起 from_pretrained 默认 optimize=True，推理更快
-voxcpm>=2.0.3
 soundfile
 fastapi
 uvicorn
