@@ -1209,3 +1209,11 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 .emo-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
 @media (max-width:1240px){#page-dub th:nth-child(3),#page-dub td:nth-child(3){display:none}}
 
+
+/* 情绪标注：分三级，视觉上能一眼分辨依据强弱 */
+.emo-tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:20px;
+  border:1px solid var(--border);background:var(--bg-elev);color:var(--text-dim);white-space:nowrap}
+.emo-infer{border-style:dashed;color:var(--text-mute);background:transparent}
+.emo-none{border-color:transparent;background:transparent;color:var(--text-mute);opacity:.75}
+[data-theme="construct"] .emo-tag{border-radius:0}
+[data-theme="minimal"] .emo-tag{background:transparent}

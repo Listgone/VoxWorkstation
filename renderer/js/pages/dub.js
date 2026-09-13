@@ -107,7 +107,7 @@ const DubPage = {
     return '<tr><td class="num">' + (i + 1) + '</td>'
       + '<td><button class="pill pill-btn" data-act="set-role" data-i="' + i + '" title="改这一句的角色">'
       + Util.escapeHtml(role) + ' ▾</button></td>'
-      + '<td class="text-sm text-muted emo-cell" title="角色名与情绪只是标注，不会送进 TTS">' + (l.emotion ? Util.escapeHtml(l.emotion) : '—') + '</td>'
+      + '<td class="emo-cell">' + TextPage._emoCell(l) + '</td>'
       + '<td class="tx">' + Util.escapeHtml(l.text || '') + '</td>'
       + '<td><button class="pill pill-btn" data-act="set-voice" data-i="' + i + '" title="单独指定这一句的音色">'
       + Util.escapeHtml(l.voice || '跟随角色') + ' ▾</button></td>'

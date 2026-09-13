@@ -91,7 +91,10 @@ const TextPage = {
       + '「本地规范化」不联网；「AI 处理…」需要先配置服务商。</p></div>'
 
       + '<div class="card"><h2>分句 <span class="n">' + d.lines.length + ' 句'
-      + (roles.length ? ' · ' + roles.map(r => Util.escapeHtml(r)).join(' / ') : '') + '</span></h2>'
+      + (roles.length ? ' · ' + roles.map(r => Util.escapeHtml(r)).join(' / ') : '')
+      + (d.lines.length ? ' · 情绪：明确 ' + this._emoStats(d.lines).explicit
+          + ' / 推断 ' + this._emoStats(d.lines).inferred
+          + ' / 未标明 ' + this._emoStats(d.lines).neutral : '') + '</span></h2>'
       + (d.lines.length
         ? '<table><tr><th style="width:36px">#</th><th style="width:88px">角色</th><th style="width:92px">情绪 / 动作</th><th>台词</th>'
           + '<th style="width:56px">字数</th><th style="width:104px">音色</th><th style="width:56px">状态</th></tr>'
@@ -117,11 +120,45 @@ const TextPage = {
     return '<div class="drop" data-act="import-' + act + '"><b>' + title + '</b><span>' + sub + '</span></div>';
   },
 
+  /** 情绪来源分级：explicit 原文明确 / inferred 推断 / neutral 未标明 / none 空 */
+  _emoKind(label) {
+    const s = String(label || '').trim();
+    if (!s) return 'none';
+    if (/^推断\s*[：:]/.test(s)) return 'inferred';
+    if (/^(未标明|中性|无|未知|不详)$/.test(s)) return 'neutral';
+    return 'explicit';
+  },
+
+  _emoCell(l) {
+    const kind = l.emotionKind || this._emoKind(l.emotion);
+    const txt = l.emotion || '未标明';
+    if (kind === 'inferred') {
+      return '<span class="emo-tag emo-infer" title="由上下文推断，仅作配音参考，不强制">'
+        + Util.escapeHtml(txt) + '</span>';
+    }
+    if (kind === 'neutral' || kind === 'none') {
+      return '<span class="emo-tag emo-none" title="原文未提供情绪，TTS 按中性平和处理">'
+        + Util.escapeHtml(txt) + '</span>';
+    }
+    return '<span class="emo-tag" title="原文明确标注">' + Util.escapeHtml(txt) + '</span>';
+  },
+
+  _emoStats(lines) {
+    const c = { explicit: 0, inferred: 0, neutral: 0 };
+    for (const l of lines) {
+      const k = l.emotionKind || this._emoKind(l.emotion);
+      if (k === 'inferred') c.inferred++;
+      else if (k === 'neutral' || k === 'none') c.neutral++;
+      else c.explicit++;
+    }
+    return c;
+  },
+
   _lineRow(l, i) {
     const st = l.audio ? '<span class="pill pill-ok">✓</span>' : '<span class="text-muted">·</span>';
     return '<tr><td class="num">' + (i + 1) + '</td>'
       + '<td><span class="pill">' + Util.escapeHtml(l.role || '旁白') + '</span></td>'
-      + '<td class="text-sm text-muted">' + (l.emotion ? Util.escapeHtml(l.emotion) : '—') + '</td>'
+      + '<td>' + this._emoCell(l) + '</td>'
       + '<td class="tx">' + Util.escapeHtml(l.text || '') + '</td>'
       + '<td class="num">' + (l.text || '').length + '</td>'
       + '<td class="text-sm text-muted">' + Util.escapeHtml(l.voice || '—') + '</td>'
@@ -136,7 +173,8 @@ const TextPage = {
     };
     this._draft.background = parsed.background || '';
     this._draft.lines = parsed.lines.map(l => ({
-      text: l.text, role: l.role || '旁白', emotion: l.emotion || '',
+      text: l.text, role: l.role || '旁白',
+      emotion: l.emotion || '中性', emotionKind: this._emoKind(l.emotion || '中性'),
       voice: voiceFor(l.role || '旁白'), audio: '', error: ''
     }));
     // 按规范的两段式回写，方便人工核对
@@ -536,7 +574,7 @@ const TextTools = {
       // 宽松模式降级为旁白（用户明确要求全篇配音时）
       if (mode === 'dlg') continue;
       if (strict) bgParts.push(s);
-      else push('旁白', '', s);
+      else push('旁白', '中性', s);
     }
     return { background: bgParts.join('\n'), lines };
   },
