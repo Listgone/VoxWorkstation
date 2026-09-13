@@ -342,6 +342,7 @@ const TextPage = {
         Modal.close();
         App.go('text');
       } catch (err) {
+        Notify.onFail();
         Toast.error('AI 处理失败：' + (err.message || err), true);
       } finally { btn.disabled = false; }
     });
@@ -410,6 +411,7 @@ const TextPage = {
     const cost = ((tokenTotal.prompt_tokens * 0.001 + tokenTotal.completion_tokens * 0.002) / 1000).toFixed(4);
     say('完成 · token ' + (tokenTotal.prompt_tokens + tokenTotal.completion_tokens)
       + '（输入 ' + tokenTotal.prompt_tokens + ' / 输出 ' + tokenTotal.completion_tokens + '）');
+    Notify.onDone();
     Toast.success('AI 处理完成 · ' + tasks.length + ' 项');
   },
 

@@ -4,9 +4,12 @@
 
 /* OpenAI 兼容服务商预设 —— 换服务商只改这里的 baseURL 与模型 */
 const AI_PROVIDERS = [
-  { id: 'deepseek', name: 'DeepSeek',    sub: '中文最准 · 便宜 · 国内直连',
+  { id: 'deepseek', name: 'DeepSeek',    sub: '国内直连 · 错峰半价',
     base: 'https://api.deepseek.com/v1',
-    models: ['deepseek-chat', 'deepseek-reasoner'] },
+    models: ['deepseek-flash', 'deepseek-v4-pro'],
+    note: 'deepseek-flash 便宜且支持视觉（1M 上下文），文本处理完全够用；'
+        + '错峰时段（北京时间 09:00-12:00、14:00-18:00 之外，含整个周末）价格减半。'
+        + '旧的 deepseek-chat / deepseek-reasoner 已下线。' },
   { id: 'qwen',     name: '通义千问',    sub: '阿里云 DashScope',
     base: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     models: ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long'] },
@@ -125,6 +128,8 @@ const SettingsPage = {
       + '</span></h2>'
       + '<p class="text-sm text-muted" style="margin:-6px 0 10px">'
       + '所有服务商都走 OpenAI 兼容接口。选一个会自动填好地址与模型，也可以手改。</p>'
+      + (cur.note ? '<div class="bg-line" style="margin-bottom:12px">'
+          + '<div class="bg-text" style="font-size:12px">' + Util.escapeHtml(cur.note) + '</div></div>' : '')
       + '<div class="themes" style="flex-wrap:wrap;margin-bottom:6px">'
       + AI_PROVIDERS.map(p =>
           '<div class="th' + (ai.provider === p.id ? ' on' : '') + '" data-provider="' + p.id + '" style="width:164px">'
@@ -141,8 +146,8 @@ const SettingsPage = {
           + '</div>'
           + '<input type="text" id="ai-model" value="' + Util.escapeAttr(ai.model || '') + '" style="width:230px;'
           + (isCustomModel || !models.length ? '' : 'display:none') + '" placeholder="手填模型名">')
-      + this._row('视觉模型（OCR）', '图片取字用，留空则关闭该功能',
-          '<input type="text" id="ai-vision" value="' + Util.escapeAttr(ai.visionModel || '') + '" placeholder="如 qwen-vl-max" style="width:220px">')
+      + this._row('视觉模型（OCR）', '图片取字用；DeepSeek 可直接填 deepseek-flash，留空则关闭该功能',
+          '<input type="text" id="ai-vision" value="' + Util.escapeAttr(ai.visionModel || '') + '" placeholder="如 deepseek-flash / qwen-vl-max" style="width:220px">')
       + this._row('API Key', '用系统凭据加密存储，不落明文',
           '<input type="password" id="ai-key" placeholder="' + (Store.hasApiKey ? '已保存（留空则不修改）' : 'sk-…') + '" style="width:240px">'
           + '<button class="btn btn-sm" data-act="test">测试连接</button>')
@@ -235,9 +240,28 @@ const SettingsPage = {
 
   _notify(s) {
     const n = s.notify || {};
+    const sound = n.sound || 'chime';
+    const vol = n.volume ?? 70;
     return '<div class="card"><h2>通知</h2>'
-      + this._row('生成完成时提醒', '批量生成耗时较长', this._sw(n.onDone !== false, 'toggle-done'))
-      + this._row('生成失败时提醒', '失败句子会在集管理里标红', this._sw(n.onFail !== false, 'toggle-fail'))
+      + this._row('生成完成时提醒', '批量生成耗时较长，完成后响一声', this._sw(n.soundEnabled !== false, 'toggle-sound'))
+      + this._row('提醒内容', '不想要哪一种就关掉',
+          '<div class="model-chips">'
+          + '<button type="button" class="mchip' + (n.onDone !== false ? ' on' : '') + '" data-notify="onDone">成功时提醒</button>'
+          + '<button type="button" class="mchip' + (n.onFail !== false ? ' on' : '') + '" data-notify="onFail">失败时提醒</button>'
+          + '</div>')
+      + this._row('提示音', '现场合成，不占体积',
+          '<div class="model-chips" id="sound-chips">'
+          + Notify.SOUNDS.map(([id, name]) =>
+              '<button type="button" class="mchip' + (sound === id ? ' on' : '') + '" data-sound="' + id + '">'
+              + name + '</button>').join('')
+          + '</div>')
+      + this._row('音量', '',
+          '<input type="range" id="n-vol" min="0" max="100" value="' + vol + '" style="width:170px">'
+          + '<b class="text-sm" id="n-vol-v" style="width:36px;text-align:right">' + vol + '%</b>'
+          + '<button class="btn btn-sm" data-act="test-sound">试听</button>')
+      + '<p class="text-sm text-muted mt-12" style="margin-bottom:0">'
+      + '提示音在「生成全部台词」「AI 处理」「整轨导出」完成后播放。'
+      + '失败时用下行音，和成功区分开。</p>'
       + '</div>';
   },
 
@@ -306,8 +330,31 @@ const SettingsPage = {
     toggle('toggle-motion',   v => save({ reduceMotion: !v }));
     toggle('toggle-tts',      v => save({ tts: { ...s.tts, autoStart: v } }));
     toggle('toggle-srt',      v => save({ output: { ...s.output, exportSrt: v } }));
-    toggle('toggle-done',     v => save({ notify: { ...s.notify, onDone: v } }));
-    toggle('toggle-fail',     v => save({ notify: { ...s.notify, onFail: v } }));
+    toggle('toggle-sound',    v => save({ notify: { ...s.notify, soundEnabled: v } }));
+
+    /* 通知：内容开关 / 提示音 / 音量 */
+    el.querySelectorAll('[data-notify]').forEach(b =>
+      b.addEventListener('click', () => {
+        const key = b.dataset.notify;
+        const on = !b.classList.contains('on');
+        b.classList.toggle('on', on);
+        save({ notify: { ...s.notify, [key]: on } });
+      }));
+    el.querySelectorAll('#sound-chips [data-sound]').forEach(b =>
+      b.addEventListener('click', () => {
+        el.querySelectorAll('#sound-chips .mchip').forEach(x => x.classList.toggle('on', x === b));
+        save({ notify: { ...s.notify, sound: b.dataset.sound } });
+        if (b.dataset.sound !== 'none') setTimeout(() => Notify.play(b.dataset.sound), 120);
+      }));
+    const volEl = el.querySelector('#n-vol');
+    volEl?.addEventListener('input', () => {
+      const v = Number(volEl.value);
+      const lbl = el.querySelector('#n-vol-v');
+      if (lbl) lbl.textContent = v + '%';
+      s.notify = { ...s.notify, volume: v };   // 拖动时先改内存，松手再落盘
+    });
+    volEl?.addEventListener('change', () => save({ notify: { ...s.notify, volume: Number(volEl.value) } }));
+    el.querySelector('[data-act="test-sound"]')?.addEventListener('click', () => Notify.play());
     toggle('toggle-redact',   v => save({ privacy: { ...s.privacy, redact: v } }));
     toggle('toggle-onlycur',  v => save({ privacy: { ...s.privacy, onlyCurrentParagraph: v } }));
     toggle('toggle-diff',     v => save({ privacy: { ...s.privacy, keepDiffHistory: v } }));

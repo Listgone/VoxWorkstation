@@ -135,6 +135,7 @@ const ExportPage = {
         });
         await Store.openEpisode(no);
         App.go('export');
+        Notify.onDone();
         Toast.success('已导出：' + name);
       } catch (e) {
         Toast.error('导出失败：' + (e.message || e), true);
@@ -163,6 +164,7 @@ const ExportPage = {
       });
       await Store.openEpisode(no);
       App.go('export');
+      Notify.onDone();
       Toast.success('已导出字幕：' + name);
     });
   },

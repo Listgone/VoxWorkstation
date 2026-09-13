@@ -28,40 +28,23 @@ const VoicesPage = {
       + '</div>';
   },
 
-  /** 由音色名派生的确定性配色 —— 同一个音色永远同一个颜色 */
-  _tone(name) {
-    let h = 0;
-    for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-    const a = h % 360;
-    const b = (a + 42 + (h >> 8) % 40) % 360;
-    return {
-      a, b,
-      grad: 'linear-gradient(135deg,hsl(' + a + ' 78% 64%),hsl(' + b + ' 72% 46%))',
-      soft: 'linear-gradient(135deg,hsl(' + a + ' 78% 64% / .16),hsl(' + b + ' 72% 46% / .10))'
-    };
-  },
-
   _card(v) {
     const used = this._usedBy(v.name);
-    const t = this._tone(String(v.name));
     const initial = String(v.name).trim().slice(0, 1) || '音';
     const kind = v.voice_file ? '声纹克隆' : '音色设计';
-    return '<div class="vcard" style="--tone-a:' + t.a + ';--tone-b:' + t.b + '">'
-      // 顶部一条渐变窄带（占卡片一小部分，不抢内容）
-      + '<div class="vtone" style="background:' + t.grad + '"></div>'
-      + '<div class="vbody">'
+    return '<div class="vcard">'
       + '<div class="vtop">'
-      + '<div class="vchip" style="background:' + t.grad + '">' + Util.escapeHtml(initial) + '</div>'
+      + '<div class="vchip">' + Util.escapeHtml(initial) + '</div>'
       + '<div class="vn"><b>' + Util.escapeHtml(v.name) + '</b>'
       + '<span>' + kind + (v.desc ? ' · ' + Util.escapeHtml(v.desc) : '') + '</span></div>'
       + '</div>'
       + '<div class="vacts">'
       + '<button class="btn btn-sm" data-act="audition" data-name="' + Util.escapeAttr(v.name) + '"'
       + (v.voice_file ? '' : ' disabled title="这个音色没有声纹文件，无法试听"') + '>▶ 试听</button>'
-      + (used ? '<span class="pill pill-run">用于 ' + Util.escapeHtml(used) + '</span>' : '')
+      + (used ? '<span class="pill">用于 ' + Util.escapeHtml(used) + '</span>' : '')
       + '<span style="flex:1"></span>'
       + '<button class="btn btn-sm btn-ghost btn-danger" data-act="del" data-name="' + Util.escapeAttr(v.name) + '">删</button>'
-      + '</div></div></div>';
+      + '</div></div>';
   },
 
   _usedBy(voiceName) {

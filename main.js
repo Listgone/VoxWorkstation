@@ -81,7 +81,7 @@ const APP_SETTINGS_DEFAULTS = {
   },
   project: { autoSaveSec: 30, dailyBackup: true },
   privacy: { redact: false, onlyCurrentParagraph: true, keepDiffHistory: true },
-  notify: { onDone: true, onFail: true }
+  notify: { soundEnabled: true, sound: 'chime', volume: 70, onDone: true, onFail: true }
 };
 
 let appSettings = null;

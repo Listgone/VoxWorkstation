@@ -388,8 +388,11 @@ const DubPage = {
     await Store.openEpisode(Store.currentEpisodeNo);
     const failed = (Store.currentEpisode.lines || []).filter(l => l.error).length;
     App.go('dub');
-    if (failed) Toast.error('完成，但有 ' + failed + ' 句失败', true);
-    else Toast.success('已生成 ' + total + ' 句并保存到 第'
-      + String(Store.currentEpisodeNo).padStart(p.padWidth || 2, '0') + '集\\audio\\');
+    if (failed) { Toast.error('完成，但有 ' + failed + ' 句失败', true); Notify.onFail(); }
+    else {
+      Notify.onDone();
+      Toast.success('已生成 ' + total + ' 句并保存到 第'
+        + String(Store.currentEpisodeNo).padStart(p.padWidth || 2, '0') + '集\\audio\\');
+    }
   }
 };

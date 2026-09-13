@@ -461,30 +461,26 @@ svg{display:block}
 /* --- 音色库 ---------------------------------------- */
 .vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:11px}
 .vcard{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg-card);
-  overflow:hidden;display:flex;flex-direction:column;
-  transition:border-color var(--transition),transform var(--transition)}
-.vcard:hover{border-color:var(--text-mute);transform:translateY(-2px)}
-/* 顶部渐变窄带 —— 只占卡片一小条，用来区分音色 */
-.vtone{height:5px;flex-shrink:0}
-.vbody{padding:13px 14px;display:flex;flex-direction:column;gap:11px;flex:1}
+  padding:13px 14px;display:flex;flex-direction:column;gap:11px;
+  transition:border-color var(--transition)}
+.vcard:hover{border-color:var(--text-mute)}
 .vtop{display:flex;align-items:center;gap:11px;min-width:0}
-/* 渐变方块代替原来的音波图标，里面放音色首字 */
-.vchip{width:44px;height:44px;border-radius:12px;flex-shrink:0;
+/* 方块用主题自身的中性色，只有首字，不引任何彩色 */
+.vchip{width:42px;height:42px;border-radius:var(--radius);flex-shrink:0;
   display:flex;align-items:center;justify-content:center;
-  color:#fff;font-size:17px;font-weight:600;letter-spacing:.02em;
-  text-shadow:0 1px 3px rgba(0,0,0,.28);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.32), 0 2px 8px hsl(var(--tone-a) 70% 40% / .28)}
+  background:var(--bg-elev);border:1px solid var(--border);
+  color:var(--text-dim);font-size:16px;font-weight:600;line-height:1;
+  transition:border-color var(--transition),color var(--transition)}
+.vcard:hover .vchip{border-color:var(--accent);color:var(--accent)}
 .vn{min-width:0;flex:1}
 .vn b{display:block;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vn span{font-size:11px;color:var(--text-mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
-.vacts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:auto}
-/* 其它主题的适配 */
-[data-theme="glass"] .vchip{box-shadow:inset 0 1px 0 rgba(255,255,255,.45), 0 4px 14px hsl(var(--tone-a) 70% 45% / .35)}
-[data-theme="construct"] .vcard{border-width:3px}
-[data-theme="construct"] .vtone{height:7px;border-bottom:3px solid var(--border)}
-[data-theme="construct"] .vchip{border-radius:0;border:3px solid var(--border);text-shadow:none}
-[data-theme="minimal"] .vchip{box-shadow:none;filter:grayscale(1) contrast(1.15)}
-[data-theme="minimal"] .vtone{filter:grayscale(1)}
+.vacts{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+/* 主题适配：构成主义方角粗边、极简黑白更收敛 */
+[data-theme="construct"] .vchip{border-width:2px;font-weight:700}
+[data-theme="minimal"] .vchip{background:transparent}
+[data-theme="glass"] .vchip{background:rgba(255,255,255,.55);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
 
 /* --- 选择列表 -------------------------------------- */
 .pick-list{display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto}
