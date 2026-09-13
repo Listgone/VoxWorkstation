@@ -682,7 +682,23 @@ function startServer() {
     // 用 StringDecoder 级别的流式解码，避免中文日志被块边界劈开
     child.stdout?.setEncoding('utf8');
     child.stderr?.setEncoding('utf8');
-    child.stdout?.on('data', (s) => pushLog(s));
+    // 后端在绑定成功后会打印 VOX_PORT_ACTUAL=<port>，
+    // 用它同步真实端口 —— 比客户端预判可靠（Windows 端口排除段很宽）
+    let _portScan = '';
+    child.stdout?.on('data', (s) => {
+      pushLog(s);
+      if (!_portScan && s.indexOf('VOX_PORT_ACTUAL') < 0) return;
+      _portScan += s;
+      const mm = _portScan.match(/VOX_PORT_ACTUAL=(\d+)/);
+      if (mm) {
+        const actual = Number(mm[1]);
+        _portScan = '!done';
+        if (actual !== CONFIG.serverPort) {
+          pushLog('[shell] 后端实际监听 ' + actual + '（配置为 ' + CONFIG.serverPort + '），已同步');
+          CONFIG.serverPort = actual;
+        }
+      }
+    });
     child.stderr?.on('data', (s) => pushLog(s));
 
     let settled = false;
