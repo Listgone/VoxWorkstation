@@ -7,27 +7,22 @@
    设置页有「拉取服务商模型」按钮，直接问服务商要真实列表，以那个为准。
    free 里列的是已知有免费额度的模型，界面上会打「免费」标。 */
 const AI_PROVIDERS = [
-  { id: 'deepseek', name: 'DeepSeek',    sub: '国内直连',
+  { id: 'deepseek', name: 'DeepSeek',    sub: '自研 · 国内直连', own: '^deepseek',
     base: 'https://api.deepseek.com/v1',
     models: ['deepseek-flash', 'deepseek-v4-pro'], free: [] },
-  { id: 'zhipu',    name: '智谱 GLM',    sub: '有免费模型',
+  { id: 'zhipu',    name: '智谱 GLM',    sub: '自研 · 有免费模型', own: '^(glm|charglm|embedding-)',
     base: 'https://open.bigmodel.cn/api/paas/v4',
     models: ['glm-5.3-flash', 'glm-5.3', 'glm-5.2', 'glm-ocr'],
     free: ['glm-5.3-flash'] },
-  { id: 'qwen',     name: '通义千问',    sub: '阿里云 DashScope',
+  { id: 'qwen',     name: '通义千问',    sub: '自研 · 阿里云百炼', own: '^qwen',
     base: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'qwen-long'], free: [] },
-  { id: 'kimi',     name: 'Kimi',        sub: '超长上下文',
-    base: 'https://api.moonshot.cn/v1',
-    models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k', 'kimi-latest'], free: [] },
-  { id: 'silicon',  name: '硅基流动',    sub: '有免费模型',
-    base: 'https://api.siliconflow.cn/v1',
-    models: ['Qwen/Qwen2.5-7B-Instruct', 'Qwen/Qwen2.5-72B-Instruct', 'deepseek-ai/DeepSeek-V3'],
-    free: ['Qwen/Qwen2.5-7B-Instruct'] },
-  { id: 'openai',   name: 'OpenAI',      sub: '需要能访问境外',
+
+
+  { id: 'openai',   name: 'OpenAI',      sub: '自研 · 需要能访问境外', own: '^(gpt|o[1-9]|chatgpt)',
     base: 'https://api.openai.com/v1',
     models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'], free: [] },
-  { id: 'ollama',   name: '本地 Ollama', sub: '全部免费 · 数据不出网',
+  { id: 'ollama',   name: '本地 Ollama', sub: '本地部署 · 数据不出网', own: null,
     base: 'http://127.0.0.1:11434/v1',
     models: ['qwen2.5:7b', 'qwen2.5:14b', 'llama3.1:8b'], free: ['*'] },
   { id: 'custom',   name: '自定义',      sub: '任意 OpenAI 兼容端点',
@@ -532,15 +527,26 @@ const SettingsPage = {
     const bindModelRow = () => {
       const inp = el.querySelector('#ai-model');
       if (!inp) return;
-      const sel = el.querySelector('#ai-model-pick');
-      if (sel && !sel.dataset.selReady) {
-        Select.enhance(el.querySelector('.ctrl-col'));
-        const s2 = el.querySelector('#ai-model-pick');
-        s2?.addEventListener('change', () => {
-          if (s2.value === '__custom__') { inp.style.display = ''; inp.focus(); }
-          else { inp.style.display = 'none'; inp.value = s2.value; }
-        });
+
+      // 下拉形态的 change 监听必须单独打标记：
+      // App.go() 会先跑 Select.enhance(el)，那时 select 已被打上
+      // data-sel-ready，用那个标记做判断会导致监听器永远绑不上
+      const onPick = (s) => () => {
+        if (s.value === '__custom__') { inp.style.display = ''; inp.focus(); }
+        else { inp.style.display = 'none'; inp.value = s.value; }
+      };
+      let sel = el.querySelector('#ai-model-pick');
+      if (sel && !sel.dataset.bound) {
+        if (!sel.dataset.selReady) {
+          Select.enhance(el.querySelector('.ctrl-col'));
+          sel = el.querySelector('#ai-model-pick');       // enhance 会替换节点，重新取
+        }
+        if (sel && !sel.dataset.bound) {
+          sel.dataset.bound = '1';
+          sel.addEventListener('change', onPick(sel));
+        }
       }
+
       el.querySelectorAll('#ai-models .mchip').forEach(c =>
         c.addEventListener('click', () => {
           el.querySelectorAll('#ai-models .mchip').forEach(x => x.classList.toggle('on', x === c));
@@ -608,16 +614,21 @@ const SettingsPage = {
         if (!r.ok) throw new Error(r.message);
         const p = AI_PROVIDERS.find(x => x.id === pickedProvider) || {};
         const freeSet = new Set(p.free || []);
-        const kept = filterLatestModels(r.models, freeSet);
+        // 只保留这家自己的模型 —— 聚合平台会把别家的也列出来，
+        // 既看不过来，也没必要在这里配（跨平台价格只会更贵）
+        const ownRe = p.own ? new RegExp(p.own, 'i') : null;
+        const mine = ownRe ? r.models.filter(m => ownRe.test(m)) : r.models;
+        const kept = filterLatestModels(mine, freeSet);
+        const dropped = r.models.length - mine.length;
         // 关键：把结果存进设置，否则一切页面就回到内置清单，看起来像没刷新
         const aiModels = { ...(Store.settings.aiModels || {}) };
-        aiModels[pickedProvider] = { list: kept, all: r.models, showAll: false, at: Date.now() };
+        aiModels[pickedProvider] = { list: kept, all: mine, raw: r.models.length, showAll: false, at: Date.now() };
         await Store.saveSettings({ aiModels });
         renderModels(kept, p.free || [], el.querySelector('#ai-model').value.trim());
-        if (out) {
-          out.textContent = '✓ 拉到 ' + r.models.length + ' 个，筛出最新/免费 ' + kept.length + ' 个';
-        }
-        Toast.success('已筛出 ' + kept.length + ' 个（共拉到 ' + r.models.length + ' 个）');
+        const msg = '✓ 保留 ' + kept.length + ' 个自家模型'
+          + (dropped > 0 ? '（忽略 ' + dropped + ' 个第三方模型）' : '');
+        if (out) out.textContent = msg;
+        Toast.success(msg.replace('✓ ', ''));
         setTimeout(() => App.go('settings'), 800);
       } catch (err) {
         if (out) out.textContent = '✕ ' + err.message;

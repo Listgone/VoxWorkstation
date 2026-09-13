@@ -174,7 +174,7 @@ const ProjectSettingsPage = {
     return '<div class="card"><h2>AI 处理 <span class="n">可覆盖全局设置</span></h2>'
       + this._row('本项目用哪个服务商', '历史纪录片术语多，可指定更强的模型',
           '<select id="ps-ai-provider" style="width:220px">'
-          + [['', '跟随全局设置'], ['deepseek', 'DeepSeek'], ['qwen', '通义千问'], ['kimi', 'Kimi'], ['ollama', '本地 Ollama']]
+          + [['', '跟随全局设置'], ['deepseek', 'DeepSeek'], ['qwen', '通义千问'], ['zhipu', '智谱 GLM'], ['ollama', '本地 Ollama']]
             .map(([v, t]) => '<option value="' + v + '"' + (ai.provider === v ? ' selected' : '') + '>' + t + '</option>').join('')
           + '</select>')
       + this._row('项目提示词', '每次 AI 处理都带上，用于统一语气与术语',
