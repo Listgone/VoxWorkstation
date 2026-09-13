@@ -256,12 +256,14 @@ const DubPage = {
       b.addEventListener('click', () => this._bindRole(b.dataset.role)));
 
     el.querySelectorAll('[data-take]').forEach(t =>
-      t.addEventListener('click', () => {
+      t.addEventListener('click', async () => {
         const tk = this._takes[Number(t.dataset.take)];
         if (!tk || !this._player) return;
         el.querySelectorAll('[data-take]').forEach(x => x.classList.remove('on'));
         t.classList.add('on');
-        this._player.load(tk.blob, null, tk.filename || 'audio.wav');
+        // 以前只 load 不 play，所以点了没声音，必须再去上面的试听模块按播放
+        await this._player.load(tk.blob, null, tk.filename || 'audio.wav');
+        this._player.play();
         const now = el.querySelector('#dub-now');
         if (now) now.textContent = '第 ' + (tk.lineIdx + 1) + ' 句 · ' + tk.label;
       }));

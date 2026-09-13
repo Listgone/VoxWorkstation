@@ -157,6 +157,8 @@ const App = {
       const prov = (Store.settings && Store.settings.ai && Store.settings.ai.provider) || 'deepseek';
       const ok = !!((Store.keyStatus || {})[prov] || {}).has;
       ai.textContent = ok ? '✦ AI 已配置' : '✦ AI 未配置';
+      ai.classList.toggle('is-on', ok);
+      ai.classList.toggle('is-off', !ok);
     }
   },
 
@@ -278,10 +280,10 @@ const App = {
       else if (data.status === 'engine-ready') this._onEngineReady();
       else if (data.status === 'starting') {
         this._setLoadingText(data.message || '正在启动引擎...');
-        this._setSideStatus('启动中…');
+        this._setSideStatus('启动中', 'loading');
       } else if (data.status === 'error') {
         this._onServerError(data.message);
-        this._setSideStatus('未连接');
+        this._setSideStatus('未连接', 'error');
       }
     });
     document.getElementById('loading-retry')?.addEventListener('click', async () => {
@@ -296,7 +298,15 @@ const App = {
     });
   },
 
-  _setSideStatus(t) { const e = document.getElementById('side-status'); if (e) e.textContent = t; },
+  _setSideStatus(t, cls) {
+    const e = document.getElementById('side-status');
+    if (e) e.textContent = t;
+    const chip = document.getElementById('engine-chip');
+    if (chip && cls) {
+      chip.classList.remove('is-loading', 'is-ready', 'is-error');
+      chip.classList.add('is-' + cls);
+    }
+  },
 
   _startLoadingTicker() {
     this._loadingStart = Date.now();
@@ -350,13 +360,13 @@ const App = {
       后端改成后台加载后，界面先放出来，生成按钮等这里再解禁。 */
   _onEngineReady() {
     document.body.classList.remove('engine-loading');
-    this._setSideStatus('已就绪');
+    this._setSideStatus('引擎就绪', 'ready');
     window.dispatchEvent(new CustomEvent('vox:engine-ready'));
   },
 
   async _onServerReady() {
     clearInterval(this._loadingTimer);
-    this._setSideStatus('模型加载中…');
+    this._setSideStatus('模型加载中', 'loading');
     document.body.classList.add('engine-loading');
     if (this._ready) return;
     this._ready = true;
