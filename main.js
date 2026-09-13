@@ -9,13 +9,26 @@ const { ProjectStore } = require('./project-store');
    配置：环境变量 > vox.config.json > 内置默认值
    ══════════════════════════════════════════════════════════ */
 const DEFAULTS = {
-  serverDir: 'D:\\VoxWorkstation\\engine',
+  // 相对路径按「应用目录」解析（见 resolveServerDir），
+  // 这样开发时是 <项目>\engine，安装后是 <安装目录>\engine，
+  // 不用把某台机器的绝对路径写死进配置
+  serverDir: 'engine',
   serverScript: 'server.py',
   pythonPath: 'python',
   serverPort: 8000,
   autoStartServer: true,
   serverStartTimeoutMs: 180000
 };
+
+/** 相对路径 → 应用所在目录下的子目录；绝对路径原样返回。
+    打包后 __dirname 在 asar 里，不能用，所以按 exe 所在目录取。 */
+function appBaseDir() {
+  return app.isPackaged ? path.dirname(process.execPath) : __dirname;
+}
+function resolveServerDir(dir) {
+  if (!dir) return dir;
+  return path.isAbsolute(dir) ? dir : path.join(appBaseDir(), dir);
+}
 
 function loadConfig() {
   const cfg = { ...DEFAULTS };
@@ -37,6 +50,7 @@ function loadConfig() {
   if (process.env.VOX_SERVER_PORT) cfg.serverPort = Number(process.env.VOX_SERVER_PORT);
 
   cfg.serverPort = Number(cfg.serverPort) || DEFAULTS.serverPort;
+  cfg.serverDir = resolveServerDir(cfg.serverDir);
   cfg.serverScriptPath = path.isAbsolute(cfg.serverScript)
     ? cfg.serverScript
     : path.join(cfg.serverDir, cfg.serverScript);

@@ -76,19 +76,26 @@ npm start
 
 ```json
 {
-  "serverPort": 8000,
-  "serverDir": "D:\\VoxWorkstation\\engine",
+  "serverDir": "engine",
+  "serverScript": "server.py",
   "pythonPath": "python",
+  "serverPort": 8000,
   "autoStartServer": true
 }
 ```
 
 | 字段 | 说明 |
 |---|---|
-| `serverDir` | VoxCPM2 所在目录（须含 `server.py`） |
+| `serverDir` | 后端所在目录（须含 `server.py`）。**支持相对路径**：`"engine"` 表示「应用目录下的 engine 子目录」——开发时是 `<项目>\engine`，安装后是 `<安装目录>\engine`。也可以写绝对路径如 `"D:\\Voxcpm2"` |
 | `pythonPath` | Python 可执行文件；不在 PATH 中就写完整路径 |
 | `serverPort` | 后端端口，被占用时改这里 |
 | `autoStartServer` | 是否随软件自动拉起后端 |
+
+配置文件读取顺序（后者覆盖前者）：
+1. `<应用目录>\vox.config.json`（随应用分发）
+2. `%APPDATA%\vox-workstation\vox.config.json`（用户级覆盖）
+
+> 把后端放在别处也行 —— 改 `serverDir` 就行，不必挪动 4.7 GB 的模型。
 
 也可以用环境变量覆盖：`VOX_SERVER_DIR` / `VOX_PYTHON`。
 

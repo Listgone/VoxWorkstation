@@ -1,5 +1,5 @@
 {
-  "serverDir": "D:\\VoxWorkstation\\engine",
+  "serverDir": "engine",
   "serverScript": "server.py",
   "pythonPath": "python",
   "serverPort": 8000,
