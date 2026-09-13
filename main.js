@@ -255,6 +255,9 @@ function aiRequest(baseURL, key, bodyObj, timeoutMs) {
       timeout: timeoutMs
     }, (res) => {
       let data = '';
+      // 必须 setEncoding：直接 data += c 是每块单独 toString('utf8')，
+      // 一个汉字跨块就会被劈成两个 U+FFFD（表现为随机乱码）
+      res.setEncoding('utf8');
       res.on('data', c => data += c);
       res.on('end', () => {
         if (res.statusCode < 200 || res.statusCode >= 300) {
@@ -590,8 +593,11 @@ function startServer() {
     serverProcess = child;
 
     // server.py 的 print/异常全部转发到加载页，不再"静默 180 秒然后超时"
-    child.stdout?.on('data', (b) => pushLog(b.toString()));
-    child.stderr?.on('data', (b) => pushLog(b.toString()));
+    // 用 StringDecoder 级别的流式解码，避免中文日志被块边界劈开
+    child.stdout?.setEncoding('utf8');
+    child.stderr?.setEncoding('utf8');
+    child.stdout?.on('data', (s) => pushLog(s));
+    child.stderr?.on('data', (s) => pushLog(s));
 
     let settled = false;
     let poll = null;
@@ -668,6 +674,7 @@ function getJson(url) {
     const mod = url.startsWith('https') ? require('https') : require('http');
     const req = mod.get(url, { timeout: 4000 }, (res) => {
       let d = '';
+      res.setEncoding('utf8');
       res.on('data', c => d += c);
       res.on('end', () => { try { resolve(JSON.parse(d)); } catch (e) { resolve(null); } });
     });
@@ -925,6 +932,9 @@ ipcMain.handle('vox:ai:models', async (_e, override) => {
       timeout: 20000
     }, (res) => {
       let data = '';
+      // 必须 setEncoding：直接 data += c 是每块单独 toString('utf8')，
+      // 一个汉字跨块就会被劈成两个 U+FFFD（表现为随机乱码）
+      res.setEncoding('utf8');
       res.on('data', c => data += c);
       res.on('end', () => {
         if (res.statusCode < 200 || res.statusCode >= 300) {
