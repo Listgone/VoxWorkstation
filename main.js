@@ -133,6 +133,20 @@ function readApiKey() {
   } catch (e) { return ''; }
 }
 
+/** 只给渲染层看「有没有、大概长什么样」，永远不返回明文 */
+function maskApiKey(k) {
+  if (!k) return '';
+  if (k.length <= 10) return '•'.repeat(k.length);
+  const head = k.slice(0, 3);
+  const tail = k.slice(-4);
+  return head + '•'.repeat(Math.min(24, k.length - 7)) + tail;
+}
+
+function clearApiKey() {
+  try { fs.rmSync(keyFile(), { force: true }); return { ok: true }; }
+  catch (e) { return { ok: false, message: e.message }; }
+}
+
 /* ══════════════════════════════════════════════════════════
    项目存储
    ══════════════════════════════════════════════════════════ */
@@ -540,6 +554,7 @@ ipcMain.handle('vox:settings:get', () => {
   return {
     settings: appSettings,
     hasApiKey: !!readApiKey(),
+    keyHint: maskApiKey(readApiKey()),
     keyEncrypted: safeStorage.isEncryptionAvailable(),
     userData: app.getPath('userData')
   };
@@ -547,6 +562,7 @@ ipcMain.handle('vox:settings:get', () => {
 ipcMain.handle('vox:settings:save', (_e, patch) => saveAppSettings(patch || {}));
 ipcMain.handle('vox:settings:setApiKey', (_e, key) => saveApiKey(key));
 ipcMain.handle('vox:settings:getApiKey', () => readApiKey());
+ipcMain.handle('vox:settings:clearApiKey', () => clearApiKey());
 
 ipcMain.handle('vox:ai:test', async () => {
   const cfg = currentAI();

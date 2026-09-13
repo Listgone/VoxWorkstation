@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     get: () => invoke('vox:settings:get'),
     save: (patch) => invoke('vox:settings:save', patch),
     setApiKey: (key) => invoke('vox:settings:setApiKey', key),
+    clearApiKey: () => invoke('vox:settings:clearApiKey'),
     getApiKey: () => invoke('vox:settings:getApiKey')
   },
 

@@ -171,9 +171,14 @@ const SettingsPage = {
           + '</div>')
       + this._row('视觉模型（OCR）', '图片取字用，留空则关闭该功能。智谱可填 glm-ocr',
           '<input type="text" id="ai-vision" value="' + Util.escapeAttr(ai.visionModel || '') + '" placeholder="留空即关闭" style="width:220px">')
-      + this._row('API Key', '用系统凭据加密存储，不落明文。<b>改完记得保存</b>，「测试连接」会先自动保存',
-          '<input type="password" id="ai-key" placeholder="' + (Store.hasApiKey ? '已保存（留空则不修改）' : 'sk-…') + '" style="width:230px">'
-          + '<button class="btn btn-sm" data-act="test">测试连接</button>')
+      + this._row('API Key', Store.hasApiKey
+            ? '已加密保存在本机。要换就直接输入新的，留空则不改动'
+            : '用系统凭据加密存储，不落明文。「测试连接」会先自动保存',
+          '<input type="text" id="ai-key" class="key-input' + (Store.hasApiKey ? ' is-set' : '') + '" '
+          + 'value="' + Util.escapeAttr(Store.hasApiKey ? (Store.keyHint || '已保存') : '') + '" '
+          + 'placeholder="粘贴 API Key" style="width:230px" autocomplete="off" spellcheck="false">'
+          + '<button class="btn btn-sm" data-act="test">测试连接</button>'
+          + (Store.hasApiKey ? '<button class="btn btn-sm btn-ghost btn-danger" data-act="clear-key">清除</button>' : ''))
       + this._row('超时 / 重试', '长文本处理建议调大超时',
           '<input type="number" id="ai-timeout" value="' + (ai.timeoutSec || 60) + '" style="width:74px"><span class="text-sm text-muted">秒</span>'
           + '<input type="number" id="ai-retries" value="' + (ai.retries || 2) + '" style="width:66px"><span class="text-sm text-muted">次</span>')
@@ -382,21 +387,64 @@ const SettingsPage = {
     toggle('toggle-onlycur',  v => save({ privacy: { ...s.privacy, onlyCurrentParagraph: v } }));
     toggle('toggle-diff',     v => save({ privacy: { ...s.privacy, keepDiffHistory: v } }));
 
-    /* 把输入框里的 key 存下来（没输入就跳过）；返回是否成功 */
+    /* 重新问主进程要 key 的状态（永远不拿明文，只要掩码） */
+    const refreshKeyState = async () => {
+      try {
+        const r = await window.electronAPI.settings.get();
+        Store.hasApiKey = r.hasApiKey;
+        Store.keyHint = r.keyHint || '';
+        Store.keyEncrypted = r.keyEncrypted;
+      } catch (e) { /* 忽略 */ }
+    };
+
+    /* key 输入框：有 key 时显示掩码；内容是掩码就说明用户没动过。
+       只比对值本身，不依赖任何状态标记 —— 标记一旦和真实内容不同步就会误判 */
+    const isMask = (v) => !!Store.hasApiKey && String(v).trim() === (Store.keyHint || '');
+    const keyInp = el.querySelector('#ai-key');
+    const enterEdit = () => {
+      if (keyInp && isMask(keyInp.value)) {
+        keyInp.value = '';
+        keyInp.classList.remove('is-set');
+      }
+    };
+    keyInp?.addEventListener('focus', enterEdit);
+    keyInp?.addEventListener('mousedown', enterEdit);
+    keyInp?.addEventListener('blur', () => {
+      // 没输入任何东西就离开 → 恢复掩码，免得看起来像被清空了
+      if (keyInp && !keyInp.value.trim() && Store.hasApiKey) {
+        keyInp.value = Store.keyHint || '已保存';
+        keyInp.classList.add('is-set');
+      }
+    });
+
+    /* 把输入框里的 key 存下来；留空或仍是掩码都视为「不改动」 */
     const persistKey = async () => {
       const inp = el.querySelector('#ai-key');
-      const key = inp ? inp.value.trim() : '';
-      if (!key) return { ok: true, skipped: true };
+      if (!inp) return { ok: true, skipped: true };
+      const key = inp.value.trim();
+      if (!key || isMask(key)) return { ok: true, skipped: true };
       const r = await window.electronAPI.settings.setApiKey(key);
       if (r && r.ok) {
-        Store.hasApiKey = true;
-        Store.keyEncrypted = r.encrypted;
-        inp.value = '';
-        inp.placeholder = '已保存（留空则不修改）';
-        return { ok: true };
+        await refreshKeyState();     // 掩码由主进程算，渲染层不重复实现
+        return { ok: true, saved: true };
       }
       return { ok: false, message: (r && r.message) || '未知错误' };
     };
+
+    /* 清除已保存的 key */
+    el.querySelector('[data-act="clear-key"]')?.addEventListener('click', async () => {
+      const ok = await Modal.confirm({
+        title: '清除 API Key', okText: '清除', danger: true,
+        message: '清除后 AI 文本处理会不可用，需要重新填写。音频与项目文件不受影响。'
+      });
+      if (!ok) return;
+      const r = await window.electronAPI.settings.clearApiKey();
+      if (r && r.ok) {
+        await refreshKeyState();
+        Toast.success('已清除 API Key');
+        App.go('settings');
+      } else Toast.error('清除失败：' + ((r && r.message) || '未知错误'), true);
+    });
 
     /* 模型区：≤6 个铺 chips，>6 个自动变下拉省地方 */
     let pickedProvider = (s.ai || {}).provider || 'deepseek';

@@ -27,6 +27,7 @@ const Store = {
     const r = await window.electronAPI.settings.get();
     this.settings = r.settings;
     this.hasApiKey = r.hasApiKey;
+    this.keyHint = r.keyHint || '';
     this.keyEncrypted = r.keyEncrypted;
     this.userData = r.userData;
     await this.reloadProjects();
