@@ -14,9 +14,7 @@ const AI_PROVIDERS = [
     base: 'https://open.bigmodel.cn/api/paas/v4',
     models: ['glm-5.3-flash', 'glm-5.3', 'glm-5.2', 'glm-ocr'],
     free: ['glm-5.3-flash'] },
-  { id: 'qwen',     name: '通义千问',    sub: '自研 · 阿里云百炼', own: '^qwen',
-    base: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    models: ['qwen3.8-max', 'qwen3.7-plus', 'qwen3.8-flash'], free: [] },
+
 
 
   { id: 'openai',   name: 'OpenAI',      sub: '自研 · 需要能访问境外', own: '^(gpt|o[1-9]|chatgpt)',
@@ -244,12 +242,12 @@ const SettingsPage = {
           + 'placeholder="粘贴 API Key" style="width:230px" autocomplete="off" spellcheck="false">'
           + '<button class="btn btn-sm" data-act="test">测试连接</button>'
           + (hasKey ? '<button class="btn btn-sm btn-ghost btn-danger" data-act="clear-key">清除</button>' : ''))
-      + this._row('深度思考', 'DeepSeek 默认开启且强度为 high，回答前先写一大段推理，很慢。'
+      + (prov !== 'deepseek' ? '' : this._row('深度思考', 'DeepSeek 默认开启且强度为 high，回答前先写一大段推理，很慢。'
             + '文本整理不需要，默认关闭；只有任务特别复杂时才值得打开',
           '<div class="model-chips" id="think-chips">'
           + '<button type="button" class="mchip' + ((s.thinking || 'off') !== 'on' ? ' on' : '') + '" data-think="off">关闭（快）</button>'
           + '<button type="button" class="mchip' + ((s.thinking === 'on') ? ' on' : '') + '" data-think="on">开启（强）</button>'
-          + '</div>')
+          + '</div>'))
       + this._row('超时 / 重试', '长文本处理建议调大超时',
           '<input type="number" id="ai-timeout" value="' + (ai.timeoutSec || 60) + '" style="width:74px"><span class="text-sm text-muted">秒</span>'
           + '<input type="number" id="ai-retries" value="' + (ai.retries || 2) + '" style="width:66px"><span class="text-sm text-muted">次</span>')
