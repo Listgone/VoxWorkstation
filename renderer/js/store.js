@@ -16,6 +16,15 @@ const Store = {
   currentEpisodeNo: null,
   currentEpisode: null,      // { episode, lines, script, scriptOriginal, ... }
 
+  /* ── 快速配音（独立工作区）──
+     进入时把项目上下文整体挂起，退出时原样还回来，
+     所以来回切换不会丢项目里"已经整理好"的东西。 */
+  isQuick: false,
+  quickProjectId: null,
+  quickDir: '',
+  _prevProjectId: null,
+  _prevEpisodeNo: null,
+
   _subs: [],
 
   /* ── 事件 ── */
@@ -75,6 +84,15 @@ const Store = {
   },
 
   async openProject(id, opts = {}) {
+    // 兜底：快速模式是"挂起项目上下文"的状态，任何主动切项目的入口
+    // 都必须先把主进程的改道关掉，否则后面的写入会落错地方
+    if (this.isQuick) {
+      this.isQuick = false;
+      this.quickDir = '';
+      this._prevProjectId = null;
+      this._prevEpisodeNo = null;
+      try { window.electronAPI.quick.exit(); } catch (e) { /* 忽略 */ }
+    }
     const r = await window.electronAPI.projects.read(id);
     if (!r || !r.ok) return r;
     this.currentProjectId = id;
@@ -127,6 +145,54 @@ const Store = {
     const r = await window.electronAPI.episodes.write(this.currentProjectId, this.currentEpisodeNo, payload);
     await this.reloadEpisodes();
     return r;
+  },
+
+  /* ── 快速配音（独立工作区）───────────────
+     进入时把项目上下文整体挂起，退出时原样还回来，
+     所以来回切换不会丢项目里"已经整理好"的东西。 */
+
+  /** 进入独立工作区 */
+  enterQuick(projectId, no, dir) {
+    if (!this.isQuick) {
+      this._prevProjectId = this.currentProjectId || null;
+      this._prevEpisodeNo = this.currentEpisodeNo || null;
+    }
+    this.isQuick = true;
+    this.quickProjectId = projectId;
+    this.quickDir = dir || '';
+    this.currentProjectId = projectId;
+    this.currentEpisodeNo = no || 1;
+    this.currentProject = {
+      schema: 1, id: projectId, name: '快速配音', desc: '',
+      type: 'single', status: 'active', padWidth: 2, seasons: [],
+      roles: [], fallbackVoice: '', dict: [], ai: { features: [] },
+      defaults: { cfg: 2.0, steps: 10, pauseMs: 300, maxLineLen: 25 },
+      output: { naming: '{no}_{text}', exportSrt: false }
+    };
+    this.episodes = [{ no: this.currentEpisodeNo, title: '快速配音', status: 'draft' }];
+    this.emit();
+  },
+
+  /** 退出：还回原来的项目与集；项目已被删掉就停在"未选择" */
+  async exitQuick() {
+    const pid = this._prevProjectId;
+    const no = this._prevEpisodeNo;
+    this.isQuick = false;
+    this.quickDir = '';
+    this.currentProject = null;
+    this.currentEpisode = null;
+    this.currentEpisodeNo = null;
+    this.currentProjectId = null;
+    this.episodes = [];
+    this._prevProjectId = null;
+    this._prevEpisodeNo = null;
+    if (pid && (this.projects || []).some(p => p.id === pid)) {
+      await this.openProject(pid, { silent: true });
+      if (no && (this.episodes || []).some(e => e.no === no)) {
+        await this.openEpisode(no, { silent: true });
+      }
+    }
+    this.emit();
   },
 
   /* ── 季 ── */

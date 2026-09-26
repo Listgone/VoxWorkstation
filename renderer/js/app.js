@@ -15,6 +15,7 @@ const App = {
   _rendered: {},
   _pages: {
     dash:                () => DashPage,
+    quick:               () => QuickPage,
     projects:            () => ProjectsPage,
     'project-settings':  () => ProjectSettingsPage,
     episodes:            () => EpisodesPage,
@@ -27,9 +28,9 @@ const App = {
 
   async init() {
     // 主题（在 Store 就绪前先用本地缓存，避免闪白）
+    const themeOk = (t) => this.THEMES.some(([id]) => id === t);
     const savedTheme = localStorage.getItem('vox-theme') || 'light';
-    document.documentElement.setAttribute('data-theme',
-      ['minimal', 'glass', 'construct'].includes(savedTheme) ? savedTheme : 'light');
+    document.documentElement.setAttribute('data-theme', themeOk(savedTheme) ? savedTheme : 'light');
     const savedFont = localStorage.getItem('vox-font') || 'system';
     document.documentElement.setAttribute('data-font', savedFont === 'han' ? 'han' : 'system');
 
@@ -46,8 +47,7 @@ const App = {
 
     // 用设置里的主题 / 字体 / 动效 / 缩放覆盖本地缓存
     const st = Store.settings || {};
-    if (st.theme) document.documentElement.setAttribute('data-theme',
-      ['minimal', 'glass', 'construct'].includes(st.theme) ? st.theme : 'light');
+    if (st.theme) document.documentElement.setAttribute('data-theme', themeOk(st.theme) ? st.theme : 'light');
     this.applyFont(st.font);
     this.detectFonts();
     document.documentElement.setAttribute('data-reduce-motion', st.reduceMotion ? 'true' : 'false');
@@ -63,6 +63,10 @@ const App = {
   async go(page, opts = {}) {
     const factory = this._pages[page];
     if (!factory) return;
+    if (page === 'quick' && !Store.isQuick && !this.quickEnabled()) {
+      Toast.show('快速配音已在「设置 → 通用」里关闭');
+      return;
+    }
     const mod = factory();
     this.current = page;
 
@@ -101,9 +105,15 @@ const App = {
 
   /* ── 顶部面包屑（可点开直接切换项目 / 集）───── */
   _syncChrome() {
+    this._syncQuickUI();
     const crumb = document.getElementById('crumb');
     if (!crumb) return;
     const p = Store.currentProject;
+    if (Store.isQuick) {
+      crumb.innerHTML = '<span class="seg cur">快速配音 · 独立工作区</span>'
+        + '<span class="sl">·</span><span class="text-sm text-muted" style="padding-left:2px">不建项目</span>';
+      return;
+    }
     if (!p) {
       crumb.innerHTML = '<span class="seg" data-act="pick-project">未选择项目 ▾</span>';
     } else {
@@ -159,6 +169,9 @@ const App = {
     set('nav-ep-count', Store.episodes.length || '');
     set('nav-line-count', Store.currentEpisode ? (Store.currentEpisode.lines || []).length : '');
     set('nav-voice-count', window.__voiceCount || '');
+    // 快速模式：角标改成状态提示，免得"免项目"三个字一直挂着
+    const qh = document.getElementById('nav-quick-hint');
+    if (qh) qh.textContent = Store.isQuick ? '进行中' : '免项目';
 
     const ai = document.getElementById('status-ai');
     if (ai) {
@@ -249,11 +262,26 @@ const App = {
     return this.fontInfo;
   },
 
-  /* ── 主题（明亮现代 / 极简黑白 / 液态玻璃 / 构成主义）── */
+  /* ── 主题（明亮现代 / 极简黑白 / 液态玻璃 / 构成主义 / 复古老海报）──
+     这里是主题的唯一定义处：初始化、切换按钮、设置页都读 THEMES，
+     新增主题只改这一处 + style.css 的 [data-theme="xxx"] 块。 */
+  THEMES: [
+    ['light', '明亮现代'],
+    ['minimal', '极简黑白'],
+    ['glass', '液态玻璃'],
+    ['construct', '构成主义'],
+    ['poster', '复古老海报']
+  ],
+
+  /** 当前主题 id（带兜底，坏值一律回落到明亮现代） */
+  themeId() {
+    const t = document.documentElement.getAttribute('data-theme') || 'light';
+    return this.THEMES.some(([id]) => id === t) ? t : 'light';
+  },
+
   _setupThemeToggle() {
-    const THEMES = ['light', 'minimal', 'glass', 'construct'];
     const apply = (theme) => {
-      if (!THEMES.includes(theme)) theme = 'light';
+      if (!this.THEMES.some(([id]) => id === theme)) theme = 'light';
       document.documentElement.setAttribute('data-theme', theme);
       localStorage.setItem('vox-theme', theme);
       window.dispatchEvent(new CustomEvent('vox:theme-changed', { detail: { theme } }));
@@ -261,8 +289,9 @@ const App = {
     };
     this.applyTheme = apply;
     document.getElementById('btn-theme')?.addEventListener('click', () => {
-      const cur = document.documentElement.getAttribute('data-theme');
-      apply(THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length]);
+      const order = this.THEMES.map(([id]) => id);
+      const i = order.indexOf(this.themeId());
+      apply(order[(i + 1) % order.length]);       // 循环切换，含新增主题
     });
   },
 
@@ -271,6 +300,22 @@ const App = {
     document.querySelectorAll('#sidebar .nav-item').forEach(btn => {
       btn.addEventListener('click', () => this.go(btn.dataset.page));
     });
+  },
+
+  /** 快速配音开关（设置 → 通用）关掉时，入口变灰并拦截 */
+  quickEnabled() {
+    const q = (Store.settings && Store.settings.quickDub) || {};
+    return q.enabled !== false;
+  },
+
+  /** 快速配音态：侧边栏只留「快速配音 + 资产 + 设置」，
+      避免用户点进项目页看到空白，也避免误以为快速内容属于某个项目 */
+  _syncQuickUI() {
+    const sb = document.getElementById('sidebar');
+    if (!sb) return;
+    sb.classList.toggle('is-quick', !!Store.isQuick);
+    const qb = sb.querySelector('[data-page="quick"]');
+    if (qb) qb.classList.toggle('is-off', !this.quickEnabled());
   },
 
   /* ── 后端状态 ─────────────────────────────── */

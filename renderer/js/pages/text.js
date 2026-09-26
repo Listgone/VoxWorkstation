@@ -107,8 +107,8 @@ const TextPage = {
           + ' / 推断 ' + this._emoStats(d.lines).inferred
           + ' / 未标明 ' + this._emoStats(d.lines).neutral : '') + '</span></h2>'
       + (d.lines.length
-        ? '<table><tr><th style="width:36px">#</th><th style="width:88px">角色</th><th style="width:92px">情绪 / 动作</th><th>台词</th>'
-          + '<th style="width:56px">字数</th><th style="width:104px">音色</th><th style="width:56px">状态</th></tr>'
+        ? '<table class="line-table"><tr><th style="width:40px">#</th><th style="width:96px">角色</th><th style="width:120px">情绪 / 动作</th><th>台词</th>'
+          + '<th style="width:56px">字数</th><th style="width:116px">音色</th><th style="width:76px">状态</th></tr>'
           + d.lines.map((l, i) => this._lineRow(l, i)).join('') + '</table>'
         : '<p class="text-sm text-muted" style="margin:0">还没有分句。先填原文，再点「按角色 / 标点分句」。</p>')
       + '</div>'
@@ -168,8 +168,8 @@ const TextPage = {
   _lineRow(l, i) {
     const st = l.audio ? '<span class="pill pill-ok">✓</span>' : '<span class="text-muted">·</span>';
     return '<tr><td class="num">' + (i + 1) + '</td>'
-      + '<td><span class="pill">' + Util.escapeHtml(l.role || '旁白') + '</span></td>'
-      + '<td>' + this._emoCell(l) + '</td>'
+      + '<td><div class="cell-c"><span class="pill">' + Util.escapeHtml(l.role || '旁白') + '</span></div></td>'
+      + '<td class="emo-cell"><div class="cell-c">' + this._emoCell(l) + '</div></td>'
       + '<td class="tx">' + Util.escapeHtml(l.text || '') + '</td>'
       + '<td class="num">' + (l.text || '').length + '</td>'
       + '<td class="text-sm text-muted">' + Util.escapeHtml(l.voice || '—') + '</td>'
@@ -189,11 +189,7 @@ const TextPage = {
       voice: voiceFor(l.role || '旁白'), audio: '', error: ''
     }));
     // 按规范的两段式回写，方便人工核对
-    this._draft.processed =
-      (parsed.background ? '【背景介绍（仅供判断，不配音）】\n' + parsed.background + '\n\n' : '')
-      + '【角色（情绪）+台词（用于配音）】\n'
-      + parsed.lines.map(l => (l.role || '旁白')
-          + (l.emotion ? '（' + l.emotion + '）' : '') + '+' + l.text).join('\n');
+    this._draft.processed = TextTools.renderScript(parsed);
   },
 
   async mount(el) {
@@ -452,12 +448,23 @@ const TextPage = {
         const src = this._draft.processed || this._draft.original;
         const r = await window.electronAPI.ai.process('roles', src, opts);
         if (!r.ok) throw new Error(label + '：' + r.message);
-        this._draft.lines = (r.roles || []).map(x => ({
-          text: String(x.text || '').trim(),
-          role: String(x.role || '旁白').trim(),
-          voice: this._voiceForRole(x.role),
-          audio: '', error: ''
-        })).filter(l => l.text);
+        // 角色分离只改角色/台词两份信息，其余按原顺序尽量保留，
+        // 并且照旧回写成剧本格式 —— 不再把 processed 留成裸文本
+        const prev = this._draft.lines || [];
+        const next = (r.roles || []).map((x, i) => {
+          const role = String(x.role || '旁白').trim();
+          const old = prev[i] || {};
+          return {
+            text: String(x.text || '').trim(),
+            role,
+            emotion: old.role === role ? (old.emotion || '') : '',
+            voice: !old.voiceOverride ? this._voiceForRole(role) : old.voice,
+            voiceOverride: old.voiceOverride,
+            audio: old.audio || '', durationMs: old.durationMs || 0, error: ''
+          };
+        }).filter(l => l.text);
+        this._draft.lines = next;
+        this._draft.processed = TextTools.renderScript({ background: this._draft.background || '', lines: next });
         if (r.usage) { tokenTotal.prompt_tokens += r.usage.prompt_tokens || 0; tokenTotal.completion_tokens += r.usage.completion_tokens || 0; }
         continue;
       }
@@ -471,12 +478,20 @@ const TextPage = {
       if (task === 'normalize' || task === 'tone') this._draft.processed = r.text;
       if (task === 'split') {
         const texts = r.text.split('\n').map(s => s.trim()).filter(Boolean);
-        this._draft.processed = texts.join('\n');
+        // 断句结果按规范剧本格式回写：外面套上角色行，
+        // 这样"只断句"不会把已整理好的剧本格式冲成裸文本
         const prev = this._draft.lines || [];
-        this._draft.lines = texts.map((t, i) => {
+        const next = texts.map((t, i) => {
           const old = prev[i] || {};
-          return { text: t, role: old.role || '', voice: old.voice || this._voiceForRole(old.role), audio: '', error: '' };
+          return {
+            text: t, role: old.role || '旁白', emotion: old.emotion || '',
+            voice: old.voice || this._voiceForRole(old.role),
+            audio: old.audio || '', error: '',
+            durationMs: old.durationMs || 0, voiceOverride: old.voiceOverride
+          };
         });
+        this._draft.lines = next;
+        this._draft.processed = TextTools.renderScript({ background: this._draft.background || '', lines: next });
       }
     }
 
@@ -708,6 +723,16 @@ const TextTools = {
       else push('旁白', '中性', s);
     }
     return { background: bgParts.join('\n'), lines };
+  },
+
+  /** parsed → 规范两段式文本（回写用；快速配音页也用这个保持格式一致） */
+  renderScript(parsed) {
+    const lines = (parsed && parsed.lines) || [];
+    const bg = (parsed && parsed.background) || '';
+    return (bg ? '【背景介绍（仅供判断，不配音）】\n' + bg + '\n\n' : '')
+      + '【角色（情绪）+台词（用于配音）】\n'
+      + lines.map(l => (l.role || '旁白')
+          + (l.emotion ? '（' + l.emotion + '）' : '') + '+' + (l.text || '')).join('\n');
   },
 
   /** 按标点断句，长句再按逗号切 */

@@ -19,33 +19,36 @@ const DubPage = {
 
     return App.head('配音', '把台词变成音频',
         '<span class="pill">' + lines.length + ' 句 · 已完成 ' + done + '</span>')
-      + '<div class="wrap"><div class="cols">'
-      + '<div>'
+      + '<div class="wrap">'
+/* 内容区（对齐线框图）：
+     ① 角色与音色                ② 试听
+     ③ 台词（左，整块）           ④ 参数/队列/本次生成（右，上下展开）
+   参数区收起时只有一条细窄条；展开后在试听下面往下长出三块内容，
+   台词始终留在左边那一大块里，不被挤到下面。 */
+      + '<div class="dub-main' + (this.railCollapsed() ? ' rail-off' : '') + '">'
 
-      + '<div class="card"><h2>角色与音色 <span class="n">来自项目设置，同一角色共用音色</span></h2>'
+      + '<div class="card dub-roles"><h2>角色与音色 <span class="n">来自项目设置，同一角色共用音色</span></h2>'
       + this._roles(p, lines)
       + '</div>'
 
-      + '<div class="card"><h2>台词 <span class="n">来自文本处理页</span></h2>'
-      + (lines.length
-        ? '<table><tr><th style="width:34px">#</th><th style="width:70px">角色</th><th style="width:88px">情绪 / 动作</th><th>台词</th>'
-          + '<th style="width:96px">音色</th><th style="width:92px">状态</th><th style="width:124px"></th></tr>'
-          + lines.map((l, i) => this._row(l, i)).join('') + '</table>'
-        : '<p class="text-sm text-muted" style="margin:0">还没有台词。先去「文本处理」把文本切好句。</p>')
+      /* 试听卡：标题行 =「试听」+ 状态（未选择/第N句）靠左，收发按钮在右侧（红框位置）。
+         收起时台词横跨整宽；展开时右栏长出三块内容，台词右移让位。 */
+      + '<div class="card dub-listen"><h2 class="listen-head">'
+      + '<span class="lh-t">试听</span>'
+      + '<span class="n" id="dub-now">未选择</span>'
+      + '<button class="lf-toggle" data-act="rail-toggle" id="dub-rail-btn" '
+      + 'title="' + (this.railCollapsed() ? '展开 参数 / 队列 / 本次生成' : '收起 参数 / 队列 / 本次生成') + '">'
+      + '<span class="rt-ic">' + (this.railCollapsed() ? '›' : '⌄') + '</span>'
+      + '</button>'
+      + '</h2>'
+      + '<div id="dub-player"></div>'
       + '</div>'
 
-      + '<div class="action-row">'
-      + '<button class="btn btn-primary btn-lg" data-act="gen-all"' + (lines.length ? '' : ' disabled') + '>'
-      + '生成全部（' + lines.length + ' 句）</button>'
-      + '<button class="btn" data-act="gen-failed">只重生成失败句</button>'
-      + '<span style="flex:1"></span>'
-      + '<button class="btn" data-act="goto-export">前往导出 →</button>'
-      + '</div></div>'
-
-      + '<aside>'
-      + '<div class="card"><h2>试听 <span class="n" id="dub-now">未选择</span></h2>'
-      + '<div id="dub-player"></div></div>'
-
+      /* 右栏第 2 行：展开后直接显示 参数 / 队列 / 本次生成 三张卡，
+         不再放标题栏（标题栏那种重复的「参数 / 队列 / 本次生成」条已去掉）。 */
+      + '<div class="rail-col">'
+      + '<div class="rail-body">'
+      + '<div class="rail-body-inner">'
       + '<div class="card"><h2>参数</h2>'
       + this._param('cfg', '稳定性', '10', '30', (p.defaults.cfg ?? 2.0) * 10, 10, (p.defaults.cfg ?? 2.0).toFixed(1))
       + this._param('steps', '质量', '5', '30', p.defaults.steps ?? 10, 1, String(p.defaults.steps ?? 10))
@@ -64,8 +67,50 @@ const DubPage = {
             + '<span class="td">' + Util.fmtDuration(t.ms) + '</span></div>').join('') + '</div>'
         : '<p class="text-sm text-muted" style="margin:0">还没有生成结果。</p>')
       + '</div>'
-      + '</aside>'
+      + '</div>'
+      + '</div>'
+      + '</div>'
+
+      + '<div class="card dub-lines"><h2>台词 <span class="n">来自文本处理页</span></h2>'
+      + (lines.length
+        ? '<table class="line-table"><tr><th style="width:40px">#</th><th style="width:100px">角色</th><th style="width:128px">情绪 / 动作</th><th>台词</th>'
+          + '<th style="width:128px">音色</th><th style="width:96px">状态</th><th style="width:120px"></th></tr>'
+          + lines.map((l, i) => this._row(l, i)).join('') + '</table>'
+        : '<p class="text-sm text-muted" style="margin:0">还没有台词。先去「文本处理」把文本切好句。</p>')
+      + '</div>'
+
+      + '<div class="action-row">'
+      + '<button class="btn btn-primary btn-lg" data-act="gen-all"' + (lines.length ? '' : ' disabled') + '>'
+      + '生成全部（' + lines.length + ' 句）</button>'
+      + '<button class="btn" data-act="gen-failed">只重生成失败句</button>'
+      + '<span style="flex:1"></span>'
+      + '<button class="btn" data-act="goto-export">前往导出 →</button>'
+      + '</div>'
+
       + '</div></div>';
+  },
+
+  /* 右栏（参数/队列/本次生成）展开状态。默认收起 —— 只显示试听卡片。
+     收发按钮在试听卡右侧那条状态带上；展开时从试听往下长、台词被挤到左边。 */
+  _railKey: 'vox-dub-rail',
+  railCollapsed() {
+    try {
+      const v = localStorage.getItem(this._railKey);
+      return v === null ? true : v === 'off';
+    } catch (e) { return true; }
+  },
+  _setRail(collapsed) {
+    try { localStorage.setItem(this._railKey, collapsed ? 'off' : 'on'); } catch (e) { /* 忽略 */ }
+    const main = document.querySelector('#page-dub .dub-main');
+    if (main) main.classList.toggle('rail-off', collapsed);
+    const btn = document.getElementById('dub-rail-btn');
+    if (btn) {
+      const ic = btn.querySelector('.rt-ic');
+      if (ic) ic.textContent = collapsed ? '›' : '⌄';
+      btn.title = collapsed ? '展开 参数 / 队列 / 本次生成' : '收起 参数 / 队列 / 本次生成';
+    }
+    // 播放器宽度变了，波形要按新宽度重画
+    setTimeout(() => { try { window.dispatchEvent(new Event('resize')); } catch (e) { /* 忽略 */ } }, 320);
   },
 
   _empty() {
@@ -105,12 +150,12 @@ const DubPage = {
       : ['· 待生成', ''];
     const role = l.role || '旁白';
     return '<tr><td class="num">' + (i + 1) + '</td>'
-      + '<td><button class="pill pill-btn" data-act="set-role" data-i="' + i + '" title="改这一句的角色">'
-      + Util.escapeHtml(role) + ' ▾</button></td>'
-      + '<td class="emo-cell">' + TextPage._emoCell(l) + '</td>'
+      + '<td><div class="cell-c"><button class="pill pill-btn" data-act="set-role" data-i="' + i + '" title="改这一句的角色">'
+      + Util.escapeHtml(role) + ' ▾</button></div></td>'
+      + '<td class="emo-cell"><div class="cell-c">' + TextPage._emoCell(l) + '</div></td>'
       + '<td class="tx">' + Util.escapeHtml(l.text || '') + '</td>'
-      + '<td><button class="pill pill-btn" data-act="set-voice" data-i="' + i + '" title="单独指定这一句的音色">'
-      + Util.escapeHtml(l.voice || '跟随角色') + ' ▾</button></td>'
+      + '<td><div class="cell-c"><button class="pill pill-btn" data-act="set-voice" data-i="' + i + '" title="单独指定这一句的音色">'
+      + Util.escapeHtml(l.voice || '跟随角色') + ' ▾</button></div></td>'
       + '<td><span class="pill ' + stCls + '">' + stLabel + '</span></td>'
       + '<td class="row-acts">'
       + (l.audio
@@ -197,6 +242,10 @@ const DubPage = {
     el.querySelector('[data-act="goto-projects"]')?.addEventListener('click', () => App.go('projects'));
     el.querySelector('[data-act="goto-eps"]')?.addEventListener('click', () => App.go('episodes'));
     el.querySelector('[data-act="goto-export"]')?.addEventListener('click', () => App.go('export'));
+    el.querySelector('[data-act="rail-toggle"]')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._setRail(!this.railCollapsed());
+    });
 
     const p = Store.currentProject;
     const ep = Store.currentEpisode;

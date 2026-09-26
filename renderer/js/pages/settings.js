@@ -170,7 +170,8 @@ const SettingsPage = {
       ['light', '明亮现代', '默认 · 干净 · 无动效', 'thprev-a'],
       ['minimal', '极简黑白', '深色 · 纯灰阶 · 无彩色', 'thprev-m'],
       ['glass', '液态玻璃', '毛玻璃 + 彩色光斑', 'thprev-g'],
-      ['construct', '构成主义', '粗边分格 + 苏式红', 'thprev-c']
+      ['construct', '构成主义', '粗边分格 + 苏式红', 'thprev-c'],
+      ['poster', '复古老海报', '奶油纸 · 铅字衬线 · 锈红套色', 'thprev-p']
     ];
     const fi = App.fontInfo || {};
     const FONTS = [
@@ -386,6 +387,11 @@ const SettingsPage = {
           + '</select>')
       + this._row('回收站', '删除的项目/集都在这里，可恢复或彻底删除',
           '<button class="btn btn-sm" data-act="open-trash">管理回收站</button>')
+      + '<div class="nav-group" style="padding-left:0">快速配音</div>'
+      + this._row('快速配音入口', '只想单独配几句话时不建项目、不建集。关闭后入口变灰、点击会提示；工作区数据保留',
+          this._sw(!(s.quickDub && s.quickDub.enabled === false), 'toggle-quick'))
+      + this._row('快速配音目录', '它的文本、逐句音频与成品都独立存放，不进项目列表与回收站',
+          '<button class="btn btn-sm" data-act="open-quick">打开文件夹</button>')
       + '<div class="action-row mt-12"><button class="btn btn-primary" data-act="save-project">保存</button></div>'
       + '</div>';
   },
@@ -573,6 +579,11 @@ const SettingsPage = {
     toggle('toggle-tts',      v => save({ tts: { ...s.tts, autoStart: v } }));
     toggle('toggle-srt',      v => save({ output: { ...s.output, exportSrt: v } }));
     toggle('toggle-sound',    v => save({ notify: { ...s.notify, soundEnabled: v } }));
+    toggle('toggle-quick',    v => save({ quickDub: { enabled: v } }));
+    el.querySelector('[data-act="open-quick"]')?.addEventListener('click', () => {
+      // 主进程会先保证目录存在再打开（不可用时走系统兜底，不会报错）
+      window.electronAPI.quick.reveal();
+    });
 
     /* 通知：内容开关 / 提示音 / 音量 */
     el.querySelectorAll('[data-notify]').forEach(b =>

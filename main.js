@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const { spawn, execFile, spawnSync } = require('child_process');
-const { ProjectStore } = require('./project-store');
+const { ProjectStore, QUICK_PROJECT_ID } = require('./project-store');
 
 // 后端实际报告的监听端口（可能因端口占用/排除段而不同于配置值）
 let serverPortActual = 0;
@@ -140,6 +140,7 @@ const APP_SETTINGS_DEFAULTS = {
     exportSrt: true
   },
   project: { autoSaveSec: 30, crashRecovery: true, trashKeepDays: 30 },
+  quickDub: { enabled: true },     // 快速配音入口：默认开启，可在 设置 → 通用 关掉
   privacy: { redact: false, onlyCurrentParagraph: true, keepDiffHistory: true },
   notify: { soundEnabled: true, sound: 'chime', volume: 70, onDone: true, onFail: true }
 };
@@ -286,6 +287,26 @@ function isUsableModel(id) {
    项目存储
    ══════════════════════════════════════════════════════════ */
 let store = null;
+
+/* ── 快速配音：独立工作区 ────────────────────────────────
+   只想单独配几句话时不建项目、不建集。它用独立的 ProjectStore 实例，
+   根目录在 <userData>\_quick（不在项目根目录下），所以：
+     · 项目列表 / 回收站 / 仪表板统计都不会出现它
+     · 进出快速模式时，项目文件一个字节都不会被碰
+   quickActive 期间的集 / 音频 IPC 统一改道到它，界面层完全不用改。 */
+let quickStore = null;
+let quickActive = false;
+
+function getQuickStore() {
+  if (!quickStore) {
+    appSettings = appSettings || loadAppSettings();
+    quickStore = new ProjectStore(path.join(app.getPath('userData'), QUICK_PROJECT_ID));
+  }
+  return quickStore;
+}
+
+/** 当前该把「集 / 音频」类操作发给哪个存储 */
+function epStore() { return quickActive ? getQuickStore() : needStore(); }
 
 /* ══════════════════════════════════════════════════════════
    AI 服务调用（OpenAI 兼容）—— 统一走这里
@@ -1642,22 +1663,74 @@ ipcMain.handle('vox:project:status', (_e, { id, status }) => needStore().setProj
 ipcMain.handle('vox:project:delete', (_e, { id, toRecycle }) => needStore().deleteProject(id, { toRecycle }));
 ipcMain.handle('vox:project:reveal', (_e, id) => { shell.openPath(needStore().projectDir(id)); return { ok: true }; });
 
+/* ── 快速配音 ──────────────────────────────────────────────
+   进/出只有这一个开关，界面层不用关心存储细节。
+   projectId 一律以上层传入的 QUICK_PROJECT_ID 为准，不信任渲染进程。 */
+ipcMain.handle('vox:quick:enter', () => {
+  appSettings = appSettings || loadAppSettings();
+  const enabled = !(appSettings.quickDub && appSettings.quickDub.enabled === false);
+  if (!enabled) return { ok: false, message: '快速配音已在设置里关闭' };
+  const st = getQuickStore();
+  const id = st.ensureQuick();
+  quickActive = true;
+  const no = st.ensureQuickEpisode();
+  const r = st.readProject(id);
+  return {
+    ok: true, projectId: id, episodeNo: no,
+    dir: st.quickDir(),
+    project: (r && r.project) || null
+  };
+});
+ipcMain.handle('vox:quick:exit', () => { quickActive = false; return { ok: true }; });
+ipcMain.handle('vox:quick:status', () => {
+  appSettings = appSettings || loadAppSettings();
+  return {
+    active: quickActive,
+    enabled: !(appSettings.quickDub && appSettings.quickDub.enabled === false),
+    dir: quickActive ? getQuickStore().quickDir() : ''
+  };
+});
+ipcMain.handle('vox:quick:reveal', () => {
+  const st = getQuickStore();
+  st.ensureQuick();          // 还没建过就建出来，免得打开一个不存在的路径
+  const was = quickActive;   // 只开文件夹，不改变"是否处于快速模式"
+  quickActive = false;
+  const r = safeOpenPath(st.quickDir());
+  quickActive = was;
+  return r;
+});
+ipcMain.handle('vox:quick:clear', () => {
+  const st = getQuickStore();
+  const id = st.ensureQuick();
+  const no = st.ensureQuickEpisode();
+  const cur = st.readEpisode(id, no);
+  const prev = (cur && cur.episode) || {};
+  // 清空工作集内容，但保留工作区本身 —— 不进回收站，不碰项目数据
+  return st.writeEpisode(id, no, {
+    script: '', scriptOriginal: '', lines: [],
+    episode: {
+      ...prev, no, title: prev.title || '快速配音',
+      status: 'draft', chars: 0, lineCount: 0, doneCount: 0, durationMs: 0, failureCount: 0
+    }
+  });
+});
+
 ipcMain.handle('vox:episodes:list', (_e, { projectId }) => {
   const st = needStore();
   const p = st.readProject(projectId);
   if (!p.ok) return [];
   return st.listEpisodes(projectId, p.project.padWidth);
 });
-ipcMain.handle('vox:episode:create', (_e, args) => needStore().createEpisode(args.projectId, args));
-ipcMain.handle('vox:episode:read', (_e, { projectId, no }) => needStore().readEpisode(projectId, no));
-ipcMain.handle('vox:episode:write', (_e, { projectId, no, payload }) => needStore().writeEpisode(projectId, no, payload || {}));
-ipcMain.handle('vox:episode:delete', (_e, { projectId, no, toRecycle }) => needStore().deleteEpisode(projectId, no, { toRecycle }));
-ipcMain.handle('vox:episode:saveAudio', (_e, args) => needStore().saveAudio(args.projectId, args.no, args.filename, args.base64));
-ipcMain.handle('vox:episode:readAudio', (_e, args) => needStore().readAudio(args.projectId, args.no, args.filename));
-ipcMain.handle('vox:episode:listAudio', (_e, args) => needStore().listAudio(args.projectId, args.no));
-ipcMain.handle('vox:episode:listOutput', (_e, args) => needStore().listOutput(args.projectId, args.no));
-ipcMain.handle('vox:episode:logExport', (_e, args) => needStore().appendExportLog(args.projectId, args.no, args.entry || {}));
-ipcMain.handle('vox:episode:reveal', (_e, args) => { shell.openPath(needStore().episodePath(args.projectId, args.no)); return { ok: true }; });
+ipcMain.handle('vox:episode:create', (_e, args) => epStore().createEpisode(args.projectId, args));
+ipcMain.handle('vox:episode:read', (_e, { projectId, no }) => epStore().readEpisode(projectId, no));
+ipcMain.handle('vox:episode:write', (_e, { projectId, no, payload }) => epStore().writeEpisode(projectId, no, payload || {}));
+ipcMain.handle('vox:episode:delete', (_e, { projectId, no, toRecycle }) => epStore().deleteEpisode(projectId, no, { toRecycle }));
+ipcMain.handle('vox:episode:saveAudio', (_e, args) => epStore().saveAudio(args.projectId, args.no, args.filename, args.base64));
+ipcMain.handle('vox:episode:readAudio', (_e, args) => epStore().readAudio(args.projectId, args.no, args.filename));
+ipcMain.handle('vox:episode:listAudio', (_e, args) => epStore().listAudio(args.projectId, args.no));
+ipcMain.handle('vox:episode:listOutput', (_e, args) => epStore().listOutput(args.projectId, args.no));
+ipcMain.handle('vox:episode:logExport', (_e, args) => epStore().appendExportLog(args.projectId, args.no, args.entry || {}));
+ipcMain.handle('vox:episode:reveal', (_e, args) => { shell.openPath(epStore().episodePath(args.projectId, args.no)); return { ok: true }; });
 ipcMain.handle('vox:trash:list', () => (store ? store.listTrash() : []));
 ipcMain.handle('vox:trash:restore', (_e, p) => (store ? store.restoreTrash(p) : { ok: false }));
 ipcMain.handle('vox:trash:purge', (_e, p) => (store ? store.purgeTrash(p) : { ok: false }));

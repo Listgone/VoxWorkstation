@@ -66,6 +66,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     reveal: (projectId, no) => invoke('vox:episode:reveal', { projectId, no })
   },
 
+  /* 快速配音（独立工作区：不建项目、不建集） */
+  quick: {
+    enter: () => invoke('vox:quick:enter'),
+    exit: () => invoke('vox:quick:exit'),
+    status: () => invoke('vox:quick:status'),
+    clear: () => invoke('vox:quick:clear'),
+    reveal: () => invoke('vox:quick:reveal')
+  },
+
   /* 音频文件 */
   audio: {
     save: (projectId, no, filename, base64) => invoke('vox:episode:saveAudio', { projectId, no, filename, base64 }),

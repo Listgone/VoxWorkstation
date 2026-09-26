@@ -121,7 +121,7 @@ input,textarea,[contenteditable]{user-select:text !important;-webkit-user-select
 /* --- 液态玻璃背景层（彩色光斑缓慢游动）------------- */
 .glass-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
   opacity:0;transition:opacity .55s ease;background:linear-gradient(160deg,#eef3fb 0%,#e9eef8 60%,#f2edfa 100%)}
-[data-theme="glass"] .glass-bg{opacity:1}
+[data-theme="glass"] .glass-bg{opacity:1;transition:none}
 .glass-bg span{position:absolute;border-radius:50%;filter:blur(72px);opacity:.78;will-change:transform}
 .glass-bg .gb1{width:54vw;height:54vw;left:-10vw;top:-16vw;
   background:radial-gradient(circle,#79b0ff 0%,rgba(121,176,255,0) 70%);animation:gbDrift1 28s ease-in-out infinite alternate}
@@ -415,6 +415,48 @@ svg{display:block}
 /* --- 配音页 ---------------------------------------- */
 .cols{display:grid;grid-template-columns:minmax(0,1fr) var(--rail-w);gap:var(--gap);align-items:start}
 @media (max-width:1180px){.cols{grid-template-columns:1fr}}
+/* 配音页（对齐线框图）：
+     收起（默认）：① 角色与音色   ② 试听（窄）
+                   ③ 台词 —— 横跨整宽
+     展开：右栏（列2）从试听往下长出 参数 / 队列 / 本次生成，
+                   台词右移让位，只占左列（列1）。
+     试听卡标题行：「试听 + 状态」靠左，收发按钮在右侧。
+   定位一律用类名，不用 nth-child（卡片里有按钮，下标型规则会静默错位）。 */
+.dub-main{display:grid;grid-template-columns:minmax(0,1fr) var(--rail-w);gap:var(--gap)}
+.dub-roles{grid-column:1;grid-row:1}
+.dub-listen{grid-column:2;grid-row:1;display:flex;flex-direction:column}
+.dub-listen > #dub-player{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end}
+/* 台词：默认横跨两列；展开时收到左列（右移让位） */
+.dub-lines{grid-column:1 / -1;grid-row:2}
+.dub-main:not(.rail-off) .dub-lines{grid-column:1}
+.dub-main > .action-row{grid-column:1 / -1;grid-row:3}
+/* 标题行：「试听」+ 状态靠左，按钮贴右 */
+.listen-head{display:flex;align-items:center;gap:8px}
+.listen-head .lh-t{flex:none}
+.listen-head .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lf-toggle{flex:none;display:inline-flex;align-items:center;justify-content:center;
+  width:26px;height:22px;padding:0;cursor:pointer;
+  border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elev);
+  color:var(--text-dim);font-family:inherit;font-size:12px;line-height:1;
+  transition:border-color var(--transition),color var(--transition),background var(--transition)}
+.lf-toggle:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+/* 右栏第 2 行：展开内容接在试听下面 */
+.rail-col{grid-column:2;grid-row:2;display:flex;flex-direction:column;
+  min-height:0;max-height:100%;align-self:stretch}
+.rail-body{flex:1;min-height:0;overflow:hidden}
+.rail-body-inner{display:flex;flex-direction:column;gap:var(--gap);min-height:0;overflow:hidden}
+.rail-body-inner > .card{margin-bottom:0}
+/* 收起 = 右栏第 2 行整块不占位，台词横跨整宽 */
+.dub-main.rail-off .rail-col{display:none}
+[data-theme="construct"] .lf-toggle,[data-theme="poster"] .lf-toggle{border-radius:0}
+@media (max-width:1180px){
+  .dub-main,
+  .dub-main.rail-off{grid-template-columns:minmax(0,1fr);grid-template-rows:none}
+  .dub-roles,.dub-listen,.rail-col,.dub-lines,
+  .dub-main > .action-row{grid-column:1;grid-row:auto}
+  .rail-col{max-height:none}
+  .rail-body{flex:none;overflow:visible}
+}
 .rolecard{flex:1;min-width:230px;border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px}
 .rolecard-v{display:flex;align-items:center;gap:10px;margin-top:6px}
 .rolecard-v b{flex:1;font-size:12.5px}
@@ -724,7 +766,6 @@ code{background:var(--bg-elev);padding:1px 6px;border-radius:4px;font-size:11.5p
 
 /* 窄屏：把最容易挤的列收起来，别硬塞 */
 @media (max-width:1240px){
-  #page-dub th:nth-child(4),#page-dub td:nth-child(4){display:none}   /* 音色列 */
   .toolrow{row-gap:8px}
 }
 @media (max-width:1000px){
@@ -1081,7 +1122,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 
 .construct-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
   opacity:0;transition:opacity .5s ease}
-[data-theme="construct"] .construct-bg{opacity:1}
+[data-theme="construct"] .construct-bg{opacity:1;transition:none}
 .construct-bg svg{position:absolute;inset:0;width:100%;height:100%}
 
 [data-theme="construct"] #titlebar{border-bottom:3px solid var(--border)}
@@ -1187,13 +1228,45 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 .thprev-c::after{content:'';position:absolute;left:8px;top:20px;width:46px;height:28px;
   background:var(--accent);border:2px solid var(--border)}
 
-/* 情绪/动作列 */
-.emo-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
-@media (max-width:1240px){#page-dub th:nth-child(3),#page-dub td:nth-child(3){display:none}}
+/* 情绪/动作列。
+   原先 max-width:120px 且标签 11px，角色/情绪两列又小又挤 —— 放宽到 160px。 */
+.emo-cell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
 
+/* 台词表（文本处理页的分句表 / 配音页的台词表共用）：
+   按宽度逐列让位，且让位顺序各表不同 —— 文本页优先保「字数」，配音页优先保「音色」。
+   （原先两页断点一个 1240、一个 1080，结果一页藏一列、另一页全挤着。） */
+@media (max-width:1080px){
+  #page-dub th:nth-child(3),#page-dub td:nth-child(3){display:none}   /* 配音：情绪列 */
+  #page-text th:nth-child(6),#page-text td:nth-child(6){display:none} /* 文本：音色列 */
+}
+@media (max-width:900px){
+  #page-dub th:nth-child(5),#page-dub td:nth-child(5){display:none}   /* 配音：音色列 */
+  #page-dub th:nth-child(7),#page-dub td:nth-child(7){display:none}   /* 配音：操作列 */
+  #page-text th:nth-child(3),#page-text td:nth-child(3){display:none} /* 文本：情绪列 */
+  #page-text th:nth-child(5),#page-text td:nth-child(5){display:none} /* 文本：字数 */
+}
+
+/* 角色 / 情绪：字与留白都放大一档，行与行之间给足呼吸感。
+   固定列用百分比、台词列不设宽 —— 表格能铺满卡片，「台词」列自然变宽；
+   台词过长仍由 td.tx 的省略号收尾。
+   居中规则：表头与固定列里的内容都居中（角色 / 情绪 / 音色 / 状态 / 操作），
+   只有「台词」正文保持左对齐 —— 台词内容居中很难读。 */
+.line-table{table-layout:fixed}
+.line-table th{text-align:center;padding:10px 14px}
+.line-table td{padding:12px 14px;line-height:1.7;text-align:center}
+.line-table td.tx{text-align:left;line-height:1.75;padding-right:20px}
+.line-table .num{text-align:center}
+.line-table td .pill{padding:4px 10px;font-size:12px;line-height:1.5}
+.line-table td.text-sm{font-size:12px}
+.line-table td .pill + .pill{margin-left:6px}
+/* 单元格内竖排元素（音色下拉 + 试听按钮等）居中且互相不挤 */
+.line-table td.row-acts{display:flex;align-items:center;justify-content:center;gap:8px}
+/* 角色 / 情绪标签在各自列里居中 */
+.line-table td .cell-c{display:flex;align-items:center;justify-content:center;gap:6px;min-width:0}
+.line-table td .cell-c > *{margin-left:0}
 
 /* 情绪标注：分三级，视觉上能一眼分辨依据强弱 */
-.emo-tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:20px;
+.emo-tag{display:inline-block;font-size:12.5px;line-height:1.55;padding:4px 8px;border-radius:20px;
   border:1px solid var(--border);background:var(--bg-elev);color:var(--text-dim);white-space:nowrap}
 .emo-infer{border-style:dashed;color:var(--text-mute);background:transparent}
 .emo-none{border-color:transparent;background:transparent;color:var(--text-mute);opacity:.75}
@@ -1222,6 +1295,49 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 [data-theme="construct"] .actgrp{border-width:2px}
 [data-theme="construct"] .actgrp-ai .actgrp-tag{color:var(--text)}
 [data-theme="construct"] .dot-ai{background:var(--accent);box-shadow:none}
+
+/* ══════════════════════════════════════════════════
+   快速配音 —— 独立工作区（不建项目、不建集）
+   ══════════════════════════════════════════════════ */
+/* 快速态：项目/工作流整组让位，只留快速配音 + 资产 + 设置 */
+#sidebar.is-quick [data-page="projects"],
+#sidebar.is-quick [data-page="episodes"],
+#sidebar.is-quick [data-page="text"],
+#sidebar.is-quick [data-page="dub"],
+#sidebar.is-quick [data-page="export"],
+#sidebar.is-quick [data-page="dash"]{display:none}
+#sidebar.is-quick [data-page="quick"]::after{content:'独立工作区';margin-left:auto;
+  font-size:10px;color:var(--text-mute);letter-spacing:.04em}
+#sidebar.is-quick [data-page="quick"] .badge{display:none}
+/* 设置里关掉入口时：变灰但仍可见，点了会提示去哪打开 */
+.nav-item.is-off{opacity:.45}
+.nav-item.is-off .badge{color:var(--text-mute)}
+
+/* 说明页的四步卡 */
+.qsteps{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.qstep{border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-app);
+  padding:11px 12px;display:flex;flex-direction:column;gap:3px}
+.qstep i{font-style:normal;font-size:11px;font-weight:700;color:var(--accent);
+  width:20px;height:20px;border-radius:50%;background:var(--accent-soft);
+  display:flex;align-items:center;justify-content:center;margin-bottom:3px}
+.qstep b{font-size:13px;color:var(--text)}
+.qstep span{font-size:11.5px;color:var(--text-mute);line-height:1.6}
+[data-theme="construct"] .qstep{border-width:2px}
+[data-theme="construct"] .qstep i{border-radius:0}
+@media (max-width:1240px){ .qsteps{grid-template-columns:repeat(2,1fr)} }
+
+/* 台词列表：一行一句，可直接改字、指定音色、生成 */
+.qlist{display:flex;flex-direction:column;gap:7px;max-height:56vh;overflow:auto}
+.qrow{border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-app);
+  padding:8px 10px;transition:border-color var(--transition)}
+.qrow:hover{border-color:var(--accent)}
+.qrow-top{display:flex;align-items:center;gap:7px;margin-bottom:6px;flex-wrap:wrap}
+.qrow-top .num{font-size:11px;color:var(--text-mute);min-width:20px}
+.qrow-text{width:100%;border:1px solid transparent;background:var(--bg-elev);border-radius:6px;
+  padding:7px 9px;font-family:inherit;font-size:13px;line-height:1.7;color:var(--text);
+  resize:vertical;min-height:34px}
+.qrow-text:focus{outline:none;border-color:var(--accent);background:var(--bg-card)}
+[data-theme="construct"] .qrow,[data-theme="construct"] .qrow-text{border-radius:0}
 
 /* ══════════════════════════════════════════════════
    启动加载页 —— 用动画代替滚动的原始日志
@@ -1770,3 +1886,279 @@ body.app-loading #titlebar{
 .vt-box{margin-top:12px}
 .vt-ok{font-size:12.5px;color:var(--ok);font-weight:500}
 .vt-err{font-size:12.5px;color:var(--danger);word-break:break-all;line-height:1.7}
+
+/* ══════════════════════════════════════════════════
+   复古老海报（Vintage Poster / Letterpress）
+   参考：D:\AIS\web-styles\14-vintage-poster.html
+   取它的语言：奶油纸 + 铁胆墨褐 + 锈红套色 + 衬线铅字 + 直角双线框 + 蚀刻装饰。
+   深色外壳把内容衬成"装裱好的海报"，内容区是米色纸张。
+   ══════════════════════════════════════════════════ */
+[data-theme="poster"] {
+  /* 纸与墨（深色底 + 米色纸，与参考页 .paper / body 的关系一致） */
+  --bg-app:transparent;          /* 真正铺底的是 .poster-bg 纸纹层 */
+  --bg-side:#2a1e15;             /* 侧栏 = 深色装裱边 */
+  --bg-card:#f1e7cf;             /* 纸张 */
+  --bg-elev:#e6dabc;             /* 纸上加深一档 */
+  --bg-hover:#dccdab;
+  --bg-input:#f7efdd;
+  --border:#5b3a24;              /* 主墨线：又重又暖的褐 */
+  --border-soft:rgba(91,58,36,.32);
+  --text:#2b1c12;                /* 铅字压出来的深褐，比纯黑暖 */
+  --text-dim:#5d3d26;
+  --text-mute:#8a6a4a;
+  --accent:#b4462b;              /* 套色之一：锈红 */
+  --accent-hover:#93341f;
+  --accent-soft:rgba(180,70,43,.16);
+  --accent-fg:#f3ead6;
+  --ok:#2f6b63;                  /* 套色之二：墨绿 */
+  --ok-soft:rgba(47,107,99,.16);
+  --warn:#8a5a2b;                /* 赭石 */
+  --warn-soft:rgba(138,90,43,.16);
+  --danger:#a32a1c;
+  --danger-soft:rgba(163,42,28,.16);
+  --purple:#2c4a6b;              /* 普鲁士蓝 —— 与锈红同为老油墨套色 */
+  --purple-soft:rgba(44,74,107,.16);
+  --ink-a:rgba(91,58,36,.05);
+  --ink-b:rgba(180,70,43,.05);
+  --overlay:rgba(36,26,18,.62);
+  --shadow:0 2px 0 rgba(91,58,36,.20), 0 8px 18px rgba(58,42,28,.10);
+  --shadow-lg:0 26px 60px rgba(28,18,10,.55);
+  --titlebar-bg:#241a12;
+  /* 铅字：英文走 Georgia，中文走宋体；数字仍由 --font-mono 兜底 */
+  --font-head:Georgia,"Songti SC","SimSun","Times New Roman",serif;
+  --radius-sm:0px; --radius:0px; --radius-lg:0px; --radius-xl:0px;
+}
+
+/* 纸纹层：奶油纸 + 印刷网点 + 四边压暗，纯 CSS 无位图。
+   注意过渡只写在「淡出」方向：淡入必须瞬时。
+   —— 离屏/后台窗口里 CSS 过渡可能一直停在 running（不进帧就不推进时钟），
+   若把淡入也交给过渡，切到本主题时会长时间停在半透明的中间值上。 */
+.poster-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+  opacity:0;transition:opacity .5s ease;background-color:#e8dcc0;
+  background-image:
+    radial-gradient(circle at 18% 22%,rgba(120,86,52,.15) 0 1.2px,transparent 1.3px),
+    radial-gradient(circle at 62% 68%,rgba(120,86,52,.12) 0 1.4px,transparent 1.5px),
+    radial-gradient(circle at 84% 34%,rgba(120,86,52,.10) 0 1px,transparent 1.1px),
+    radial-gradient(circle at 50% -10%,#f6efdc 0%,transparent 58%);
+  background-size:29px 31px,47px 43px,61px 53px,100% 100%}
+[data-theme="poster"] .poster-bg{opacity:1;transition:none}
+.poster-bg::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(140,100,60,.14),transparent 13%,transparent 76%,rgba(120,84,48,.20));
+  box-shadow:inset 0 0 190px rgba(90,62,36,.40)}
+.poster-bg svg{position:absolute;inset:0;width:100%;height:100%;mix-blend-mode:multiply}
+
+[data-theme="poster"] body{font-family:Georgia,"Songti SC","SimSun",serif}
+[data-theme="poster"] ::selection{background:rgba(180,70,43,.24)}
+
+/* ── 外壳：报头 / 报尾 / 侧栏都用重墨线压边 ── */
+[data-theme="poster"] #titlebar{border-bottom:3px solid var(--border);color:#e8dcc0}
+[data-theme="poster"] #status-bar{border-top:3px solid var(--border);background:#241a12;color:#c9b490}
+[data-theme="poster"] #sidebar{border-right:3px solid var(--border)}
+[data-theme="poster"] .titlebar-logo{letter-spacing:.16em;text-transform:uppercase}
+[data-theme="poster"] .titlebar-logo,
+[data-theme="poster"] .titlebar-actions button{color:#dcae7c}
+[data-theme="poster"] .titlebar-actions button:hover{background:rgba(232,220,192,.12);color:#f3ead6}
+[data-theme="poster"] #btn-close:hover{background:var(--danger);color:#f3ead6}
+[data-theme="poster"] .logo-dot{background:var(--accent);box-shadow:0 0 0 3px rgba(180,70,43,.28)}
+[data-theme="poster"] #engine-chip{border-color:rgba(232,220,192,.34);background:rgba(232,220,192,.08);color:#e0cfae}
+[data-theme="poster"] .crumb .seg{border-radius:0;border-color:rgba(232,220,192,.42);color:#dcc9a6;
+  letter-spacing:.06em}
+[data-theme="poster"] .crumb .seg:hover{border-color:#e8dcc0;color:#f3ead6}
+[data-theme="poster"] .crumb .seg.cur{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+[data-theme="poster"] .crumb .sl{color:#9c7c56}
+
+/* ── 侧栏：装裱边 ── */
+[data-theme="poster"] .nav-group{color:#a37f57;letter-spacing:.24em;text-transform:uppercase;
+  border-bottom:1px solid rgba(232,220,192,.16);padding-bottom:7px}
+[data-theme="poster"] .nav-item{color:#d8c39f;border-radius:0}
+[data-theme="poster"] .nav-item:hover{background:rgba(232,220,192,.10);color:#f3ead6}
+[data-theme="poster"] .nav-item.active{background:var(--accent);color:var(--accent-fg);font-weight:600}
+[data-theme="poster"] .nav-item.active::before{display:none}
+[data-theme="poster"] .nav-item .badge{background:rgba(232,220,192,.14);color:#cbb28a}
+[data-theme="poster"] .nav-item.active .badge{background:rgba(36,26,18,.28);color:var(--accent-fg)}
+[data-theme="poster"] .sidebar-foot{border-top:1px solid rgba(232,220,192,.18)}
+[data-theme="poster"] .sidebar-engine{color:#9c7c56}
+[data-theme="poster"] #side-status{color:#cbb28a}
+
+/* ── 报头 / 页头 ── */
+[data-theme="poster"] .phead{border-bottom:none;padding-bottom:20px}
+[data-theme="poster"] .phead::after{content:"";display:block;height:6px;margin-top:12px;
+  border-top:3px solid var(--text);border-bottom:1px solid var(--text)}
+[data-theme="poster"] .phead h1{font-weight:400;letter-spacing:.04em;text-transform:uppercase}
+[data-theme="poster"] .phead .desc{font-style:italic;color:var(--text-mute);letter-spacing:.02em}
+
+/* ── 纸张：卡片 / 表格 / 面板都用"双线框 + 直角" ── */
+[data-theme="poster"] .card,
+[data-theme="poster"] table,
+[data-theme="poster"] .kpi,
+[data-theme="poster"] .pcard,
+[data-theme="poster"] .vcard,
+[data-theme="poster"] .modal-box,
+[data-theme="poster"] .season,
+[data-theme="poster"] .seasonhead,
+[data-theme="poster"] .rolecard,
+[data-theme="poster"] .drop,
+[data-theme="poster"] .th,
+[data-theme="poster"] .take,
+[data-theme="poster"] .pick-item,
+[data-theme="poster"] .actgrp,
+[data-theme="poster"] .qstep,
+[data-theme="poster"] .qrow,
+[data-theme="poster"] .qrow-text,
+[data-theme="poster"] .duo,
+[data-theme="poster"] .popmenu,
+[data-theme="poster"] .toast,
+[data-theme="poster"] .alert,
+[data-theme="poster"] .bg-line{
+  border-radius:0;border-color:var(--border);background:var(--bg-card)}
+[data-theme="poster"] .card{
+  border-width:3px;padding:9px;position:relative;
+  box-shadow:0 2px 0 rgba(91,58,36,.18), 0 10px 22px rgba(58,42,28,.10)}
+[data-theme="poster"] .card > *{position:relative}
+/* 内细线：复刻参考页 .outer / .inner 的双框 */
+[data-theme="poster"] .card::after{content:"";position:absolute;inset:4px;pointer-events:none;
+  border:1px solid rgba(91,58,36,.42)}
+[data-theme="poster"] .card > h2{margin:-1px 0 14px;padding-bottom:9px;font-weight:400;
+  letter-spacing:.18em;text-transform:uppercase;font-size:12.5px;
+  border-bottom:2px solid var(--text);color:var(--text)}
+[data-theme="poster"] .card > h2 .n{font-style:italic;letter-spacing:.02em;text-transform:none;
+  color:var(--text-mute)}
+[data-theme="poster"] .card:hover{border-color:var(--border)}
+[data-theme="poster"] table{border-width:2px}
+[data-theme="poster"] th{background:var(--bg-elev);color:var(--accent);
+  letter-spacing:.18em;text-transform:uppercase;font-size:10.5px;font-weight:600;
+  border-bottom:2px solid var(--border)}
+[data-theme="poster"] td{border-bottom:1px solid var(--border-soft)}
+[data-theme="poster"] tr:hover{background:rgba(180,70,43,.06)}
+[data-theme="poster"] .kpi .lb{letter-spacing:.2em;text-transform:uppercase;color:var(--text-mute)}
+[data-theme="poster"] .kpi .vl{font-family:var(--font-head);font-weight:400;letter-spacing:-.01em}
+[data-theme="poster"] .kpi .sub{font-style:italic}
+
+/* ── 铅字按钮：方框 + 大写字母间距，实心块用锈红 ── */
+[data-theme="poster"] .btn{border:2px solid var(--border);border-radius:0;background:transparent;
+  color:var(--text);letter-spacing:.12em;font-family:inherit;
+  transition:background .2s ease,color .2s ease,border-color .2s ease}
+[data-theme="poster"] .btn:hover:not(:disabled){background:var(--border);color:var(--bg-card)}
+[data-theme="poster"] .btn:active:not(:disabled){transform:translateY(1px)}
+[data-theme="poster"] .btn-primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);
+  letter-spacing:.16em}
+[data-theme="poster"] .btn-primary:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover);color:var(--accent-fg)}
+[data-theme="poster"] .btn-ai{background:var(--purple-soft);border-color:var(--purple);color:var(--purple)}
+[data-theme="poster"] .btn-ai:hover:not(:disabled){background:var(--purple);color:var(--bg-card)}
+[data-theme="poster"] .btn-local{background:transparent;border-color:var(--border-soft);color:var(--text-dim)}
+[data-theme="poster"] .btn-local:hover:not(:disabled){background:var(--border);color:var(--bg-card)}
+[data-theme="poster"] .btn-gen{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+[data-theme="poster"] .btn-gen:hover:not(:disabled){background:var(--accent);color:var(--accent-fg)}
+[data-theme="poster"] .btn-ghost{border-color:transparent;background:transparent}
+[data-theme="poster"] .btn-ghost:hover:not(:disabled){background:rgba(91,58,36,.10);color:var(--text)}
+[data-theme="poster"] .btn-play{background:transparent;border-color:var(--border)}
+[data-theme="poster"] .btn:disabled{opacity:.42}
+[data-theme="poster"] .btn-icon{border-radius:0}
+
+/* ── 表单：纸上压印 ── */
+[data-theme="poster"] input[type="text"],
+[data-theme="poster"] input[type="password"],
+[data-theme="poster"] input[type="number"],
+[data-theme="poster"] input[type="search"],
+[data-theme="poster"] textarea,
+[data-theme="poster"] select,
+[data-theme="poster"] .cselect-btn{
+  border-radius:0;border:1.6px solid rgba(91,58,36,.55);background:var(--bg-input);
+  color:var(--text);font-family:inherit;
+  box-shadow:inset 0 1px 3px rgba(91,58,36,.10)}
+[data-theme="poster"] input:focus,
+[data-theme="poster"] textarea:focus,
+[data-theme="poster"] select:focus{border-color:var(--accent);background:#fbf5e6;
+  box-shadow:inset 0 1px 3px rgba(91,58,36,.10), 0 0 0 3px rgba(180,70,43,.12)}
+[data-theme="poster"] ::placeholder{color:#9c7c56;font-style:italic}
+[data-theme="poster"] input[type="range"]{accent-color:var(--accent)}
+[data-theme="poster"] .cselect-caret{border-top-color:var(--text-dim)}
+[data-theme="poster"] .sw{border:2px solid var(--border);border-radius:0}
+
+/* ── 徽标 / 标签：像印章 ── */
+[data-theme="poster"] .pill{border:1px solid var(--border);border-radius:0;background:transparent;
+  color:var(--text-dim);letter-spacing:.08em}
+[data-theme="poster"] .pill-ok{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+[data-theme="poster"] .pill-run{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+[data-theme="poster"] .pill-warn{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
+[data-theme="poster"] .pill-err{background:var(--danger-soft);border-color:var(--danger);color:var(--danger)}
+[data-theme="poster"] .pill-p{background:var(--purple-soft);border-color:var(--purple);color:var(--purple)}
+[data-theme="poster"] .mchip{border-radius:0;border:2px solid var(--border);background:transparent;color:var(--text-dim)}
+[data-theme="poster"] .mchip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+[data-theme="poster"] .free-tag{border-radius:0;background:transparent;border-color:var(--border-soft);color:var(--text-mute)}
+[data-theme="poster"] .emo-tag{border-radius:0;background:transparent;border-color:var(--border-soft);color:var(--text-dim)}
+[data-theme="poster"] .emo-infer{border-style:dashed}
+[data-theme="poster"] .emo-none{border-color:transparent}
+
+/* ── 处理分组：套色区分（AI=普鲁士蓝，本地=墨褐）── */
+[data-theme="poster"] .actgrp{background:rgba(255,255,255,.26);border-color:var(--border-soft)}
+[data-theme="poster"] .actgrp-ai{background:rgba(44,74,107,.08);border-color:var(--purple)}
+[data-theme="poster"] .actgrp-ai .actgrp-tag{color:var(--purple);letter-spacing:.1em}
+[data-theme="poster"] .actgrp-local{background:rgba(91,58,36,.06)}
+[data-theme="poster"] .actgrp-local .actgrp-tag{color:var(--text-mute);letter-spacing:.1em}
+[data-theme="poster"] .dot-ai{background:var(--purple);box-shadow:none}
+[data-theme="poster"] .dot-local{background:var(--text-mute)}
+[data-theme="poster"] .qstep i{border-radius:0;background:var(--accent);color:var(--accent-fg);
+  font-family:var(--font-head)}
+[data-theme="poster"] .qrow-text{background:var(--bg-input)}
+[data-theme="poster"] .duo{background:var(--bg-card)}
+[data-theme="poster"] .pane + .pane{border-left:2px solid var(--border)}
+[data-theme="poster"] .pane-text{font-family:inherit}
+
+/* ── 菜单 / 下拉 / 弹层 ── */
+[data-theme="poster"] .popmenu{border:2px solid var(--border);box-shadow:6px 6px 0 rgba(91,58,36,.22)}
+[data-theme="poster"] .popmenu-item{border-radius:0}
+[data-theme="poster"] .popmenu-item:hover{background:rgba(180,70,43,.08)}
+[data-theme="poster"] .popmenu-item.on{background:var(--accent);color:var(--accent-fg)}
+[data-theme="poster"] .modal-overlay{background:var(--overlay)}
+[data-theme="poster"] .modal-box{border:3px solid var(--border);box-shadow:var(--shadow-lg)}
+[data-theme="poster"] .modal-head{border-bottom:2px solid var(--border);background:transparent}
+[data-theme="poster"] .modal-head h3{font-weight:400;letter-spacing:.14em;text-transform:uppercase}
+[data-theme="poster"] .modal-foot{border-top:1px solid var(--border-soft)}
+[data-theme="poster"] .toast{border:2px solid var(--border);box-shadow:5px 5px 0 rgba(91,58,36,.20)}
+[data-theme="poster"] .alert{border-width:2px}
+
+/* ── 进度 / 波形 / 图表 ── */
+[data-theme="poster"] .pbar,[data-theme="poster"] .qbar,
+[data-theme="poster"] .track,[data-theme="poster"] .season-bar{
+  border-radius:0;background:var(--bg-elev);border:1px solid var(--border-soft)}
+[data-theme="poster"] .pbar i,[data-theme="poster"] .qbar i,
+[data-theme="poster"] .track i,[data-theme="poster"] .season-bar i{border-radius:0;background:var(--accent)}
+[data-theme="poster"] .audio-player .ap-waveform{background:var(--bg-input);border-color:var(--border)}
+[data-theme="poster"] .ap-play-btn{border-radius:0}
+[data-theme="poster"] .bc-total{background:var(--bg-elev)}
+[data-theme="poster"] .bc-bar i{border-radius:0}
+[data-theme="poster"] .bc-done{background:var(--accent)!important}
+[data-theme="poster"] code{background:var(--bg-elev);border-radius:0;color:var(--text-dim);
+  border:1px solid var(--border-soft)}
+[data-theme="poster"] .vchip{border-radius:0;border:2px solid var(--border);background:transparent;
+  font-family:var(--font-head)}
+[data-theme="poster"] .bg-line{background:var(--bg-elev)}
+[data-theme="poster"] .themes .th.on{box-shadow:4px 4px 0 var(--accent)}
+
+/* ── 主题选择卡：本主题的预览块也画成小海报 ── */
+.thprev-p{background:linear-gradient(180deg,#241a12 0 12px,#e8dcc0 12px);position:relative;
+  background-image:radial-gradient(circle at 70% 30%,rgba(120,86,52,.22) 0 1px,transparent 1.2px),
+                   linear-gradient(180deg,#241a12 0 12px,#e8dcc0 12px)}
+.thprev-p::after{content:'';position:absolute;left:14px;right:14px;top:24px;height:12px;
+  border-top:2px solid #5b3a24;border-bottom:1px solid #5b3a24}
+.thprev-p::before{content:'';position:absolute;right:12px;bottom:10px;width:22px;height:22px;
+  border:2px solid rgba(180,70,43,.7);border-radius:50%}
+.th:hover .thprev-p{background-image:radial-gradient(circle at 70% 30%,rgba(120,86,52,.30) 0 1px,transparent 1.2px),
+  linear-gradient(180deg,#241a12 0 12px,#e2d5b6 12px)}
+
+/* ── 启动加载页也跟着走纸墨 ── */
+[data-theme="poster"] #loading-overlay{background:#241a12}
+[data-theme="poster"] .ld-title{color:#e8dcc0;font-family:var(--font-head);letter-spacing:.22em;
+  text-shadow:1.4px 1.4px 0 rgba(180,70,43,.42),2.6px 2.6px 0 rgba(47,107,99,.26)}
+[data-theme="poster"] .ld-text,
+[data-theme="poster"] .ld-elapsed{color:#bda37c}
+[data-theme="poster"] .ld-bar{background:rgba(232,220,192,.20)}
+[data-theme="poster"] .ld-bar i{background:var(--accent)}
+[data-theme="poster"] .ld-core{fill:var(--accent)}
+[data-theme="poster"] .ld-ring{stroke:#c9a05a}
+
+/* ── 快速配音页：纸面说明也保持一致 ── */
+[data-theme="poster"] .qsteps .qstep{background:rgba(255,255,255,.26)}
+[data-theme="poster"] .qlist .qrow{background:rgba(255,255,255,.26)}
+[data-theme="poster"] #sidebar.is-quick [data-page="quick"]::after{color:#a37f57}

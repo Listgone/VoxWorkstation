@@ -15,7 +15,7 @@ const Shortcuts = {
     ['Esc',          '关闭弹层']
   ],
 
-  PAGE_ORDER: ['dash', 'projects', 'episodes', 'text', 'dub', 'export', 'voices', 'settings'],
+  PAGE_ORDER: ['dash', 'projects', 'episodes', 'text', 'dub', 'export', 'voices', 'settings', 'quick'],
 
   init() {
     window.addEventListener('keydown', (e) => this._onKey(e), true);

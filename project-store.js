@@ -13,6 +13,12 @@
        audio\                   逐句音频
        output\                  导出成品
        export-log.json          导出记录
+
+   ── 快速配音（独立工作区）──
+   只想单独配几句话时不必建项目、建集：quickStore() 返回一个挂在
+   <userData>\_quick\ 上的独立实例，目录结构与项目一致，
+   但不在项目根目录下 —— listProjects / 回收站 / 仪表板统计都看不到它，
+   项目文件也一个字节都不会被它碰到。
    ══════════════════════════════════════════════════════════ */
 
 const fs = require('fs');
@@ -55,10 +61,41 @@ const DEFAULT_EPISODE = {
   failureCount: 0
 };
 
+/* ── 快速配音：独立工作区 ─────────────────────────────
+   固定一个项目 id，挂在 <userData>\_quick\ 下。
+   与「项目根目录」物理分开，所以：
+     · listProjects() 永远列不到它（扫的是项目根目录）
+     · 回收站自动清理扫不到它
+     · 用户改输出目录也不会把它搬走或弄丢 */
+const QUICK_PROJECT_ID = '_quick';
+
+const QUICK_PROJECT = {
+  ...DEFAULT_PROJECT,
+  id: QUICK_PROJECT_ID,
+  name: '快速配音',
+  desc: '来不及建项目时的临时工作区 —— 粘一段文本就能配音、导出',
+  type: 'single',
+  seasons: []
+};
+
 const nowISO = () => new Date().toISOString();
 
 function safeName(s) {
   return String(s || '').replace(/[\\/:*?"<>|\r\n]/g, '_').trim() || '未命名';
+}
+
+/** 相对文件名：允许 audio\ / output\ 这类子目录（也允许用 '..' 回退到集目录），
+    逐段清洗非法字符 —— 但**不能**整体过 safeName，
+    那会把分隔符压成下划线：'../output/x.wav' → audio\.._output_x.wav。
+    真正的越界由 saveAudio 里的最终解析校验拦住。 */
+function relSafe(s) {
+  return String(s || '')
+    .replace(/\\/g, '/')
+    .replace(/^\.\//, '')
+    .split('/')
+    .map(seg => (seg === '..' ? '..' : safeName(seg)))
+    .filter(seg => seg && seg !== '.')
+    .join('/');
 }
 
 function readJSON(file, fallback) {
@@ -88,6 +125,43 @@ class ProjectStore {
   setRoot(dir) {
     this.root = dir;
     this.ensureRoot();
+  }
+
+  /* ── 快速配音工作区 ─────────────────────────
+     懒加载：第一次进入快速配音才建目录写配置。
+     _quickReady 只做进程内缓存（会话级），文件在磁盘上是持久的。 */
+  ensureQuick() {
+    if (!this._quickReady) {
+      fs.mkdirSync(this.root, { recursive: true });
+      fs.mkdirSync(this.sharedDir(QUICK_PROJECT_ID), { recursive: true });
+      fs.mkdirSync(path.join(this.sharedDir(QUICK_PROJECT_ID), 'voices'), { recursive: true });
+      const pf = this.projectFile(QUICK_PROJECT_ID);
+      if (!fs.existsSync(pf)) {
+        writeJSON(pf, { ...QUICK_PROJECT, createdAt: nowISO(), updatedAt: nowISO() });
+      } else {
+        // 老版本可能缺字段（如 defaults / output），补上但不动用户数据
+        const cur = readJSON(pf, null);
+        if (!cur || !cur.defaults || !cur.output) {
+          writeJSON(pf, { ...QUICK_PROJECT, ...(cur || {}), id: QUICK_PROJECT_ID });
+        }
+      }
+      const df = path.join(this.sharedDir(QUICK_PROJECT_ID), 'dict.json');
+      if (!fs.existsSync(df)) writeJSON(df, []);
+      this._quickReady = true;
+    }
+    return QUICK_PROJECT_ID;
+  }
+
+  /** 快速配音的持久目录（交给界面显示 / 打开） */
+  quickDir() { return this.projectDir(this.ensureQuick()); }
+
+  /* 快速配音只允许一个工作集（第 1 集）。 */
+  ensureQuickEpisode() {
+    const id = this.ensureQuick();
+    const list = this.listEpisodes(id, QUICK_PROJECT.padWidth);
+    if (list.length) return list[0].no;
+    const r = this.createEpisode(id, { no: 1, title: '快速配音' });
+    return r.ok ? 1 : 0;
   }
 
   projectDir(id) { return path.join(this.root, id); }
@@ -407,12 +481,16 @@ class ProjectStore {
     const dir = this.episodePath(projectId, no);
     if (!fs.existsSync(dir)) return { ok: false, message: '集不存在' };
     const audioDir = path.join(dir, 'audio');
-    fs.mkdirSync(audioDir, { recursive: true });
-    const safe = safeName(filename).replace(/_/g, '_');
-    const file = path.join(audioDir, safe);
+    const rel = relSafe(filename);
+    if (!rel) return { ok: false, message: '文件名为空' };
+    const file = path.join(audioDir, rel.replace(/\//g, path.sep));
+    // 双保险：解析后必须仍在集目录内，否则拒绝写入
+    const norm = (p) => path.resolve(p).toLowerCase().replace(/[\\/]+$/, '');
+    if (norm(file).indexOf(norm(dir)) !== 0) return { ok: false, message: '路径越界，已拒绝' };
     try {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
       fs.writeFileSync(file, Buffer.from(base64, 'base64'));
-      return { ok: true, path: file, name: safe };
+      return { ok: true, path: file, name: path.basename(file), rel };
     } catch (e) { return { ok: false, message: e.message }; }
   }
 
@@ -461,4 +539,4 @@ class ProjectStore {
   }
 }
 
-module.exports = { ProjectStore, DEFAULT_PROJECT, DEFAULT_EPISODE, safeName };
+module.exports = { ProjectStore, DEFAULT_PROJECT, DEFAULT_EPISODE, safeName, QUICK_PROJECT_ID };
