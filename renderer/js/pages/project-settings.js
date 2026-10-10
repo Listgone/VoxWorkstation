@@ -118,8 +118,8 @@ const ProjectSettingsPage = {
       + '<td>' + (r.voice ? Util.escapeHtml(r.voice) : '<span class="text-muted">未绑定</span>') + '</td>'
       + '<td class="text-muted">' + Util.escapeHtml(r.desc || '') + '</td>'
       + '<td class="num">' + (r.cfg != null ? r.cfg.toFixed(1) : '继承默认') + '</td>'
-      + '<td><button class="btn btn-sm btn-ghost" data-act="edit-role" data-i="' + i + '">改</button>'
-      + '<button class="btn btn-sm btn-ghost btn-danger" data-act="del-role" data-i="' + i + '">删</button></td></tr>').join('');
+      + '<td><button class="btn btn-sm btn-ghost" data-act="edit-role" data-i="' + i + '" title="编辑这个角色">编辑</button>'
+      + '<button class="btn btn-sm btn-ghost btn-danger" data-act="del-role" data-i="' + i + '" title="删除这个角色">删除</button></td></tr>').join('');
 
     return '<div class="card"><h2>角色与音色 <span class="n">跨所有集保持一致的关键</span></h2>'
       + '<p class="text-sm text-muted" style="margin:-6px 0 12px">这里定义一次，所有集共用。改这里 = 全项目该角色的音色统一换掉。</p>'
@@ -159,7 +159,7 @@ const ProjectSettingsPage = {
       + (dict.length
         ? '<table><tr><th style="width:140px">词</th><th style="width:200px">读法</th><th style="width:70px"></th></tr>'
           + dict.map((d, i) => '<tr><td>' + Util.escapeHtml(d.word) + '</td><td>' + Util.escapeHtml(d.reading) + '</td>'
-              + '<td><button class="btn btn-sm btn-ghost btn-danger" data-act="del-dict" data-i="' + i + '">删</button></td></tr>').join('')
+              + '<td><button class="btn btn-sm btn-ghost btn-danger" data-act="del-dict" data-i="' + i + '" title="删除这个词条">删除</button></td></tr>').join('')
           + '</table>'
         : '<p class="text-sm text-muted">还没有词条。把易读错的专有名词加进来，比如「良渚 → liáng zhǔ」。</p>')
       + '<div class="action-row mt-12">'

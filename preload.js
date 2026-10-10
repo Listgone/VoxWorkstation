@@ -107,5 +107,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   /* 外部链接：主进程只放行 http/https，其余协议会被拒绝 */
-  openExternal: (url) => invoke('vox:open-external', url)
+  openExternal: (url) => invoke('vox:open-external', url),
+
+  /* 音色库备份 / 还原：备份放到软件目录之外，避免随软件一起丢 */
+  voices: {
+    stat: () => invoke('vox:voices:stat'),
+    backup: (opts) => invoke('vox:voices:backup', opts),
+    restore: (opts) => invoke('vox:voices:restore', opts)
+  }
 });

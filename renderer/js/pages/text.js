@@ -76,7 +76,7 @@ const TextPage = {
         ? '<div class="card"><h2>背景介绍 <span class="n">仅供判断，不参与配音</span></h2>'
           + '<div class="bg-line"><span class="pill pill-p">总结</span>'
           + '<span class="bg-text">' + Util.nl2br(Util.escapeHtml(d.background)) + '</span>'
-          + '<button class="btn btn-sm btn-ghost" data-act="edit-bg">改</button></div></div>'
+          + '<button class="btn btn-sm btn-ghost" data-act="edit-bg" title="编辑背景介绍">编辑</button></div></div>'
         : '')
 
       + '<div class="card"><h2>处理 <span class="n" id="tx-ai-state">'

@@ -5,6 +5,7 @@ const fs = require('fs');
 const http = require('http');
 const { spawn, execFile, spawnSync } = require('child_process');
 const { ProjectStore, QUICK_PROJECT_ID } = require('./project-store');
+const voiceBackup = require('./voices-backup');
 
 // 后端实际报告的监听端口（可能因端口占用/排除段而不同于配置值）
 let serverPortActual = 0;
@@ -1052,6 +1053,70 @@ ipcMain.handle('vox:open-external', (_e, url) => {
   if (!/^https?:\/\//i.test(u)) return { ok: false, message: '只允许打开 http/https 链接' };
   try { shell.openExternal(u); return { ok: true }; }
   catch (e) { return { ok: false, message: e.message }; }
+});
+
+/* ══════════════════════════════════════════════════════════
+   音色库备份 / 还原
+   ══════════════════════════════════════════════════════════
+   为什么需要：音色（voice_profiles 下的音频）与 custom_presets.json 都在软件
+   目录里，一旦误删目录、换机器或重装，积累的音色就没了。备份必须放在软件目录
+   之外 —— 这里让用户自己选一个目录（建议网盘同步目录或另一块硬盘），每次备份
+   生成一个带时间戳的子目录：
+     VoxVoices-20261010-1800\
+        voice_profiles\     ← 全部声纹音频
+        custom_presets.json
+        manifest.json       ← 备份时间、数量、来源
+   还原时逐个补回缺失文件，默认不覆盖同名文件。
+   逐个 copyFileSync，不用 fs.cpSync —— 后者可能跟随目录联接。
+   ══════════════════════════════════════════════════════════ */
+
+/** 音色库位置（跟随 serverDir，用户改过后端目录也能对上） */
+function voicePaths() {
+  const dir = (CONFIG && CONFIG.serverDir) || path.join(appBaseDir(), 'engine');
+  return {
+    dir,
+    profiles: path.join(dir, 'voice_profiles'),
+    presets: path.join(dir, 'custom_presets.json')
+  };
+}
+
+/** 音色库概况（界面显示 + 备份前确认） */
+ipcMain.handle('vox:voices:stat', () => {
+  const st = voiceBackup.statVoices(voicePaths(), appSettings.voicesBackupDir || '');
+  return Object.assign({ ok: true }, st);
+});
+
+/** 备份：选目录（首次）→ 生成带时间戳的子目录并复制 */
+ipcMain.handle('vox:voices:backup', async (_e, opts) => {
+  const v = voicePaths();
+  let base = (opts && opts.dir) || appSettings.voicesBackupDir || '';
+  if (!base) {
+    const r = await dialog.showOpenDialog(mainWindow, {
+      title: '选择音色库备份位置（建议网盘同步目录或另一块硬盘）',
+      properties: ['openDirectory', 'createDirectory'],
+      buttonLabel: '在此备份'
+    });
+    if (r.canceled || !r.filePaths[0]) return { ok: false, canceled: true };
+    base = r.filePaths[0];
+  }
+  const res = voiceBackup.backupVoices(v, base, { version: app.getVersion() });
+  if (res.ok) { appSettings.voicesBackupDir = base; saveAppSettingsFile(); }
+  return res;
+});
+
+/** 还原：选目录（可直接选 VoxVoices-… 的上级）→ 补回缺失文件 */
+ipcMain.handle('vox:voices:restore', async (_e, opts) => {
+  const v = voicePaths();
+  let base = (opts && opts.dir) || appSettings.voicesBackupDir || '';
+  if (!base) {
+    const r = await dialog.showOpenDialog(mainWindow, {
+      title: '选择要还原的备份目录（VoxVoices-… 或它所在的上级目录）',
+      properties: ['openDirectory'], buttonLabel: '从这里还原'
+    });
+    if (r.canceled || !r.filePaths[0]) return { ok: false, canceled: true };
+    base = r.filePaths[0];
+  }
+  return voiceBackup.restoreVoices(v, base, { overwrite: !!(opts && opts.overwrite) });
 });
 ipcMain.handle('restart-server', async () => {
   killServerTree();
