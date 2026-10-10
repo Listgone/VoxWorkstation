@@ -37,7 +37,10 @@ const VoiceBackup = {
   /** 弹窗正文（每次刷新后重绘） */
   _bodyHtml(st) {
     const n = st.voiceCount || 0;
-    const dir = st.lastBackup || st.autoBackupDir || '';
+    // 备份位置按实际在用的目录显示：手动指定过就用它，否则用自动备份的落点。
+    // 注意别用 st.dir —— 那是音色库自己的目录，不是备份目录。
+    const dir = st.backupDir || '';
+    const isAuto = !!st.isAutoDir;
     // 只列最近 3 条，其余让用户去备份目录里看
     // （备份不再自动清理，攒多了全列出来反而看不清最新的是哪份）
     const list = (st.backups || []).slice(0, 3);
@@ -56,7 +59,8 @@ const VoiceBackup = {
     return ''
       + '<div class="vbk-status">'
       + '<div><b>当前音色库</b><span>共 ' + n + ' 个音色 · ' + this._fmtSize(st.bytes) + '</span></div>'
-      + '<div><b>备份位置</b><span>' + (dir ? Util.escapeHtml(dir) : '（未设置，首次备份时选择）') + '</span></div>'
+      + '<div><b>备份位置</b><span>' + (dir ? Util.escapeHtml(dir) : '（未设置，首次备份时选择）')
+      + (dir && isAuto ? '　（自动备份的默认位置，可「更改备份位置」）' : '') + '</span></div>'
       + (st.autoBackupAt ? '<div><b>上次自动备份</b><span>' + this._fmtTime(st.autoBackupAt) + '</span></div>' : '')
       + '</div>'
       + '<div class="vbk-acts">'
@@ -159,7 +163,7 @@ const VoiceBackup = {
 
     on('[data-vbk="open"]', async () => {
       const st = this._stat || {};
-      const dir = st.lastBackup || '';
+      const dir = st.backupDir || '';
       if (!dir) { Toast.error('还没有设置备份位置', true); return; }
       try { await window.electronAPI.path.reveal(dir); }
       catch (e) { Toast.error('打开失败：' + (e && e.message || e), true); }

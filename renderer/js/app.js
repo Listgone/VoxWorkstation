@@ -19,6 +19,7 @@ const App = {
     projects:            () => ProjectsPage,
     'project-settings':  () => ProjectSettingsPage,
     episodes:            () => EpisodesPage,
+    roles:               () => RolesPage,
     text:                () => TextPage,
     dub:                 () => DubPage,
     export:              () => ExportPage,
@@ -51,8 +52,10 @@ const App = {
     this.applyFont(st.font);
     this.detectFonts();
     document.documentElement.setAttribute('data-reduce-motion', st.reduceMotion ? 'true' : 'false');
+    /* 界面缩放：必须交给主进程用 Electron 的 zoomFactor。
+       给 body 设 CSS zoom 在这里是无效的 —— 计算值会变，但布局尺寸不动。 */
     if (Number(st.uiScale) && Number(st.uiScale) !== 1) {
-      document.body.style.zoom = String(Number(st.uiScale));
+      window.electronAPI?.ui?.setZoom?.(Number(st.uiScale));
     }
 
     Store.on(() => { this._syncChrome(); });
@@ -76,7 +79,16 @@ const App = {
       p.classList.toggle('active', p.id === 'page-' + page));
 
     const el = document.getElementById('page-' + page);
-    if (!el) return;
+    if (!el) {
+      /* 容器缺失时不要静默返回：以前这里直接 return，
+         页面注册了、导航也在，但 index.html 忘了写对应的 <section>，
+         结果点了导航只有高亮、内容全空、控制台一点报错都没有，很难查。
+         新增页面时必须在 index.html 里加 <section id="page-xxx" class="page">。 */
+      console.error('[页面] 缺少容器 <section id="page-' + page + '" class="page">，'
+        + '请在 renderer/index.html 里补上');
+      if (typeof Toast !== 'undefined') Toast.error('页面容器缺失：page-' + page, true);
+      return;
+    }
 
     // 每次都重渲染：数据随时可能变，页面也不重，代价可接受
     try {
@@ -168,6 +180,7 @@ const App = {
     set('nav-proj-count', Store.projects.length || '');
     set('nav-ep-count', Store.episodes.length || '');
     set('nav-line-count', Store.currentEpisode ? (Store.currentEpisode.lines || []).length : '');
+    set('nav-role-count', (Store.currentProject && (Store.currentProject.roles || []).length) || '');
     set('nav-voice-count', window.__voiceCount || '');
     // 快速模式：角标改成状态提示，免得"免项目"三个字一直挂着
     const qh = document.getElementById('nav-quick-hint');

@@ -117,5 +117,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     restore: (opts) => invoke('vox:voices:restore', opts),
     deleteBackups: (opts) => invoke('vox:voices:delete-backups', opts),
     setBackupDir: (opts) => invoke('vox:voices:set-backup-dir', opts)
+  },
+
+  /* 界面缩放：走 Electron 的 zoomFactor（CSS zoom 在 Electron 里不缩放布局） */
+  ui: {
+    setZoom: (factor) => invoke('vox:ui:setZoom', factor),
+    getZoom: () => invoke('vox:ui:getZoom')
   }
 });

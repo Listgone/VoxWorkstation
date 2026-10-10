@@ -83,11 +83,11 @@ const EpisodesPage = {
       + '<span class="num text-sm">' + g.eps.length + ' 集 · ' + Util.fmtDuration(dur) + '</span>'
       + '<button class="btn btn-sm" data-act="add-ep-season" data-from="' + g.from + '" data-to="' + g.to + '">＋ 本季新建集</button>'
       + '</div>'
-      + '<table><tr><th style="width:34px"></th><th style="width:60px">集号</th><th>标题</th>'
-      + '<th style="width:66px">字数</th><th style="width:54px">句数</th><th style="width:60px">时长</th>'
-      + '<th style="width:150px">配音进度</th><th style="width:92px">状态</th><th style="width:120px"></th></tr>'
+      + '<div class="seasonbody"><table><tr><th style="width:44px"></th><th style="width:70px">集号</th><th>标题</th>'
+      + '<th style="width:76px">字数</th><th style="width:68px">句数</th><th style="width:74px">时长</th>'
+      + '<th style="width:170px">配音进度</th><th style="width:96px">状态</th><th style="width:146px"></th></tr>'
       + g.eps.map(e => this._row(e)).join('')
-      + '</table></div>';
+      + '</table></div></div>';
   },
 
   _row(e) {
@@ -106,6 +106,7 @@ const EpisodesPage = {
       + '<td>' + Util.progressBar(e.doneCount || 0, e.lineCount || 0, 72) + '</td>'
       + '<td><span class="pill ' + cls + '">' + label + '</span></td>'
       + '<td class="row-acts">'
+      + '<button class="btn btn-sm" data-act="ep-roles" data-no="' + e.no + '" title="看这一集出现了哪些角色、各自用的什么音色">角色</button>'
       + '<button class="btn btn-sm' + (cur ? ' btn-primary' : '') + '" data-act="open-ep" data-no="' + e.no + '">'
       + (cur ? '继续' : '打开') + '</button>'
       + '<button class="btn btn-sm btn-ghost btn-danger btn-del" data-act="del-ep" data-no="' + e.no + '"'
@@ -169,6 +170,14 @@ const EpisodesPage = {
         const r = await Store.openEpisode(Number(b.dataset.no));
         if (r && r.ok) App.go('dub');
         else Toast.error(r && r.message || '打不开该集', true);
+      }));
+
+    /* 看这一集的角色与音色：跳到「角色管理」并定位到该集 */
+    el.querySelectorAll('[data-act="ep-roles"]').forEach(b =>
+      b.addEventListener('click', () => {
+        RolesPage._focusEp = Number(b.dataset.no);
+        RolesPage._stat = null;                  // 重新统计，保证是最新
+        App.go('roles');
       }));
 
     el.querySelectorAll('[data-act="del-ep"]').forEach(b =>

@@ -121,11 +121,13 @@ const ProjectSettingsPage = {
       + '<td><button class="btn btn-sm btn-ghost" data-act="edit-role" data-i="' + i + '" title="编辑这个角色">编辑</button>'
       + '<button class="btn btn-sm btn-ghost btn-danger" data-act="del-role" data-i="' + i + '" title="删除这个角色">删除</button></td></tr>').join('');
 
-    return '<div class="card"><h2>角色与音色 <span class="n">跨所有集保持一致的关键</span></h2>'
-      + '<p class="text-sm text-muted" style="margin:-6px 0 12px">这里定义一次，所有集共用。改这里 = 全项目该角色的音色统一换掉。</p>'
+    return '<div class="card"><h2>角色与音色 <span class="n">跨所有集保持一致的关键</span>'
+      + '<button class="btn btn-sm" data-act="goto-roles" style="margin-left:8px">全部角色与统计 →</button></h2>'
+      + '<p class="text-sm text-muted" style="margin:-6px 0 12px">这里定义一次，所有集共用。改这里 = 全项目该角色的音色统一换掉。'
+      + '角色多了之后，去「角色管理」看总台账（每个角色绑了什么音色、跨多少集、每句实际用过的音色）。</p>'
       + (roles.length
         ? '<table><tr><th style="width:120px">角色</th><th style="width:180px">绑定音色</th>'
-          + '<th>说明</th><th style="width:110px">参数覆盖</th><th style="width:96px"></th></tr>' + rows + '</table>'
+          + '<th>说明</th><th style="width:110px">参数覆盖</th><th style="width:146px"></th></tr>' + rows + '</table>'
         : '<p class="text-sm text-muted">还没有角色。</p>')
       + '<div class="action-row mt-12">'
       + '<button class="btn btn-sm" data-act="add-role">＋ 添加角色</button></div>'
@@ -330,6 +332,7 @@ const ProjectSettingsPage = {
       }));
 
     /* 角色 */
+    el.querySelector('[data-act="goto-roles"]')?.addEventListener('click', () => App.go('roles'));
     el.querySelector('[data-act="add-role"]')?.addEventListener('click', () => this._editRole(null, -1));
     el.querySelectorAll('[data-act="edit-role"]').forEach(b =>
       b.addEventListener('click', () => this._editRole((p.roles || [])[Number(b.dataset.i)], Number(b.dataset.i))));

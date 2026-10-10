@@ -713,9 +713,17 @@ const SettingsPage = {
         App.go('settings');
       }));
 
+    /* 界面缩放：改下拉就立刻生效（以前要再点"保存"才应用，容易以为没作用） */
+    el.querySelector('#s-scale')?.addEventListener('change', async (e) => {
+      const scale = Number(e.target.value) || 1;
+      const r = await window.electronAPI?.ui?.setZoom?.(scale);
+      if (r && r.ok === false) { Toast.error('缩放失败：' + (r.message || ''), true); return; }
+      await save({ uiScale: scale }, '界面缩放已应用');
+    });
+
     el.querySelector('[data-act="save-appearance"]')?.addEventListener('click', async () => {
       const scale = Number(el.querySelector('#s-scale').value);
-      document.body.style.zoom = scale === 1 ? '' : String(scale);
+      await window.electronAPI?.ui?.setZoom?.(scale);
       await save({ uiScale: scale }, '外观已保存');
     });
 

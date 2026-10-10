@@ -2301,3 +2301,34 @@ body.app-loading #titlebar{
    圆角只做在最外层卡片上），这里把它的下边角也做成圆角。
    上边两个角保持原值，别把下方变成圆角 —— 否则它与表格之间会露出缝。 */
 .seasonhead{border-radius:var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-lg)}
+/* --- 集管理表格：窄窗口/放大后不把标题挤成竖条 ---------------------
+   各固定列宽合计约 744px，加上标题列需要的宽度，视口小于约 1000px 时
+   标题列会被压到几十像素，中文就变成一列一个字。
+   解决：给表格一个最小宽度，外层容器允许横向滚动；
+   标题列再给个最小宽度兜底。 */
+.seasonbody{overflow-x:auto;overflow-y:hidden;border-radius:var(--radius-lg)}
+.seasonblock table{min-width:1000px}
+.seasonbody th:nth-child(3),
+.seasonbody td:nth-child(3){min-width:200px}
+/* --- 角色管理页：台账表格 ----------------------------------------
+   操作列 200px（border-box，含左右内边距）：
+   两个按钮各约 76px + 间距 12px ≈ 164px，再留左右内边距；
+   给 164px 时右内边距没地方放，按钮会被卡片右边缘裁掉（实测遇到过）。
+
+   行高要一致：让唯一可变的那一格 —— 角色名（有/无描述）—— 装进 .role-cell：
+   min-height 固定、内部居中、描述限一行省略号，有没有描述都不改变行高。 */
+.role-ledger .role-cell{display:flex;flex-direction:column;justify-content:center;gap:4px;
+  min-height:44px;line-height:1.5}
+.role-ledger .role-desc{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.role-ledger td .pill{margin:0 4px 4px 0;font-family:var(--font-code);font-size:11px}
+/* 关键：flex 必须放在 td **内部**的容器上，不能放在 td 上。
+   实测：td 一旦变成 display:flex，Chrome 会放弃在该格应用 vertical-align，
+   格子缩到内容高度（37px），按钮就永远贴在行顶（两行按钮差整整一个行高）。
+   放在内层 div 后，td 保持 display:table-cell，vertical-align:middle 生效，
+   按钮自然在整行里居中。 */
+.role-ledger .row-acts{display:flex;align-items:center;justify-content:flex-end;gap:12px;
+  padding-right:16px;white-space:nowrap}
+.used-pills{display:flex;flex-wrap:wrap;gap:4px}
+#page-roles .card h2 .pill{margin-left:6px}
+#page-roles .hbar .nm{font-size:12px}
+#page-roles .hbar .vv{font-size:11.5px}

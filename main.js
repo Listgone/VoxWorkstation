@@ -1096,10 +1096,17 @@ function voicePaths() {
 
 /** 音色库概况（界面显示 + 备份前确认） */
 ipcMain.handle('vox:voices:stat', () => {
-  const st = voiceBackup.statVoices(voicePaths(), appSettings.voicesBackupDir || '');
+  /* 备份位置要按"实际在用的那个目录"报：
+     用户没手动指定过时，自动备份会落在安装目录旁的默认位置，
+     该位置记在 voicesAutoBackupDir 里。只读 voicesBackupDir 的话，
+     界面会一直显示"未设置"，而磁盘上其实已经有好几份备份了。 */
+  const manual = appSettings.voicesBackupDir || '';
+  const autoDir = appSettings.voicesAutoBackupDir || '';
+  const effective = manual || autoDir;
+  const st = voiceBackup.statVoices(voicePaths(), effective);
   /* 备份清单也一起给界面：音色库页与设置页共用同一个「备份与还原」弹窗，
      需要显示"备份有哪些、多大、什么时候" */
-  const dirs = [st.lastBackup, appSettings.voicesAutoBackupDir].filter(Boolean);
+  const dirs = [effective].filter(Boolean);
   const backups = [];
   const seen = {};
   for (const d of dirs) {
@@ -1108,17 +1115,39 @@ ipcMain.handle('vox:voices:stat', () => {
     for (const b of voiceBackup.listBackups(d)) backups.push(b);
   }
   backups.sort((a, b) => b.at - a.at);
-  return Object.assign({ ok: true, backups, autoBackupAt: appSettings.voicesAutoBackupAt || 0 }, st);
+  return Object.assign({
+    ok: true, backups, autoBackupAt: appSettings.voicesAutoBackupAt || 0,
+    /* backupDir 才是"备份放在哪"，别和 st.dir（音色库目录）混用 */
+    backupDir: effective, manualDir: manual, autoDir: autoDir, isAutoDir: !manual && !!autoDir
+  }, st);
 });
 
 /** 删除选中的备份（只能删备份根目录下带 VoxVoices-/VoxAuto- 前缀的目录） */
 ipcMain.handle('vox:voices:delete-backups', (_e, opts) => {
-  const base = (opts && opts.dir) || appSettings.voicesBackupDir || '';
+  const base = (opts && opts.dir) || appSettings.voicesBackupDir || appSettings.voicesAutoBackupDir || '';
   if (!base) return { ok: false, message: '还没有备份目录' };
   const names = (opts && opts.names) || [];
   if (!names.length) return { ok: false, message: '没有选中任何备份' };
   const r = voiceBackup.deleteBackups(base, names);
   return Object.assign({ ok: r.removed > 0, dir: base }, r);
+});
+
+/** 界面缩放：必须用 Electron 的 zoomFactor。
+    实测（Electron 31）给 body 设 CSS zoom，计算值虽然变成 1.25，
+    但侧栏宽度、字号、视口全都不变 —— 等于没缩放，属于假设置。 */
+ipcMain.handle('vox:ui:setZoom', (_e, factor) => {
+  const f = Math.min(2, Math.max(0.5, Number(factor) || 1));
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.setZoomFactor(f);
+    appSettings.uiScale = f;
+    persistAppSettings();
+    return { ok: true, factor: f };
+  } catch (e) { return { ok: false, message: e.message }; }
+});
+ipcMain.handle('vox:ui:getZoom', () => {
+  try {
+    return { ok: true, factor: mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents.getZoomFactor() : 1 };
+  } catch (e) { return { ok: true, factor: 1 }; }
 });
 
 /** 更改备份位置（记下来，之后手动/自动备份都用它） */

@@ -8,6 +8,7 @@ const DubPage = {
   _running: false,
   _voices: [],
   _takes: [],       // 本次生成的结果 [{lineIdx, voice, cfg, url, blob, ms}]
+  _current: -1,     // 正在生成第几行（-1 = 空闲），用于台词列表高亮
 
   render() {
     const p = Store.currentProject;
@@ -16,6 +17,9 @@ const DubPage = {
 
     const lines = ep.lines || [];
     const done = lines.filter(l => l.audio).length;
+    /* 有多少句的音频用的还是旧音色（角色换绑后没重生成）。
+       台词头上的提示与「同步音色」按钮都靠这个数。 */
+    const staleCount = lines.filter(l => this._isStale(l)).length;
 
     return App.head('配音', '把台词变成音频',
         '<span class="pill">' + lines.length + ' 句 · 已完成 ' + done + '</span>')
@@ -57,7 +61,8 @@ const DubPage = {
 
       + '<div class="card"><h2>队列 <span class="n" id="dub-queue">空闲</span></h2>'
       + '<div class="qbar"><i id="dub-qbar" style="width:0%"></i></div>'
-      + '<p class="text-sm text-muted mt-8" style="margin-bottom:0">GPU 串行推理，一次只跑一句。</p></div>'
+      + '<p class="text-sm text-muted mt-8" id="dub-qstats" style="margin-bottom:0">'
+      + 'GPU 串行推理，一次只跑一句；进度按已完成的句数推进（单句内部不回报步数）。</p></div>'
 
       + '<div class="card" style="margin-bottom:0"><h2>本次生成 <span class="n">' + this._takes.length + ' 条</span></h2>'
       + (this._takes.length
@@ -71,7 +76,11 @@ const DubPage = {
       + '</div>'
       + '</div>'
 
-      + '<div class="card dub-lines"><h2>台词 <span class="n">来自文本处理页</span></h2>'
+      + '<div class="card dub-lines"><h2>台词 <span class="n">来自文本处理页</span>'
+      + (staleCount ? '　<span class="pill pill-warn" title="这些句子已生成的音频用的还是旧音色，重新生成才会换成当前绑定的音色">'
+          + staleCount + ' 句音色待更新</span>'
+          + '<button class="btn btn-sm" data-act="sync-voices" style="margin-left:8px">同步音色</button>' : '')
+      + '</h2>'
       + (lines.length
         ? '<table class="line-table"><tr><th style="width:40px">#</th><th style="width:100px">角色</th><th style="width:128px">情绪 / 动作</th><th>台词</th>'
           + '<th style="width:128px">音色</th><th style="width:96px">状态</th><th style="width:120px"></th></tr>'
@@ -144,19 +153,40 @@ const DubPage = {
       + '<b id="dub-' + id + '-val">' + text + '</b></div>';
   },
 
+  /** 生成中高亮当前这一句，方便在台词列表里跟着看进度 */
+  _highlight(i) {
+    const page = document.getElementById('page-dub');
+    if (!page) return;
+    page.querySelectorAll('tr.row-cur').forEach(tr => tr.classList.remove('row-cur'));
+    const tr = page.querySelector('tr[data-row="' + i + '"]') || null;
+    if (tr) {
+      tr.classList.add('row-cur');
+      try { tr.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) { /* 忽略 */ }
+    }
+  },
+
   _row(l, i) {
     const [stLabel, stCls] = l.error ? ['失败', 'pill-err']
       : l.audio ? ['✓ ' + Util.fmtDuration(l.durationMs || 0), 'pill-ok']
       : ['· 待生成', ''];
     const role = l.role || '旁白';
-    return '<tr><td class="num">' + (i + 1) + '</td>'
+    /* 这一句的音频如果还是旧音色（角色换绑后没重生成），在状态列加个 ↻ 提示。
+       不做单独的「实际音色」列 —— 台词少的时候人工一眼能看出音色对不对，
+       多的时候靠台词卡上方的"N 句音色待更新"和「同步音色」按钮兜住。 */
+    const stale = this._isStale(l);
+    const used = l.voiceUsed || (l.audio ? (l.voice || '') : '');
+    const staleMark = stale
+      ? '<button class="pill pill-warn pill-btn" data-act="gen-one" data-i="' + i + '"'
+        + ' title="这份音频用的是旧音色「' + Util.escapeAttr(used || '未知') + '」，点一下用当前绑定重新生成">↻ 旧音色</button> '
+      : '';
+    return '<tr data-row="' + i + '"' + (this._current === i ? ' class="row-cur"' : '') + '><td class="num">' + (i + 1) + '</td>'
       + '<td><div class="cell-c"><button class="pill pill-btn" data-act="set-role" data-i="' + i + '" title="改这一句的角色">'
       + Util.escapeHtml(role) + ' ▾</button></div></td>'
       + '<td class="emo-cell"><div class="cell-c">' + TextPage._emoCell(l) + '</div></td>'
       + '<td class="tx">' + Util.escapeHtml(l.text || '') + '</td>'
       + '<td><div class="cell-c"><button class="pill pill-btn" data-act="set-voice" data-i="' + i + '" title="单独指定这一句的音色">'
       + Util.escapeHtml(l.voice || '跟随角色') + ' ▾</button></div></td>'
-      + '<td><span class="pill ' + stCls + '">' + stLabel + '</span></td>'
+      + '<td><span class="pill ' + stCls + '">' + stLabel + '</span> ' + staleMark + '</td>'
       + '<td class="row-acts">'
       + (l.audio
           ? '<button class="btn btn-sm btn-play" data-act="play-one" data-i="' + i + '" title="试听这一句">▶</button>'
@@ -204,14 +234,34 @@ const DubPage = {
     const voice = (def && def.voice) || p.fallbackVoice || '';
     const apply = (idx) => {
       lines[idx].role = role;
+      // 改角色就跟着改音色，且不再区分这句有没有音频 ——
+      // 已生成的句子否则会一直挂着旧音色的名字，重新生成也还是旧的。
       if (!lines[idx].voiceOverride) lines[idx].voice = voice;
     };
     apply(i);
-    if (fillAfter) for (let k = i + 1; k < lines.length; k++) if (!lines[k].audio) apply(k);
+    if (fillAfter) for (let k = i + 1; k < lines.length; k++) apply(k);
     await Store.saveEpisode({ lines });
     await Store.openEpisode(Store.currentEpisodeNo);
     App.go('dub');
-    Toast.success(fillAfter ? '本句及之后未生成的行已设为「' + role + '」' : '第 ' + (i + 1) + ' 句角色改为「' + role + '」');
+    Toast.success(fillAfter ? '本句及之后的台词已设为「' + role + '」' : '第 ' + (i + 1) + ' 句角色改为「' + role + '」');
+  },
+
+  /** 把某一句/全部"跟着角色走"的台词音色同步到角色当前绑定（用于旧数据） */
+  async _syncVoices(onlyIndexes) {
+    const lines = (Store.currentEpisode.lines || []).map(l => ({ ...l }));
+    let changed = 0;
+    for (let k = 0; k < lines.length; k++) {
+      if (onlyIndexes && !onlyIndexes.includes(k)) continue;
+      const l = lines[k];
+      if (l.voiceOverride) continue;
+      const want = this._bindingFor(l).voice || '';
+      if (String(l.voice || '') !== want) { l.voice = want; changed++; }
+    }
+    if (!changed) { Toast.show('没有需要同步的台词'); return; }
+    await Store.saveEpisode({ lines });
+    await Store.openEpisode(Store.currentEpisodeNo);
+    App.go('dub');
+    Toast.success('已同步 ' + changed + ' 句到角色当前绑定的音色（重新生成才会换声）');
   },
 
   /** 单句音色覆盖 */
@@ -304,6 +354,10 @@ const DubPage = {
     el.querySelectorAll('[data-act="bind-role"]').forEach(b =>
       b.addEventListener('click', () => this._bindRole(b.dataset.role)));
 
+    /* 同步音色：把"跟着角色走"的台词改到角色当前绑定的音色
+       （用于角色换绑之前就已生成、台词里还留着旧音色名的老数据） */
+    el.querySelector('[data-act="sync-voices"]')?.addEventListener('click', () => this._syncVoices());
+
     el.querySelectorAll('[data-take]').forEach(t =>
       t.addEventListener('click', async () => {
         const tk = this._takes[Number(t.dataset.take)];
@@ -318,17 +372,35 @@ const DubPage = {
       }));
   },
 
+  /** 这一句当前应该用哪个音色。
+   *  规则：单句单独指定 > 角色当前绑定 > 项目默认。
+   *  注意不要再拿 line.voice 兜底 —— 那是上次生成时记下的旧音色名，
+   *  角色重新绑定后它会一直把旧音色顶回来（踩过这个坑）。 */
   _bindingFor(line) {
     const p = Store.currentProject;
     const roles = p.roles || [];
     const roleName = line.role || '旁白';
     const def = roles.find(r => r.name === roleName);
-    // 单句覆盖优先于角色默认
     const voice = (line.voiceOverride && line.voice)
       ? line.voice
-      : ((def && def.voice) || p.fallbackVoice || line.voice || '');
+      : ((def && def.voice) || p.fallbackVoice || '');
     const cfg = (def && def.cfg != null) ? def.cfg : (p.defaults.cfg ?? 2.0);
     return { role: roleName, voice, cfg, steps: p.defaults.steps ?? 10 };
+  },
+
+  /** 已生成的这一句，音色是否已经和当前绑定不一致（需要重新生成）。
+   *  "音色设计"（没有绑定音色时直接用 tts 合成）两边都要归一化：
+   *  want 为空、voiceUsed 是 '(音色设计)' 或空，都属于同一种情况，
+   *  否则旁白那类句子会被误判成"旧音色"。 */
+  _isStale(line) {
+    if (!line.audio) return false;
+    const norm = (v) => {
+      const s = String(v === null || v === undefined ? '' : v).trim();
+      return (s === '(音色设计)' || s === '音色设计') ? '' : s;
+    };
+    const want = norm(this._bindingFor(line).voice);
+    const used = norm(line.voiceUsed || line.voice || '');
+    return want !== used;
   },
 
   async _bindRole(roleName) {
@@ -348,12 +420,35 @@ const DubPage = {
         const p = Store.currentProject;
         const roles = [...(p.roles || [])];
         const i = roles.findIndex(r => r.name === roleName);
-        if (i >= 0) roles[i] = { ...roles[i], voice: it.dataset.voice };
-        else roles.push({ name: roleName, voice: it.dataset.voice, desc: '', cfg: null });
+        const oldVoice = i >= 0 ? (roles[i].voice || '') : '';
+        const newVoice = it.dataset.voice;
+        if (i >= 0) roles[i] = { ...roles[i], voice: newVoice };
+        else roles.push({ name: roleName, voice: newVoice, desc: '', cfg: null });
         Modal.close();
+
+        /* 绑定新音色后，把"跟着角色走"的台词一起改过来。
+           只动 voiceOverride 为假的（用户单独指定过的不碰），
+           并顺带记下语音是否是最新绑定 —— 见 _isStale。 */
+        let followed = 0, kept = 0;
+        if (Store.currentEpisode && Store.currentEpisode.lines) {
+          const lines = Store.currentEpisode.lines.map(l => ({ ...l }));
+          for (const l of lines) {
+            if ((l.role || '旁白') !== roleName) continue;
+            if (l.voiceOverride) { kept++; continue; }
+            if (l.voice !== newVoice) followed++;
+            l.voice = newVoice;
+          }
+          if (followed) await Store.saveEpisode({ lines });
+        }
+
         const r = await Store.saveProject({ roles });
-        if (r && r.ok) { Toast.success('已绑定：' + it.dataset.voice); App.go('dub'); }
-        else Toast.error(r && r.message || '保存失败', true);
+        if (r && r.ok) {
+          Toast.success('「' + roleName + '」已绑定：' + newVoice
+            + (followed ? '，' + followed + ' 句台词已跟随' : '')
+            + (kept ? '，' + kept + ' 句为单独指定、保持不动' : '')
+            + (followed ? '（点「生成全部」用新音色重生成）' : ''));
+          App.go('dub');
+        } else Toast.error(r && r.message || '保存失败', true);
       }));
   },
 
@@ -371,15 +466,40 @@ const DubPage = {
     const total = indexes.length;
     const qbar = document.getElementById('dub-qbar');
     const qlabel = document.getElementById('dub-queue');
+    const qstats = document.getElementById('dub-qstats');
+    /* 进度：每句开始时更新一次（单句内部的推理步数后端不回报，
+       所以这里是"大致进度"，按已完成的句数推进） */
+    const t0 = Date.now();
+    let okCount = 0, failCount = 0;
+    const paintProgress = (curIdx) => {
+      const done = okCount + failCount;
+      const elapsed = Math.round((Date.now() - t0) / 1000);
+      const per = done ? elapsed / done : 0;
+      const left = done ? Math.max(0, Math.round(per * (total - done))) : 0;
+      const mmss = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+      if (qstats) {
+        qstats.textContent = done + ' / ' + total + ' 完成'
+          + (failCount ? ' · 失败 ' + failCount : '')
+          + ' · 已用 ' + mmss(elapsed)
+          + (done ? ' · 预计剩余 ' + mmss(left) : '');
+      }
+      return { done, elapsed, left };
+    };
 
     for (let k = 0; k < indexes.length; k++) {
       const i = indexes[k];
       const line = lines[i];
-      if (qlabel) qlabel.textContent = (k + 1) + ' / ' + total + ' · 第 ' + (i + 1) + ' 句';
-      if (qbar) qbar.style.width = Math.round((k / total) * 100) + '%';
-      App._syncStatus('生成中', '第 ' + (i + 1) + ' / ' + total + ' 句');
-
       const bind = this._bindingFor(line);
+      if (qlabel) {
+        qlabel.textContent = '第 ' + (k + 1) + ' / ' + total + ' 句 · '
+          + (line.role || '旁白') + ' · ' + (bind.voice || '音色设计');
+      }
+      if (qbar) qbar.style.width = Math.round((k / total) * 100) + '%';
+      paintProgress(i);
+      App._syncStatus('生成中', '第 ' + (i + 1) + ' / ' + total + ' 句');
+      this._current = i;
+      try { this._highlight(i); } catch (e) { /* 不在配音页时忽略 */ }
+
       try {
         let r;
         if (bind.voice) {
@@ -410,15 +530,23 @@ const DubPage = {
           ms = Math.round(ab.duration * 1000);
         } catch (e) { /* 解码失败不影响保存 */ }
 
-        Object.assign(line, { audio: filename, voice: bind.voice, error: '', durationMs: ms });
+        /* voice 记"当前绑定"，voiceUsed 记"这一份音频实际是用哪个音色生成的"。
+           两者分开，才能在改了角色绑定之后看出哪些句子的音频是旧的 ——
+           以前只存一个 voice，改名或换绑后完全看不出哪句该重生成。 */
+        Object.assign(line, {
+          audio: filename, voice: bind.voice, voiceUsed: bind.voice || '(音色设计)',
+          generatedAt: new Date().toISOString(), error: '', durationMs: ms
+        });
         this._takes.unshift({
           lineIdx: i, label: (bind.voice || '默认') + ' · 稳定性 ' + (cfg || bind.cfg).toFixed(1),
           blob: r.blob, ms, filename
         });
         if (this._takes.length > 8) this._takes.pop();
+        okCount++;
       } catch (e) {
         line.error = e.message || '生成失败';
         line.audio = '';
+        failCount++;
       }
       // 每句都落盘，中断也能续
       await Store.saveEpisode({
@@ -435,7 +563,9 @@ const DubPage = {
 
     if (qbar) qbar.style.width = '100%';
     if (qlabel) qlabel.textContent = '完成 ' + total + ' 句';
+    paintProgress(indexes[indexes.length - 1]);
     this._running = false;
+    this._current = -1;
 
     await Store.openEpisode(Store.currentEpisodeNo);
     const failed = (Store.currentEpisode.lines || []).filter(l => l.error).length;
