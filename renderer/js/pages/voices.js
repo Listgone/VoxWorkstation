@@ -43,6 +43,8 @@ const VoicesPage = {
       + (v.voice_file ? '' : ' disabled title="这个音色没有声纹文件，无法试听"') + '>▶ 试听</button>'
       + (used ? '<span class="pill">用于 ' + Util.escapeHtml(used) + '</span>' : '')
       + '<span style="flex:1"></span>'
+      + '<button class="btn btn-sm" data-act="edit" data-name="' + Util.escapeAttr(v.name) + '"'
+      + ' title="重命名 / 改描述">改名</button>'
       + '<button class="btn btn-sm btn-ghost btn-danger" data-act="del" data-name="' + Util.escapeAttr(v.name) + '">删</button>'
       + '</div></div>';
   },
@@ -89,6 +91,9 @@ const VoicesPage = {
         } catch (e) { Toast.error('试听失败：' + e.message, true); }
       }));
 
+    el.querySelectorAll('[data-act="edit"]').forEach(b =>
+      b.addEventListener('click', () => this._renameVoice(b.dataset.name)));
+
     el.querySelectorAll('[data-act="del"]').forEach(b =>
       b.addEventListener('click', async () => {
         const name = b.dataset.name;
@@ -103,6 +108,49 @@ const VoicesPage = {
           Toast.success('已删除：' + name);
         } catch (e) { Toast.error('删除失败：' + e.message, true); }
       }));
+  },
+
+  /** 改名 / 改描述。声纹文件不动（后端会在没上传新文件时沿用旧的）。 */
+  _renameVoice(name) {
+    const v = this._voices.find(x => x.name === name) || { name, desc: '', voice_file: '' };
+    const used = this._usedBy(name);
+    Modal.open({
+      title: '修改音色', width: 460,
+      body:
+        '<div class="form-group"><label class="form-label">音色名称</label>'
+        + '<input type="text" id="rv-name" value="' + Util.escapeAttr(v.name) + '" maxlength="40"></div>'
+        + '<div class="form-group mt-12"><label class="form-label">描述（会显示在音色卡片上）</label>'
+        + '<input type="text" id="rv-desc" value="' + Util.escapeAttr(v.desc || '') + '" '
+        + 'placeholder="例如：声纹克隆 · 示例文本"></div>'
+        + '<p class="text-sm text-muted" style="margin:12px 0 0">'
+        + '只改名称或描述，<b>声纹文件不会动</b>；想换声纹请新建一个音色。'
+        + (used ? '<br>注意：当前项目里有角色在用这个音色，改名后需要到「项目设置 → 角色音色」里重新选一次。' : '')
+        + '</p>',
+      footer: '<button class="btn" data-act="cancel">取消</button>'
+            + '<button class="btn btn-primary" data-act="save-rename">保存</button>'
+    });
+    const host = document.getElementById('modal-host');
+    host.querySelector('[data-act="cancel"]').addEventListener('click', () => Modal.close());
+    const doSave = async () => {
+      const nn = host.querySelector('#rv-name').value.trim();
+      const nd = host.querySelector('#rv-desc').value.trim();
+      if (!nn) { Toast.error('名称不能为空', true); return; }
+      if (nn === v.name && nd === (v.desc || '')) { Modal.close(); return; }
+      const btn = host.querySelector('[data-act="save-rename"]');
+      btn.disabled = true; btn.textContent = '保存中…';
+      try {
+        await API.updatePreset(v.name, nn, nd, null);
+        Modal.close();
+        await this._load(); App.go('voices');
+        Toast.success('已保存：' + nn);
+      } catch (e) {
+        Toast.error('保存失败：' + (e.message || e), true);
+        btn.disabled = false; btn.textContent = '保存';
+      }
+    };
+    host.querySelector('[data-act="save-rename"]').addEventListener('click', doSave);
+    host.querySelector('#rv-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSave(); });
+    host.querySelector('#rv-desc').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSave(); });
   },
 
   async _load() {

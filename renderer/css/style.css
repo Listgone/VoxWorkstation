@@ -148,7 +148,14 @@ input,textarea,[contenteditable]{user-select:text !important;-webkit-user-select
    关于软件（设置 → 诊断与关于）
    隐私说明 / 模型介绍 / 版权 / 开源组件 / GitHub 入口
    ══════════════════════════════════════════════════ */
-.about-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:var(--gap)}
+/* 关于区的说明栏：宽窗口固定 3 列，窄窗口自动回落。
+   原先用 auto-fit(minmax(260px,1fr))：窗口宽时算出的列数会超过卡片数，
+   多出来的空列就在右侧留一条空白（实测内容区 1276px 下排 4 列、只放 3 张卡）。 */
+.about-grid{display:grid;gap:var(--gap);
+  grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))}
+@media (min-width:1040px){
+  .about-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
 .about-block{border:1px solid var(--border-soft);border-radius:var(--radius);padding:12px 14px;
   background:var(--bg-elev)}
 .about-block > b{display:block;font-family:var(--font-head);font-size:13px;margin-bottom:8px;

@@ -517,32 +517,49 @@ async def update_preset(
     desc: str = Form(""),
     voice: UploadFile = File(None)
 ):
-    """修改预设：名称、描述、声纹"""
+    """修改预设：名称、描述、声纹（三者都可以单独改）。
+
+    注意「没上传新声纹」这种最普通的改名场景：旧实现在任何情况下都先删旧文件，
+    只有上传了新文件才写回 —— 于是只改名会把声纹直接删掉。
+    这里改为没有新文件时，把旧声纹读进内存再按新名字写回。
+    """
     presets = load_custom_presets()
     if old_name not in presets:
         return JSONResponse({"error": "预设不存在"}, status_code=404)
 
-    # 删除旧声纹（所有扩展名）
+    new_name = new_name.strip()
+    if not new_name:
+        return JSONResponse({"error": "名称不能为空"}, status_code=400)
+    if new_name != old_name and new_name in presets:
+        return JSONResponse({"error": "已存在同名音色"}, status_code=400)
+
+    # 先取旧声纹内容（用于改名时沿用），再决定怎么写
+    reuse_bytes, reuse_ext = None, ''
     for ext in ['.wav', '.mp3', '.m4a', '.flac']:
         old_voice_path = os.path.join(VOICE_PROFILES_DIR, old_name + ext)
         if os.path.exists(old_voice_path):
+            if reuse_bytes is None:
+                with open(old_voice_path, 'rb') as f:
+                    reuse_bytes = f.read()
+                reuse_ext = ext
             os.unlink(old_voice_path)
 
-    # 如果名称变了，移除旧条目
-    if old_name != new_name:
+    if new_name != old_name:
         del presets[old_name]
     presets[new_name] = desc
     save_custom_presets(presets)
 
-    # 保存新声纹
     if voice and voice.filename:
         ext = os.path.splitext(voice.filename)[1] or ".wav"
         allowed_ext = ['.wav', '.mp3', '.m4a', '.flac']
         if ext.lower() not in allowed_ext:
             return JSONResponse({"error": f"不支持的音频格式: {ext}"}, status_code=400)
-        voice_path = os.path.join(VOICE_PROFILES_DIR, new_name + ext)
-        with open(voice_path, "wb") as f:
+        with open(os.path.join(VOICE_PROFILES_DIR, new_name + ext), "wb") as f:
             f.write(await voice.read())
+    elif reuse_bytes is not None:
+        # 没传新声纹：沿用旧内容，只换名字
+        with open(os.path.join(VOICE_PROFILES_DIR, new_name + reuse_ext), "wb") as f:
+            f.write(reuse_bytes)
     return {"status": "ok"}
 
 @app.post("/api/delete_preset")
