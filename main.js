@@ -1118,6 +1118,46 @@ ipcMain.handle('vox:voices:restore', async (_e, opts) => {
   }
   return voiceBackup.restoreVoices(v, base, { overwrite: !!(opts && opts.overwrite) });
 });
+
+/** 自动备份：音色库有变动（新增/删除/重命名/改描述）时由渲染层调用。
+ *  节流：默认 3 分钟内只备份一次，避免连续操作产生一堆备份；
+ *  自动备份命名 VoxAuto-…，只保留最近 20 份（可在 voices-backup.js 调整）。
+ *  目录：优先用用户已选的备份目录；没选过就自动落在安装目录旁
+ *        （<安装目录的父目录>\VoxWorkstation-voices-backup），不可写时退回用户配置目录。 */
+const AUTO_BACKUP_INTERVAL_MS = 3 * 60 * 1000;
+const AUTO_BACKUP_KEEP = 20;
+ipcMain.handle('vox:voices:auto-backup', (_e, opts) => {
+  const v = voicePaths();
+  const st = voiceBackup.statVoices(v, '');
+  if (!st.hasProfiles && !st.voiceCount) return { ok: false, skipped: true, reason: 'empty' };
+
+  const last = Number(appSettings.voicesAutoBackupAt || 0);
+  if (!(opts && opts.force) && last && Date.now() - last < AUTO_BACKUP_INTERVAL_MS) {
+    return { ok: true, skipped: true, reason: 'throttled', nextInSec: Math.ceil((AUTO_BACKUP_INTERVAL_MS - (Date.now() - last)) / 1000) };
+  }
+
+  let base = appSettings.voicesBackupDir || '';
+  if (!base) {
+    // 自动落盘位置：安装目录的兄弟目录，和软件同盘、且在软件目录之外
+    const parent = path.dirname(path.resolve(appBaseDir()));
+    const auto = path.join(parent, 'VoxWorkstation-voices-backup');
+    try {
+      fs.mkdirSync(auto, { recursive: true });
+      base = auto;
+    } catch (e) {
+      base = path.join(app.getPath('userData'), 'voices-backup');
+      try { fs.mkdirSync(base, { recursive: true }); } catch (e2) { return { ok: false, message: '无法创建备份目录：' + e2.message }; }
+    }
+  }
+
+  const res = voiceBackup.backupVoices(v, base, { version: app.getVersion(), auto: true, keepAuto: AUTO_BACKUP_KEEP });
+  if (res.ok) {
+    appSettings.voicesAutoBackupAt = Date.now();
+    appSettings.voicesAutoBackupDir = base;
+    saveAppSettingsFile();
+  }
+  return Object.assign({ dir: base, lastAt: appSettings.voicesAutoBackupAt || 0 }, res);
+});
 ipcMain.handle('restart-server', async () => {
   killServerTree();
   serverState = 'idle';

@@ -54,6 +54,19 @@ const VoicesPage = {
       + '</p></div>';
   },
 
+  /** 音色库有变动就自动备份（新增 / 删除 / 重命名 / 改描述都会走到这里）。
+   *  节流与保留份数由主进程负责；这里不打扰用户：成功只留一行提示，失败也不弹错误。 */
+  async _autoBackup(reason) {
+    try {
+      const r = await window.electronAPI?.voices?.autoBackup?.();
+      if (!r || !r.ok) return null;
+      this._stat = null;                       // 下次进页面重新统计（含上次备份位置）
+      if (r.skipped) return r;
+      Toast.show('已自动备份音色库（' + (r.voiceCount || 0) + ' 个音色' + (reason ? ' · ' + reason : '') + '）');
+      return r;
+    } catch (e) { return null; }               // 自动备份失败不该打断用户操作
+  },
+
   _card(v) {
     const used = this._usedBy(v.name);
     const initial = String(v.name).trim().slice(0, 1) || '音';
@@ -182,11 +195,12 @@ const VoicesPage = {
           await API.deletePreset(name);
           await this._load(); App.go('voices');
           Toast.success('已删除：' + name);
+          this._autoBackup('删除音色');
         } catch (e) { Toast.error('删除失败：' + e.message, true); }
       }));
   },
 
-  /** 改名 / 改描述。声纹文件不动（后端会在没上传新文件时沿用旧的）。 */
+  /** 重命名 / 改描述。声纹文件不动（后端会在没上传新文件时沿用旧的）。 */
   _renameVoice(name) {
     const v = this._voices.find(x => x.name === name) || { name, desc: '', voice_file: '' };
     const used = this._usedBy(name);
@@ -219,6 +233,7 @@ const VoicesPage = {
         Modal.close();
         await this._load(); App.go('voices');
         Toast.success('已保存：' + nn);
+        this._autoBackup(v.name === nn ? '修改描述' : '重命名');
       } catch (e) {
         Toast.error('保存失败：' + (e.message || e), true);
         btn.disabled = false; btn.textContent = '保存';
@@ -339,6 +354,7 @@ const VoicesPage = {
       await this._load();
       Toast.success('已保存到音色库：' + name);
       App.go('voices');
+      this._autoBackup('新增音色');
     } catch (e) { Toast.error('保存失败：' + (e.message || e), true); }
   }
 };

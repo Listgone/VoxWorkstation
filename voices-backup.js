@@ -56,27 +56,37 @@ function statVoices(paths, lastBackup) {
   };
 }
 
-/** 生成 VoxVoices-YYYYMMDD-HHmm 形式的备份目录名 */
-function stampName(now) {
+/** 生成备份目录名。auto=true 时为 VoxAuto-…（自动备份，便于单独清理） */
+function stampName(now, auto) {
   const d = now || new Date();
   const p = (n) => String(n).padStart(2, '0');
-  return 'VoxVoices-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes());
+  const base = (auto ? 'VoxAuto-' : 'VoxVoices-') + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes());
+  return base;
 }
+
+/** 备份目录名前缀（手动 / 自动），还原时按前缀查找 */
+const PREFIX_MANUAL = 'VoxVoices-';
+const PREFIX_AUTO = 'VoxAuto-';
 
 /**
  * 备份：在 baseDir 下新建带时间戳的目录，复制声纹与预设，并写 manifest.json
- * @returns {{ok:boolean, dest?:string, copied?:number, voiceCount?:number, message?:string}}
+ * @param {object} paths  音色库路径（profiles / presets）
+ * @param {string} baseDir 备份根目录
+ * @param {object} meta   { version, auto, keepAuto } auto=true 时命名 VoxAuto-…，
+ *                        并按 keepAuto（默认 20）只保留最近的若干份自动备份
+ * @returns {{ok:boolean, dest?:string, copied?:number, voiceCount?:number, pruned?:number, message?:string}}
  */
 function backupVoices(paths, baseDir, meta) {
   if (!baseDir) return { ok: false, message: '没有指定备份目录' };
   if (!fs.existsSync(paths.profiles) && !fs.existsSync(paths.presets)) {
     return { ok: false, message: '音色库里还没有内容，无需备份' };
   }
+  const auto = !!(meta && meta.auto);
   // 同一分钟内备份两次会重名 —— 递增加序号，绝不覆盖已有备份
-  let dest = path.join(baseDir, stampName());
+  let dest = path.join(baseDir, stampName(null, auto));
   if (fs.existsSync(dest)) {
     for (let i = 2; i < 100; i++) {
-      const alt = path.join(baseDir, stampName() + '-' + i);
+      const alt = path.join(baseDir, stampName(null, auto) + '-' + i);
       if (!fs.existsSync(alt)) { dest = alt; break; }
     }
   }
@@ -87,22 +97,47 @@ function backupVoices(paths, baseDir, meta) {
   fs.writeFileSync(path.join(dest, 'manifest.json'), JSON.stringify({
     app: 'VoxWorkstation',
     version: (meta && meta.version) || '',
+    kind: auto ? 'auto' : 'manual',
     backedUpAt: new Date().toISOString(),
     voices: names,
     fileCount: copied,
     source: paths.profiles
   }, null, 2), 'utf8');
-  return { ok: true, dest, copied, voiceCount: names.length };
+
+  // 自动备份会频繁产生：只保留最近的 keepAuto 份，避免把磁盘塞满。
+  // 按目录修改时间排序 —— 不能按名字排：同一分钟内会带 -2/-3 序号，
+  // 字典序会把 -2/-3 排在基础名之后，可能删掉最新的、留下旧的。
+  let pruned = 0;
+  if (auto) {
+    const keep = (meta && meta.keepAuto) || 20;
+    try {
+      const autos = fs.readdirSync(baseDir)
+        .filter((n) => n.startsWith(PREFIX_AUTO))
+        .map((n) => {
+          const p = path.join(baseDir, n);
+          let t = 0;
+          try { t = fs.statSync(p).mtimeMs; } catch (e) { /* 读不到就当作最旧 */ }
+          return { p, t };
+        })
+        .sort((a, b) => a.t - b.t);
+      while (autos.length > keep) {
+        const old = autos.shift();
+        fs.rmSync(old.p, { recursive: true, force: true });
+        pruned++;
+      }
+    } catch (e) { /* 清理失败不影响本次备份 */ }
+  }
+  return { ok: true, dest, copied, voiceCount: names.length, pruned, auto };
 }
 
-/** 在目录（或其上级）里找到要还原的备份目录：优先 VoxVoices-* 中最新的一份 */
+/** 在目录（或其上级）里找到要还原的备份目录：手动与自动备份中取最新的一份 */
 function resolveBackupSource(dir) {
   if (!dir || !fs.existsSync(dir)) return null;
   if (fs.existsSync(path.join(dir, 'voice_profiles')) || fs.existsSync(path.join(dir, 'custom_presets.json'))) return dir;
   let subs = [];
   try {
     subs = fs.readdirSync(dir)
-      .filter((n) => n.startsWith('VoxVoices-'))
+      .filter((n) => n.startsWith(PREFIX_MANUAL) || n.startsWith(PREFIX_AUTO))
       .map((n) => path.join(dir, n))
       .filter((p) => { try { return fs.statSync(p).isDirectory(); } catch (e) { return false; } })
       .sort();

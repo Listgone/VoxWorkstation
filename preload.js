@@ -113,6 +113,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   voices: {
     stat: () => invoke('vox:voices:stat'),
     backup: (opts) => invoke('vox:voices:backup', opts),
+    autoBackup: (opts) => invoke('vox:voices:auto-backup', opts),
     restore: (opts) => invoke('vox:voices:restore', opts)
   }
 });
