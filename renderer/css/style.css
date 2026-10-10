@@ -2296,3 +2296,8 @@ body.app-loading #titlebar{
    后出现的会整体覆盖，少写一个角就会丢掉圆角。 */
 .seasonblock table{margin-top:7px;
   border-radius:var(--radius-lg)}
+
+/* 留出间距后，季标题条自己的下边角会露出来（原先靠紧贴表头盖住，
+   圆角只做在最外层卡片上），这里把它的下边角也做成圆角。
+   上边两个角保持原值，别把下方变成圆角 —— 否则它与表格之间会露出缝。 */
+.seasonhead{border-radius:var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-lg)}
