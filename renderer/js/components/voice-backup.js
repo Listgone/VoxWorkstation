@@ -38,7 +38,10 @@ const VoiceBackup = {
   _bodyHtml(st) {
     const n = st.voiceCount || 0;
     const dir = st.lastBackup || st.autoBackupDir || '';
-    const list = st.backups || [];
+    // 只列最近 3 条，其余让用户去备份目录里看
+    // （备份不再自动清理，攒多了全列出来反而看不清最新的是哪份）
+    const list = (st.backups || []).slice(0, 3);
+    const total = (st.backups || []).length;
     const rows = list.length
       ? list.map(b =>
           '<label class="vbk-row">'
@@ -63,15 +66,19 @@ const VoiceBackup = {
       + '<button class="btn" data-vbk="open">打开备份位置</button>'
       + '</div>'
       + '<p class="text-sm text-muted vbk-tip">'
-      + '改动音色库（新增 / 删除 / 重命名 / 改描述）后会<b>自动备份</b>一次，'
-      + '3 分钟内只备一次、只保留最近 20 份自动备份；手动备份不会自动删除。'
+      + '改动音色库（新增 / 删除 / 重命名 / 改描述）后会<b>自动备份</b>一次，3 分钟内只备一次，'
+      + '避免连续操作刷出一堆。自动备份与手动备份都<b>一直保留</b>、不会自动删除；'
       + '备份在软件安装目录之外，卸载或升级软件都不会丢。'
       + '</p>'
-      + '<div class="vbk-listhead"><b>已有备份</b>'
+      + '<div class="vbk-listhead"><b>最近备份</b>'
+      + '<span class="text-sm text-muted">共 ' + total + ' 份' + (total > list.length ? ' · 只列最近 3 份' : '') + '</span>'
       + '<span style="flex:1"></span>'
       + '<button class="btn btn-sm btn-ghost" data-vbk="selectall">全选</button>'
       + '<button class="btn btn-sm btn-ghost btn-danger" data-vbk="del">删除选中</button>'
       + '</div>'
+      + (total > list.length
+          ? '<p class="text-sm text-muted" style="margin:0 0 8px">更多备份请点上方「打开备份位置」到文件夹里查看。</p>'
+          : '')
       + '<div class="vbk-list">' + rows + '</div>';
   },
 
@@ -130,9 +137,11 @@ const VoiceBackup = {
         const r = await window.electronAPI.voices.backup();
         if (r && r.canceled) { Toast.show('已取消'); b.disabled = false; b.textContent = '立即备份'; return; }
         if (!r || !r.ok) throw new Error((r && r.message) || '备份失败');
-        Toast.success('已备份 ' + r.voiceCount + ' 个音色到 ' + r.dest);
+        if (r.skipped) Toast.show('音色库和最新一份备份一样，没有新增备份');
+        else Toast.success('已备份 ' + r.voiceCount + ' 个音色到 ' + r.dest);
         await this._refresh();
-      } catch (e) { Toast.error(String(e.message || e), true); b.disabled = false; b.textContent = '立即备份'; }
+      } catch (e) { Toast.error(String(e.message || e), true); }
+      b.disabled = false; b.textContent = '立即备份';
     });
 
     on('[data-vbk="restore"]', () => this._restore(''));

@@ -68,13 +68,50 @@ function stampName(now, auto) {
 const PREFIX_MANUAL = 'VoxVoices-';
 const PREFIX_AUTO = 'VoxAuto-';
 
+/** 音色库当前内容的指纹：每个声纹的「文件名 + 字节数 + 修改时间」+ 描述文件的字节数。
+ *  用来判断"和上一份备份是不是一模一样"，避免手动点一下又存一份完全重复的。 */
+function voicesSignature(paths) {
+  const parts = [];
+  const files = fs.existsSync(paths.profiles) ? listFilesRecursive(paths.profiles, paths.profiles).sort() : [];
+  for (const rel of files) {
+    try {
+      const st = fs.statSync(path.join(paths.profiles, rel));
+      parts.push(rel + ':' + st.size + ':' + Math.floor(st.mtimeMs / 1000));
+    } catch (e) { parts.push(rel + ':?'); }
+  }
+  let presets = '';
+  try {
+    const st = fs.statSync(paths.presets);
+    presets = fs.readFileSync(paths.presets, 'utf8');
+  } catch (e) { presets = ''; }
+  return parts.join('|') + '##' + presets;
+}
+
+/** 读某份备份里的指纹（备份时不写指纹，这里按同样的规则重算） */
+function readBackupSignature(dir) {
+  const parts = [];
+  const prof = path.join(dir, 'voice_profiles');
+  const files = fs.existsSync(prof) ? listFilesRecursive(prof, prof).sort() : [];
+  for (const rel of files) {
+    try {
+      const st = fs.statSync(path.join(prof, rel));
+      // 备份是复制出来的，mtime 与源文件一致（copyFileSync 不保留 mtime，
+      // 所以这里不比较时间，只比较名字与大小；描述文件按内容比较）
+      parts.push(rel + ':' + st.size);
+    } catch (e) { parts.push(rel + ':?'); }
+  }
+  let presets = '';
+  try { presets = fs.readFileSync(path.join(dir, 'custom_presets.json'), 'utf8'); } catch (e) { presets = ''; }
+  return parts.join('|') + '##' + presets;
+}
+
 /**
  * 备份：在 baseDir 下新建带时间戳的目录，复制声纹与预设，并写 manifest.json
  * @param {object} paths  音色库路径（profiles / presets）
  * @param {string} baseDir 备份根目录
- * @param {object} meta   { version, auto, keepAuto } auto=true 时命名 VoxAuto-…，
- *                        并按 keepAuto（默认 20）只保留最近的若干份自动备份
- * @returns {{ok:boolean, dest?:string, copied?:number, voiceCount?:number, pruned?:number, message?:string}}
+ * @param {object} meta   { version, auto, dedupe } auto=true 时命名 VoxAuto-…；
+ *                        dedupe 默认 true：与最新一份备份内容相同则不再新建
+ * @returns {{ok:boolean, dest?:string, copied?:number, voiceCount?:number, skipped?:boolean, message?:string}}
  */
 function backupVoices(paths, baseDir, meta) {
   if (!baseDir) return { ok: false, message: '没有指定备份目录' };
@@ -82,6 +119,25 @@ function backupVoices(paths, baseDir, meta) {
     return { ok: false, message: '音色库里还没有内容，无需备份' };
   }
   const auto = !!(meta && meta.auto);
+  const dedupe = !(meta && meta.dedupe === false);
+
+  /* 去重：与最新一份备份内容一致就不再新建 ——
+     自动备份刚做完、用户又点一下手动备份，不该多出一份完全重复的。 */
+  if (dedupe) {
+    const newest = listBackups(baseDir)[0];
+    if (newest) {
+      const cur = voicesSignature(paths).split('##')[0];
+      const old = readBackupSignature(newest.dir).split('##')[0];
+      let curPresets = '', oldPresets = '';
+      try { curPresets = fs.readFileSync(paths.presets, 'utf8'); } catch (e) { /* 无 */ }
+      try { oldPresets = fs.readFileSync(path.join(newest.dir, 'custom_presets.json'), 'utf8'); } catch (e) { /* 无 */ }
+      if (cur === old && curPresets === oldPresets) {
+        return { ok: true, skipped: true, reason: 'unchanged', dest: newest.dir,
+                 voiceCount: newest.voices, copied: newest.files, auto };
+      }
+    }
+  }
+
   // 同一分钟内备份两次会重名 —— 递增加序号，绝不覆盖已有备份
   let dest = path.join(baseDir, stampName(null, auto));
   if (fs.existsSync(dest)) {
@@ -103,31 +159,7 @@ function backupVoices(paths, baseDir, meta) {
     fileCount: copied,
     source: paths.profiles
   }, null, 2), 'utf8');
-
-  // 自动备份会频繁产生：只保留最近的 keepAuto 份，避免把磁盘塞满。
-  // 按目录修改时间排序 —— 不能按名字排：同一分钟内会带 -2/-3 序号，
-  // 字典序会把 -2/-3 排在基础名之后，可能删掉最新的、留下旧的。
-  let pruned = 0;
-  if (auto) {
-    const keep = (meta && meta.keepAuto) || 20;
-    try {
-      const autos = fs.readdirSync(baseDir)
-        .filter((n) => n.startsWith(PREFIX_AUTO))
-        .map((n) => {
-          const p = path.join(baseDir, n);
-          let t = 0;
-          try { t = fs.statSync(p).mtimeMs; } catch (e) { /* 读不到就当作最旧 */ }
-          return { p, t };
-        })
-        .sort((a, b) => a.t - b.t);
-      while (autos.length > keep) {
-        const old = autos.shift();
-        fs.rmSync(old.p, { recursive: true, force: true });
-        pruned++;
-      }
-    } catch (e) { /* 清理失败不影响本次备份 */ }
-  }
-  return { ok: true, dest, copied, voiceCount: names.length, pruned, auto };
+  return { ok: true, dest, copied, voiceCount: names.length, auto };
 }
 
 /** 在目录（或其上级）里找到要还原的备份目录：手动与自动备份中取最新的一份 */

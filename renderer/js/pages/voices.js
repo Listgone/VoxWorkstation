@@ -39,7 +39,7 @@ const VoicesPage = {
       const r = await window.electronAPI?.voices?.autoBackup?.();
       if (!r || !r.ok) return null;
       this._stat = null;                       // 下次进页面重新统计（含上次备份位置）
-      if (r.skipped) return r;
+      if (r.skipped) return r;                     // 内容没变（已被去重）：不打扰用户
       Toast.show('已自动备份音色库（' + (r.voiceCount || 0) + ' 个音色' + (reason ? ' · ' + reason : '') + '）');
       return r;
     } catch (e) { return null; }               // 自动备份失败不该打断用户操作

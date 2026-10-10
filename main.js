@@ -350,6 +350,13 @@ function loadAppSettings() {
   return s;
 }
 
+/** 把当前的 appSettings 落盘（调用方已自行改好字段时用这个，
+ *  不像 saveAppSettings 那样走 patch 合并、也不会额外重设输出目录） */
+function persistAppSettings() {
+  try { fs.writeFileSync(settingsFile(), JSON.stringify(appSettings, null, 2), 'utf8'); }
+  catch (e) { /* 写不了不影响本次操作，下次保存会再试 */ }
+}
+
 function saveAppSettings(patch) {
   appSettings = appSettings || loadAppSettings();
   for (const k of Object.keys(patch || {})) {
@@ -1128,7 +1135,7 @@ ipcMain.handle('vox:voices:set-backup-dir', async (_e, opts) => {
   }
   try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { return { ok: false, message: e.message }; }
   appSettings.voicesBackupDir = dir;
-  saveAppSettingsFile();
+  persistAppSettings();
   return { ok: true, dir, backups: voiceBackup.listBackups(dir) };
 });
 
@@ -1146,7 +1153,7 @@ ipcMain.handle('vox:voices:backup', async (_e, opts) => {
     base = r.filePaths[0];
   }
   const res = voiceBackup.backupVoices(v, base, { version: app.getVersion() });
-  if (res.ok) { appSettings.voicesBackupDir = base; saveAppSettingsFile(); }
+  if (res.ok) { appSettings.voicesBackupDir = base; persistAppSettings(); }
   return res;
 });
 
@@ -1171,7 +1178,6 @@ ipcMain.handle('vox:voices:restore', async (_e, opts) => {
  *  目录：优先用用户已选的备份目录；没选过就自动落在安装目录旁
  *        （<安装目录的父目录>\VoxWorkstation-voices-backup），不可写时退回用户配置目录。 */
 const AUTO_BACKUP_INTERVAL_MS = 3 * 60 * 1000;
-const AUTO_BACKUP_KEEP = 20;
 ipcMain.handle('vox:voices:auto-backup', (_e, opts) => {
   const v = voicePaths();
   const st = voiceBackup.statVoices(v, '');
@@ -1196,11 +1202,11 @@ ipcMain.handle('vox:voices:auto-backup', (_e, opts) => {
     }
   }
 
-  const res = voiceBackup.backupVoices(v, base, { version: app.getVersion(), auto: true, keepAuto: AUTO_BACKUP_KEEP });
+  const res = voiceBackup.backupVoices(v, base, { version: app.getVersion(), auto: true });
   if (res.ok) {
     appSettings.voicesAutoBackupAt = Date.now();
     appSettings.voicesAutoBackupDir = base;
-    saveAppSettingsFile();
+    persistAppSettings();
   }
   return Object.assign({ dir: base, lastAt: appSettings.voicesAutoBackupAt || 0 }, res);
 });
