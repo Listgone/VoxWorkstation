@@ -1057,6 +1057,12 @@ function downloadTo(url, dest, emit, label) {
   });
 }
 
+/** 安装依赖时给 Python 子进程的环境变量：
+ *  强制 UTF-8，否则 Windows 上 Python 按 GBK 解码 pip 输出，
+ *  遇到 ™/® 这类字符就抛 UnicodeDecodeError: 'gbk' codec can't decode byte 0xae
+ *  —— 表现为「步骤 3/5 · 安装依赖」直接失败（55% 处卡住）。 */
+const PY_ENV = { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' };
+
 /** 便携版 Python：装在软件自己的目录里，不碰系统、不需要管理员权限 */
 async function ensurePortablePython(engineDir, emit) {
   const PY_VER = '3.10.11';
@@ -1150,7 +1156,7 @@ ipcMain.handle('vox:setup:auto', async (_e, opts) => {
       const c = spawn(py, ['-m', 'pip', 'install', 'torch', 'torchaudio',
                            '--index-url', 'https://download.pytorch.org/whl/cu121',
                            '--disable-pip-version-check', '--no-warn-script-location'],
-                      { windowsHide: true, cwd: dir });
+                      { windowsHide: true, cwd: dir, env: PY_ENV });
       let b1 = '';
       const od = (d) => {
         b1 += String(d);
@@ -1169,7 +1175,7 @@ ipcMain.handle('vox:setup:auto', async (_e, opts) => {
     await new Promise((resolve, reject) => {
       const c = spawn(py, ['-m', 'pip', 'install', '-r', req,
                            '--disable-pip-version-check', '--no-warn-script-location'],
-                      { windowsHide: true, cwd: dir });
+                      { windowsHide: true, cwd: dir, env: PY_ENV });
       let buf = '';
       // 依赖总量约 2.5 GB；按 pip 输出的「已下载 MB」推进进度条，
       // 否则这一步几分钟内条子完全不动，看着像卡死
