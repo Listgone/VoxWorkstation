@@ -104,5 +104,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   path: {
     pick: (args) => invoke('vox:path:pick', args),
     reveal: (p) => invoke('vox:path:reveal', p)
-  }
+  },
+
+  /* 外部链接：主进程只放行 http/https，其余协议会被拒绝 */
+  openExternal: (url) => invoke('vox:open-external', url)
 });

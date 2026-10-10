@@ -512,9 +512,117 @@ const SettingsPage = {
           '<button class="btn btn-sm" data-act="open-userdata">打开</button>')
       + this._row('查看后端日志', '最近 200 行，排查生成失败用',
           '<button class="btn btn-sm" data-act="show-log">查看</button>')
-      + this._row('VoxWorkstation v1.0.0', 'VoxCPM2 引擎 · Electron', '')
-      + '</div>';
+      + '</div>'
+
+      + this._aboutApp(s, cfg);
   },
+
+  /* ── 关于软件：隐私说明 / 模型介绍 / 版权 / 开源组件 / 仓库入口 ── */
+  _aboutApp(s, cfg) {
+    const ver = cfg.version || '—';
+    const verCell = 'v' + Util.escapeHtml(ver) + '<span class="about-dim"> · Electron '
+      + Util.escapeHtml(cfg.electron || '—') + ' · Chromium ' + Util.escapeHtml(cfg.chrome || '—') + '</span>';
+
+    /* 1) 隐私：把「什么在本机、什么会外发、什么从不采集」讲清楚 */
+    const privacy = '<div class="card"><h2>隐私说明 <span class="n">数据都去哪了</span></h2>'
+      + '<div class="about-grid">'
+      + '<div class="about-block"><b class="about-ok">只存在你的电脑上</b><ul>'
+      + '<li>原始文稿、整理后的台词、每一句音频、整轨导出文件</li>'
+      + '<li>项目设置、角色与音色、发音词典、语速等参数</li>'
+      + '<li>AI 服务商的密钥（加密后存在本机配置目录，不进项目文件夹）</li>'
+      + '<li>运行日志与诊断报告（仅在你点「导出诊断报告」时才生成文件）</li>'
+      + '</ul></div>'
+      + '<div class="about-block"><b class="about-warn">只在两种情况下会联网</b><ul>'
+      + '<li><b>你点「AI 处理」时</b>：文本会发给你自己配置的 AI 服务商'
+      + '（默认 DeepSeek，可在设置里换成任意兼容 OpenAI 协议的服务）。'
+      + '可在「数据与隐私」里开启脱敏，勾选后只发当前段落。</li>'
+      + '<li><b>模型没下载完时</b>：从 ModelScope 下载模型权重文件（约 4.6 GB），'
+      + '下载完就不再联网。</li>'
+      + '</ul></div>'
+      + '<div class="about-block"><b class="about-ok">从不采集</b><ul>'
+      + '<li>没有账号系统，不需要注册登录</li>'
+      + '<li>没有埋点、统计、崩溃上报，不回传任何使用数据</li>'
+      + '<li>不读取与配音无关的文件，不上传你的音频与文本</li>'
+      + '</ul></div>'
+      + '</div>'
+      + '<p class="about-note">想彻底清干净：删掉项目文件夹，再删掉配置目录（上面的「配置目录」有入口）。'
+      + '卸载软件会一并删掉软件目录内的模型，不会在你的磁盘上留下 4.6 GB 残留。</p>'
+      + '</div>';
+
+    /* 2) 模型：是什么、多大、要什么硬件、授权 */
+    const model = '<div class="card"><h2>语音模型 <span class="n">VoxCPM2</span></h2>'
+      + '<div class="about-grid">'
+      + '<div class="about-block"><b>它做什么</b><ul>'
+      + '<li>把文字变成语音：支持中文，可指定音色与情绪，也能做声音克隆</li>'
+      + '<li>完全在本机显卡上跑，断网也能用</li>'
+      + '</ul></div>'
+      + '<div class="about-block"><b>体积与来源</b><ul>'
+      + '<li>权重约 <b>4.6 GB</b>（7 个文件），下载一次长期可用</li>'
+      + '<li>从 ModelScope 获取；也可自行下载后放进模型目录，软件会自动识别、不重复下载</li>'
+      + '</ul></div>'
+      + '<div class="about-block"><b>硬件要求</b><ul>'
+      + '<li>NVIDIA 显卡，显存 ≥ 6 GB，架构 8.0 及以上（bf16）</li>'
+      + '<li>不满足会自动改用 CPU 运行：能出声，但明显更慢</li>'
+      + '<li>实测参考：RTX 4060 Ti 启动加载约 27 秒</li>'
+      + '</ul></div>'
+      + '</div>'
+      + '<p class="about-note">模型与推理库（VoxCPM / PyTorch 等）版权归各自作者所有，'
+      + '本软件只是调用方，未对模型做修改或再分发。</p>'
+      + '</div>';
+
+    /* 3) 版权与开源组件 */
+    const rights = '<div class="card"><h2>版权与开源组件</h2>'
+      + this._row('软件本体', '界面设计、交互与全部业务逻辑均由作者独立开发', verCell)
+      + this._row('作者与版权', '© 2026 Listgone · 保留所有权利', '')
+      + '<div class="about-grid mt-12">'
+      + '<div class="about-block"><b>界面与交互</b><ul>'
+      + '<li>本软件的 UI 界面（布局、配色、图标、动效）由作者本人设计并实现</li>'
+      + '<li>未经许可请勿复制、二次分发或用于商业用途</li>'
+      + '</ul></div>'
+      + '<div class="about-block"><b>用到的开源组件</b><ul>'
+      + '<li>Electron / Chromium —— 桌面外壳（MIT / BSD）</li>'
+      + '<li>PyTorch、torchaudio —— 推理运行时（BSD）</li>'
+      + '<li>FastAPI、Uvicorn —— 本机后端服务（MIT / BSD）</li>'
+      + '<li>FFmpeg —— 音频转码（LGPL/GPL，单独分发）</li>'
+      + '<li>VoxCPM2 —— 语音合成模型（见上方模型说明）</li>'
+      + '</ul></div>'
+      + '<div class="about-block"><b>许可</b><ul>'
+      + '<li>仓库内的第三方组件遵循其各自许可证，版权归各原作者</li>'
+      + '<li>本项目源码以仓库内 LICENSE 为准</li>'
+      + '</ul></div>'
+      + '</div></div>';
+
+    /* 4) GitHub 入口 */
+    const repo = '<div class="card gh-card"><h2>项目主页</h2>'
+      + '<p class="text-sm text-muted" style="margin:-4px 0 12px">'
+      + '查看更新说明、反馈问题、下载新版本都在 GitHub 仓库。</p>'
+      + '<div class="about-grid">'
+      + '<a class="gh-tile" data-act="open-github" data-url="' + App.REPO_URL + '" role="button" tabindex="0" href="' + App.REPO_URL + '">'
+      + '<span class="gh-ico">' + this.GH_SVG + '</span>'
+      + '<span class="gh-tx"><b>VoxWorkstation 仓库</b>'
+      + '<span>' + Util.escapeHtml(App.REPO_URL.replace(/^https?:\/\//, '')) + '</span></span>'
+      + '<span class="gh-go">↗</span></a>'
+      + '<a class="gh-tile" data-act="open-issues" data-url="' + App.REPO_URL + '/issues" role="button" tabindex="0" href="' + App.REPO_URL + '/issues">'
+      + '<span class="gh-ico">' + this.GH_SVG + '</span>'
+      + '<span class="gh-tx"><b>反馈问题 / 提需求</b>'
+      + '<span>Issues · 遇到 bug 或想要新功能</span></span>'
+      + '<span class="gh-go">↗</span></a>'
+      + '<a class="gh-tile" data-act="open-releases" data-url="' + App.REPO_URL + '/releases" role="button" tabindex="0" href="' + App.REPO_URL + '/releases">'
+      + '<span class="gh-ico">' + this.GH_SVG + '</span>'
+      + '<span class="gh-tx"><b>下载新版本</b>'
+      + '<span>Releases · 更新日志与安装包</span></span>'
+      + '<span class="gh-go">↗</span></a>'
+      + '</div>'
+      + '<p class="about-note">当前版本 <b>v' + Util.escapeHtml(ver) + '</b>。'
+      + '链接会用系统默认浏览器打开。</p>'
+      + '</div>';
+
+    return privacy + model + rights + repo;
+  },
+
+  /* GitHub 标记（官方 mark 路径），标题栏与关于页共用同一份 */
+  GH_SVG: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>',
+
 
   _diagHtml(res) {
     if (!res || !res.ok) return '<p class="text-sm text-muted">自检失败：' + Util.escapeHtml((res && res.message) || '未知错误') + '</p>';
@@ -539,6 +647,19 @@ const SettingsPage = {
   async mount(el) {
     el.querySelectorAll('[data-sec]').forEach(a =>
       a.addEventListener('click', () => { this._sec = a.dataset.sec; App.go('settings'); }));
+
+    /* GitHub 入口：三块磁贴都走统一的外部链接通道。
+       用 addEventListener 而不是内联 onclick，是为了顺带拦掉 <a> 的默认跳转
+       —— 默认跳转会在应用窗口内导航，被主进程的 will-navigate 拦下虽也能开，
+       但会多一次导航尝试；这里直接阻止更干净。 */
+    el.querySelectorAll('.gh-tile').forEach(a => {
+      const open = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        App.openExternal(a.dataset.url || a.getAttribute('href') || App.REPO_URL);
+      };
+      a.addEventListener('click', open);
+      a.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') open(e); });
+    });
 
     const s = Store.settings;
     const save = async (patch, msg) => {

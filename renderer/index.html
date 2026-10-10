@@ -43,43 +43,30 @@
   </svg>
 </div>
 
-<!-- 霓虹紫夜背景层（仅该主题显示）——紫蓝渐变 + 落日 + 透视网格，纯 CSS+SVG -->
+<!-- 霓虹紫夜背景层（仅该主题显示）——深紫→蓝底 + 柔光晕，纯 CSS+SVG 无位图。
+     设计取舍：不用落日 + 透视网格 —— 实际界面里表格/卡片很密，具象图案会和正文抢视线；
+     改用与「液态玻璃」同思路的柔光晕，只提供氛围与层次，不干扰阅读。 -->
 <div class="neonwave-bg" aria-hidden="true">
   <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
     <defs>
-      <linearGradient id="nwSun" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#ffd36e"/>
-        <stop offset="0.45" stop-color="#ff77e9"/>
-        <stop offset="1" stop-color="#7a5cff"/>
-      </linearGradient>
-      <linearGradient id="nwGrid" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#43f6ff" stop-opacity=".55"/>
+      <radialGradient id="nwGlowA" cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0" stop-color="#ff77e9" stop-opacity=".55"/>
+        <stop offset="0.55" stop-color="#ff77e9" stop-opacity=".16"/>
         <stop offset="1" stop-color="#ff77e9" stop-opacity="0"/>
-      </linearGradient>
-      <clipPath id="nwSunClip">
-        <rect x="0" y="0" width="1600" height="672"/>
-      </clipPath>
+      </radialGradient>
+      <radialGradient id="nwGlowB" cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0" stop-color="#43f6ff" stop-opacity=".42"/>
+        <stop offset="0.55" stop-color="#43f6ff" stop-opacity=".12"/>
+        <stop offset="1" stop-color="#43f6ff" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="nwGlowC" cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0" stop-color="#b48cff" stop-opacity=".38"/>
+        <stop offset="1" stop-color="#b48cff" stop-opacity="0"/>
+      </radialGradient>
     </defs>
-    <!-- 落日：圆盘 + 横向切割（压低到内容区下方，避免和正文抢视线） -->
-    <circle cx="800" cy="672" r="215" fill="url(#nwSun)" opacity=".3"/>
-    <g fill="#2b1055" opacity=".55">
-      <rect x="560" y="572" width="480" height="9"/>
-      <rect x="560" y="598" width="480" height="12"/>
-      <rect x="560" y="628" width="480" height="15"/>
-      <rect x="560" y="662" width="480" height="18"/>
-    </g>
-    <!-- 透视网格 -->
-    <g stroke="url(#nwGrid)" fill="none">
-      <g stroke-width="1.5" opacity=".5">
-        <path d="M-200 900 L800 672 M0 900 L800 672 M200 900 L800 672 M400 900 L800 672
-                 M600 900 L800 672 M800 900 L800 672 M1000 900 L800 672 M1200 900 L800 672
-                 M1400 900 L800 672 M1600 900 L800 672 M1800 900 L800 672"/>
-      </g>
-      <g stroke-width="1.2" opacity=".45">
-        <path d="M0 690 H1600 M0 708 H1600 M0 730 H1600 M0 758 H1600 M0 794 H1600
-                 M0 840 H1600"/>
-      </g>
-    </g>
+    <ellipse cx="1330" cy="130" rx="640" ry="470" fill="url(#nwGlowA)"/>
+    <ellipse cx="150" cy="860" rx="720" ry="430" fill="url(#nwGlowB)"/>
+    <ellipse cx="820" cy="1010" rx="820" ry="360" fill="url(#nwGlowC)"/>
   </svg>
 </div>
 
@@ -90,6 +77,7 @@
   </div>
   <div class="titlebar-actions">
     <span id="engine-chip" class="engine-chip is-loading" title="语音引擎状态"><i></i><span id="side-status">启动中…</span></span>
+    <button id="btn-github" class="gh-link" title="在浏览器中打开项目主页（GitHub）· 反馈问题 / 查看更新"><svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg></button>
     <button id="btn-theme" title="切换主题（明亮现代 / 极简黑白 / 液态玻璃 / 构成主义 / 霓虹紫夜）"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
     <button id="btn-min" title="最小化"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
     <button id="btn-max" title="最大化"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16"/></svg></button>
@@ -98,9 +86,15 @@
 </div>
 
 <div id="loading-overlay">
-  <div class="ld-bg"><img class="ld-waves" src="assets/loading-waves.svg" alt=""></div>
+  <div class="ld-bg">
+    <img class="ld-waves" src="assets/loading-waves.svg" alt="">
+    <span class="ld-aurora a"></span>
+    <span class="ld-aurora b"></span>
+    <span class="ld-aurora c"></span>
+    <span class="ld-flow"></span>
+  </div>
   <div class="ld-stage">
-    <span class="ld-mk"><img class="ld-mark" src="../assets/icons/app-icon-256.png" alt="" aria-hidden="true"><span class="ld-glow"></span></span>
+    <span class="ld-mk"><span class="ld-orbit" aria-hidden="true"></span><img class="ld-mark" src="../assets/icons/app-icon-256.png" alt="" aria-hidden="true"><span class="ld-glow"></span></span>
     <h1 class="ld-title">VoxWorkstation</h1>
     <p id="loading-text" class="ld-text">正在启动语音引擎…</p>
     <div class="ld-bar"><i id="loading-bar"></i></div>

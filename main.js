@@ -758,19 +758,25 @@ function startServer() {
     });
 
     const startedAt = Date.now();
-    poll = setInterval(async () => {
-      if (await probe(serverPort)) {
+    /* 轮询间隔 350ms（原来 1s）：后端从"进程起来"到"HTTP 可响应"通常几十毫秒，
+       原来最坏要白等 1 秒才被探测到，界面就晚出来 1 秒。首轮立即执行，不等第一个间隔。 */
+    const tickProbe = async () => {
+      if (await probe(serverPort, 700)) {
         // 端口通了不代表模型就绪：后端改成后台加载，模型可能还在读盘。
         // 先把界面放出来（状态标为 loading），后台继续等 /api/ready。
         pushLog('[shell] 后端服务已响应，模型仍在后台加载');
         finish({ ok: true, engineLoading: true });
         watchEngineReady();
-        return;
+        return true;
       }
       if (Date.now() - startedAt > serverStartTimeoutMs) {
         finish({ ok: false, message: `等待后端超时（${Math.round(serverStartTimeoutMs / 1000)} 秒）` });
+        return true;
       }
-    }, 1000);
+      return false;
+    };
+    poll = setInterval(() => { if (!settled) tickProbe(); }, 350);
+    tickProbe();
   });
 }
 
@@ -860,7 +866,9 @@ async function ensureServer() {
 
   // 端口上已经有服务在跑（例如上次启动的后端还活着，或用户自己启动过）
   // → 直接复用，避免再拉一个绑不上端口的进程造成假象
-  if (await probe(CONFIG.serverPort)) {
+  // 用短超时：本机端口有人在听时几十毫秒就回；没人听时也不该拖慢启动
+  // （原来 1.5s 超时会让每次冷启动白等 1.5 秒）。
+  if (await probe(CONFIG.serverPort, 500)) {
     pushLog(`[shell] 端口 ${CONFIG.serverPort} 已有后端在运行，直接复用`);
     serverState = 'ready';
     watchEngineReady();
@@ -933,8 +941,22 @@ ipcMain.handle('get-server-url', () => `http://127.0.0.1:${CONFIG.serverPort}`);
 ipcMain.handle('get-config', () => ({
   serverPort: CONFIG.serverPort,
   serverDir: CONFIG.serverDir,
-  pythonPath: CONFIG.pythonPath
+  pythonPath: CONFIG.pythonPath,
+  version: app.getVersion(),
+  electron: process.versions.electron,
+  chrome: process.versions.chrome,
+  node: process.versions.node
 }));
+
+/* 外部链接：交给系统默认浏览器打开。
+   白名单只放 http/https —— 其余协议（file:、ms-*:、自定义 scheme）一律拒绝，
+   避免界面里被塞进一个可以拉起本地程序或读本地文件的链接。 */
+ipcMain.handle('vox:open-external', (_e, url) => {
+  const u = String(url || '');
+  if (!/^https?:\/\//i.test(u)) return { ok: false, message: '只允许打开 http/https 链接' };
+  try { shell.openExternal(u); return { ok: true }; }
+  catch (e) { return { ok: false, message: e.message }; }
+});
 ipcMain.handle('restart-server', async () => {
   killServerTree();
   serverState = 'idle';
@@ -1774,10 +1796,16 @@ if (!app.requestSingleInstanceLock()) {
       outputRoot: appSettings.output.root
     }));
 
-    createWindow();
+    /* 先并行启动后端，再创建窗口（createWindow 里的 loadFile 不阻塞）——
+       Python 那 3~4 秒的启动（解释器 + torch 导入 + uvicorn 建监听）
+       与页面首帧、样式解析重叠进行，而不是串行等窗口完全起来。
+       状态事件先进 logBuffer，由 did-finish-load 补发，早期事件不会丢。 */
+    const ensurePromise = ensureServer();
     setStatus({ status: 'starting', message: '正在启动 VoxCPM2 引擎...' });
 
-    const res = await ensureServer();
+    createWindow();
+
+    const res = await ensurePromise;
     if (res.ok) setStatus({ status: 'ready' });
     else setStatus({ status: 'error', message: res.message });
   });

@@ -21,7 +21,11 @@ import soundfile as sf
 
 # ========== 路径与配置 ==========
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, 'pretrained_models', 'VoxCPM2')
+# 模型目录：engine/pretrained_models/VoxCPM2 —— 跟着软件走，卸载软件时一并删除，
+# 不会在用户磁盘上留下 4.6 GB 残留。
+# 环境变量 VOX_MODEL_DIR 可覆盖到外部目录（仅供排查/临时使用）。
+_ENV_MODEL_DIR = os.environ.get('VOX_MODEL_DIR', '').strip()
+MODEL_PATH = _ENV_MODEL_DIR or os.path.join(BASE_DIR, 'pretrained_models', 'VoxCPM2')
 CUSTOM_PRESETS_FILE = os.path.join(BASE_DIR, 'custom_presets.json')
 HISTORY_DIR = os.path.join(BASE_DIR, 'history')
 HISTORY_FILES = {
@@ -204,14 +208,17 @@ def _dir_size(p):
 
 
 MODEL_REPO = "OpenBMB/VoxCPM2"
+# 注意：这里的字节数是实测值，只用于估算下载进度。
+# 曾写成 376,982,016（比实际大 30 KB），导致判定永远"差一点"→反复续传→服务器回 416。
+# 上游换过文件时，用 fetchmodel.py 重新核对这几个数。
 MODEL_FILES = [
     ("model.safetensors", 4580080592),
-    ("audiovae.pth", 376982016),
-    ("tokenizer.json", 3682304),
+    ("audiovae.pth", 376951122),
+    ("tokenizer.json", 3676772),
     ("config.json", 4336),
     ("tokenizer_config.json", 5059),
-    ("special_tokens_map.json", 0),
-    ("tokenization_voxcpm2.py", 0),
+    ("special_tokens_map.json", 1632),
+    ("tokenization_voxcpm2.py", 2895),
 ]
 MIRRORS = [
     "https://modelscope.cn/models/{repo}/resolve/master/{file}",

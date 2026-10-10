@@ -408,12 +408,22 @@ const App = {
    * 平滑进度：目标值跳变时，显示值按帧向它靠拢。
    * 直接写 width 会「突然蹦到某个进度」，这里用缓动补间消除突跳。
    * id 用哪条进度条都行（主加载条 / 一键配置条）。
+   * 顺带把百分比写到进度条容器的 data-pct，加载页用它显示一个可读数字
+   * （CSS ::after 读这个属性）—— 比让 JS 写两个元素少一处不同步。
    */
   _smoothTo(id, pct) {
     this._pg = this._pg || {};
     const st = this._pg[id] || (this._pg[id] = { shown: 0, target: 0, timer: null });
     st.target = Math.max(st.target, Math.min(100, pct));   // 只增不减，避免回退造成困惑
     if (st.timer) return;
+    const paint = () => {
+      const el = document.getElementById(id);
+      if (el) el.style.width = st.shown.toFixed(2) + '%';
+      const box = el && el.parentElement;
+      if (box && box.classList && box.classList.contains('ld-bar')) {
+        box.setAttribute('data-pct', Math.round(st.shown) + '%');
+      }
+    };
     st.timer = setInterval(() => {
       const diff = st.target - st.shown;
       if (Math.abs(diff) < 0.35) {
@@ -422,8 +432,7 @@ const App = {
       } else {
         st.shown += diff * 0.16;                            // 缓动系数：越大越快
       }
-      const el = document.getElementById(id);
-      if (el) el.style.width = st.shown.toFixed(2) + '%';
+      paint();
     }, 60);
   },
 
@@ -753,8 +762,30 @@ const App = {
       await window.electronAPI?.maximize(); this._updateMaxIcon();
     });
     document.getElementById('btn-close')?.addEventListener('click', () => window.electronAPI?.close());
+    document.getElementById('btn-github')?.addEventListener('click', () => App.openRepo());
     window.addEventListener('resize', () => this._updateMaxIcon());
   },
+
+  /* 外部链接统一走主进程（只放行 http/https）。打不开就退回到 window.open，
+     两条路都会交给系统默认浏览器，不在应用内开新窗口。 */
+  openExternal(url) {
+    try {
+      const r = window.electronAPI?.openExternal?.(url);
+      if (r && typeof r.then === 'function') {
+        return r.then((res) => {
+          if (res && res.ok === false) { window.open(url, '_blank'); return false; }
+          return true;
+        }).catch(() => { window.open(url, '_blank'); return false; });
+      }
+      if (!window.electronAPI?.openExternal) window.open(url, '_blank');
+    } catch (e) { window.open(url, '_blank'); }
+    return null;
+  },
+
+  openRepo() { return this.openExternal(this.REPO_URL); },
+
+  /** 仓库地址：界面里所有「GitHub 入口」都读这里，换仓库只改一处 */
+  REPO_URL: 'https://github.com/Listgone/VoxWorkstation',
 
   _updateMaxIcon() {
     const btn = document.getElementById('btn-max');
