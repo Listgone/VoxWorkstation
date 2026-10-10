@@ -46,7 +46,8 @@ const Notify = {
     const ac = this._ac();
     if (!ac) return;
     const vol = ((Store.settings.notify && Store.settings.notify.volume) ?? 70) / 100;
-    const g = 0.05 + vol * 0.16;
+    // 音量整体翻倍（原来 0.05 + vol*0.16 实测偏小，拉到最大也几乎听不清）
+    const g = Math.min(0.9, (0.05 + vol * 0.16) * 2);
 
     switch (name) {
       case 'ding':
@@ -73,7 +74,7 @@ const Notify = {
     const ac = this._ac();
     if (!ac) return;
     const vol = ((Store.settings.notify && Store.settings.notify.volume) ?? 70) / 100;
-    const g = 0.05 + vol * 0.14;
+    const g = Math.min(0.9, (0.05 + vol * 0.14) * 2);   // 与成功音一样翻倍
     this._tone(ac, 440, 0,    0.20, g, 'triangle');
     this._tone(ac, 330, 0.14, 0.34, g, 'triangle');
   },

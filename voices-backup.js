@@ -173,4 +173,53 @@ function restoreVoices(paths, fromDir, opts) {
   return { ok: true, from: src, added, skipped };
 }
 
-module.exports = { listFilesRecursive, copyTreeFlat, statVoices, stampName, backupVoices, resolveBackupSource, restoreVoices };
+/**
+ * 列出备份目录下的所有备份（手动 + 自动），按修改时间从新到旧
+ * @returns {Array<{name:string, dir:string, kind:'manual'|'auto', at:number, voices:number, files:number, bytes:number}>}
+ */
+function listBackups(baseDir) {
+  const out = [];
+  if (!baseDir || !fs.existsSync(baseDir)) return out;
+  let names = [];
+  try { names = fs.readdirSync(baseDir); } catch (e) { return out; }
+  for (const n of names) {
+    if (!n.startsWith(PREFIX_MANUAL) && !n.startsWith(PREFIX_AUTO)) continue;
+    const dir = path.join(baseDir, n);
+    let st = null;
+    try { st = fs.statSync(dir); } catch (e) { continue; }
+    if (!st.isDirectory()) continue;
+    const prof = path.join(dir, 'voice_profiles');
+    const files = fs.existsSync(prof) ? listFilesRecursive(prof, prof) : [];
+    let bytes = 0;
+    for (const rel of files) { try { bytes += fs.statSync(path.join(prof, rel)).size; } catch (e) { /* 忽略 */ } }
+    const presets = readPresets(path.join(dir, 'custom_presets.json'));
+    out.push({
+      name: n, dir, kind: n.startsWith(PREFIX_AUTO) ? 'auto' : 'manual',
+      at: st.mtimeMs, voices: Object.keys(presets).length, files: files.length, bytes
+    });
+  }
+  return out.sort((a, b) => b.at - a.at);
+}
+
+/** 删除若干部备份；只允许删 baseDir 下带备份前缀的目录 */
+function deleteBackups(baseDir, names) {
+  let removed = 0, skipped = 0;
+  for (const n of (names || [])) {
+    if (typeof n !== 'string' || (!n.startsWith(PREFIX_MANUAL) && !n.startsWith(PREFIX_AUTO)) || n.includes('..')) {
+      skipped++;
+      continue;
+    }
+    const dir = path.join(baseDir, n);
+    // 双保险：解析后的路径必须仍在备份根目录内
+    if (path.dirname(path.resolve(dir)) !== path.resolve(baseDir)) { skipped++; continue; }
+    try { fs.rmSync(dir, { recursive: true, force: true }); removed++; }
+    catch (e) { skipped++; }
+  }
+  return { removed, skipped };
+}
+
+module.exports = {
+  listFilesRecursive, copyTreeFlat, statVoices, stampName, backupVoices,
+  resolveBackupSource, restoreVoices, listBackups, deleteBackups,
+  PREFIX_MANUAL, PREFIX_AUTO
+};

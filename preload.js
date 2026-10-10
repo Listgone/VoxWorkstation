@@ -114,6 +114,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     stat: () => invoke('vox:voices:stat'),
     backup: (opts) => invoke('vox:voices:backup', opts),
     autoBackup: (opts) => invoke('vox:voices:auto-backup', opts),
-    restore: (opts) => invoke('vox:voices:restore', opts)
+    restore: (opts) => invoke('vox:voices:restore', opts),
+    deleteBackups: (opts) => invoke('vox:voices:delete-backups', opts),
+    setBackupDir: (opts) => invoke('vox:voices:set-backup-dir', opts)
   }
 });

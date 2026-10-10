@@ -488,8 +488,12 @@ const SettingsPage = {
       + this._row('AI 请求前脱敏', '发送前替换人名 / 电话 / 地址等敏感信息', this._sw(p.redact, 'toggle-redact'))
       + this._row('仅发送当前段落', '关闭后整篇发送，上下文更准但更贵', this._sw(p.onlyCurrentParagraph !== false, 'toggle-onlycur'))
       + this._row('本地保存处理记录', '保存 AI 处理的 diff 历史，便于回溯', this._sw(p.keepDiffHistory !== false, 'toggle-diff'))
+      + this._row('音色库备份与还原', '立即备份 / 从备份还原 / 更改位置 / 管理旧备份',
+          '<button class="btn btn-sm" data-act="open-voice-backup">打开</button>')
       + '<p class="text-sm text-muted mt-12">所有音频、文本、音色都保存在本机项目文件夹，不会上传到任何服务器。'
       + '只有你主动点「AI 处理」时，文本才会发给你配置的服务商。</p>'
+      + '<p class="text-sm text-muted">改动音色库后会<b>自动备份</b>一份到备份目录（默认在软件安装目录之外），'
+      + '3 分钟内只备一次、保留最近 20 份；备份位置可在上面的弹窗里更改。</p>'
       + '</div>';
   },
 
@@ -682,6 +686,10 @@ const SettingsPage = {
       try { await window.electronAPI.path.reveal(p); }
       catch (e) { Toast.error('打开失败：' + (e && e.message || e), true); }
     });
+
+    /* 音色库备份与还原：与音色库页共用同一个弹窗，设置里只放一个入口，
+       两处读到的是主进程的同一份数据，不会不同步 */
+    el.querySelector('[data-act="open-voice-backup"]')?.addEventListener('click', () => VoiceBackup.show());
 
     const s = Store.settings;
     const save = async (patch, msg) => {

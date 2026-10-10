@@ -1090,7 +1090,46 @@ function voicePaths() {
 /** 音色库概况（界面显示 + 备份前确认） */
 ipcMain.handle('vox:voices:stat', () => {
   const st = voiceBackup.statVoices(voicePaths(), appSettings.voicesBackupDir || '');
-  return Object.assign({ ok: true }, st);
+  /* 备份清单也一起给界面：音色库页与设置页共用同一个「备份与还原」弹窗，
+     需要显示"备份有哪些、多大、什么时候" */
+  const dirs = [st.lastBackup, appSettings.voicesAutoBackupDir].filter(Boolean);
+  const backups = [];
+  const seen = {};
+  for (const d of dirs) {
+    if (seen[d]) continue;
+    seen[d] = 1;
+    for (const b of voiceBackup.listBackups(d)) backups.push(b);
+  }
+  backups.sort((a, b) => b.at - a.at);
+  return Object.assign({ ok: true, backups, autoBackupAt: appSettings.voicesAutoBackupAt || 0 }, st);
+});
+
+/** 删除选中的备份（只能删备份根目录下带 VoxVoices-/VoxAuto- 前缀的目录） */
+ipcMain.handle('vox:voices:delete-backups', (_e, opts) => {
+  const base = (opts && opts.dir) || appSettings.voicesBackupDir || '';
+  if (!base) return { ok: false, message: '还没有备份目录' };
+  const names = (opts && opts.names) || [];
+  if (!names.length) return { ok: false, message: '没有选中任何备份' };
+  const r = voiceBackup.deleteBackups(base, names);
+  return Object.assign({ ok: r.removed > 0, dir: base }, r);
+});
+
+/** 更改备份位置（记下来，之后手动/自动备份都用它） */
+ipcMain.handle('vox:voices:set-backup-dir', async (_e, opts) => {
+  let dir = (opts && opts.dir) || '';
+  if (!dir) {
+    const r = await dialog.showOpenDialog(mainWindow, {
+      title: '选择音色库备份位置（建议网盘同步目录或另一块硬盘）',
+      properties: ['openDirectory', 'createDirectory'],
+      buttonLabel: '用这个目录'
+    });
+    if (r.canceled || !r.filePaths[0]) return { ok: false, canceled: true };
+    dir = r.filePaths[0];
+  }
+  try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { return { ok: false, message: e.message }; }
+  appSettings.voicesBackupDir = dir;
+  saveAppSettingsFile();
+  return { ok: true, dir, backups: voiceBackup.listBackups(dir) };
 });
 
 /** 备份：选目录（首次）→ 生成带时间戳的子目录并复制 */

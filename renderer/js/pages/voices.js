@@ -13,11 +13,9 @@ const VoicesPage = {
 
     return App.head('音色库', '管理音色资产，从这里选音色给台词用',
         '<button class="btn" data-act="refresh">刷新</button>'
-        + '<button class="btn" data-act="restore">从备份还原</button>'
-        + '<button class="btn" data-act="backup">备份音色库</button>'
+        + '<button class="btn" data-act="backup-center">备份与还原</button>'
         + '<button class="btn btn-primary" data-act="new">＋ 新建音色</button>')
       + '<div class="wrap">'
-      + this._backupBar()
       + '<div class="toolrow">'
       + '<input type="text" id="v-q" placeholder="搜索音色…" style="width:260px" value="' + Util.escapeAttr(this._q) + '">'
       + '<span style="flex:1"></span>'
@@ -32,27 +30,7 @@ const VoicesPage = {
   },
 
   /** 备份提示条：告诉用户音色存在哪、上次备份到哪，并给出一键备份/还原 */
-  _backupBar() {
-    const st = this._stat || {};
-    const n = st.voiceCount || 0;
-    const dir = st.lastBackup || '';
-    const mb = st.bytes ? (st.bytes / 1048576).toFixed(1) + ' MB' : '0 MB';
-    return '<div class="card vbackup">'
-      + '<div class="vbackup-head">'
-      + '<b>音色备份</b>'
-      + '<span class="text-sm text-muted">共 ' + n + ' 个音色 · ' + mb + '</span>'
-      + '<span style="flex:1"></span>'
-      + '<button class="btn btn-sm" data-act="backup">立即备份</button>'
-      + '<button class="btn btn-sm" data-act="restore">从备份还原</button>'
-      + '<button class="btn btn-sm" data-act="open-voice-dir" title="打开音色实际存放的目录">打开位置</button>'
-      + '</div>'
-      + '<p class="text-sm text-muted vbackup-note">'
-      + '音色文件与描述都放在软件目录里（<code>' + Util.escapeHtml(st.profiles || '') + '</code>）。'
-      + '备份会复制到你指定的目录（建议选网盘同步目录或另一块硬盘），每次生成一个带时间戳的文件夹，'
-      + '不会覆盖之前的备份。'
-      + (dir ? '<br>上次备份到：<code>' + Util.escapeHtml(dir) + '</code>' : '')
-      + '</p></div>';
-  },
+  _backupBar() { return ''; },
 
   /** 音色库有变动就自动备份（新增 / 删除 / 重命名 / 改描述都会走到这里）。
    *  节流与保留份数由主进程负责；这里不打扰用户：成功只留一行提示，失败也不弹错误。 */
@@ -102,11 +80,11 @@ const VoicesPage = {
       this._loaded = true;
       return App.go('voices');
     }
-    // 备份提示条需要音色库概况（数量、体积、上次备份目录）
+    // 音色库概况（数量/体积/备份清单）：弹窗要用，这里先取好，免得点开时白等
     if (!this._stat) {
       try { this._stat = await window.electronAPI.voices.stat(); }
-      catch (e) { this._stat = { voiceCount: 0, bytes: 0 }; }
-      return App.go('voices');
+      catch (e) { this._stat = { voiceCount: 0, bytes: 0, backups: [] }; }
+      VoiceBackup._stat = this._stat;                 // 与共用弹窗共享同一份，避免各自请求
     }
 
     // 每次都要重建：页面重渲染后 #v-player 是新的空节点
@@ -122,49 +100,11 @@ const VoicesPage = {
 
     el.querySelector('[data-act="new"]')?.addEventListener('click', () => this._newVoice());
 
-    /* 备份 / 还原 / 打开音色目录 */
-    el.querySelectorAll('[data-act="backup"]').forEach(b =>
-      b.addEventListener('click', async () => {
-        b.disabled = true; b.textContent = '备份中…';
-        try {
-          const r = await window.electronAPI.voices.backup();
-          if (r && r.canceled) { Toast.show('已取消备份'); return; }
-          if (!r || !r.ok) throw new Error((r && r.message) || '备份失败');
-          this._stat = null;
-          await App.go('voices');
-          Toast.success('已备份 ' + r.voiceCount + ' 个音色（' + r.copied + ' 个文件）到 ' + r.dest.replace(/\\[^\\]+$/, ''));
-        } catch (e) {
-          Toast.error(String(e.message || e), true);
-          b.disabled = false; b.textContent = '立即备份';
-        }
-      }));
-
-    el.querySelectorAll('[data-act="restore"]').forEach(b =>
-      b.addEventListener('click', async () => {
-        const ok = await Modal.confirm({
-          title: '从备份还原音色',
-          okText: '选择备份目录',
-          message: '选择之前备份的目录（可以直接选 VoxVoices-… 的上级目录，会取最新的一份）。<br>'
-            + '还原是<b>补充</b>：已有同名音色不会被动，只把缺失的补回来。'
-        });
-        if (!ok) return;
-        b.disabled = true; b.textContent = '还原中…';
-        try {
-          const r = await window.electronAPI.voices.restore();
-          if (r && r.canceled) { Toast.show('已取消'); return; }
-          if (!r || !r.ok) throw new Error((r && r.message) || '还原失败');
-          this._stat = null;
-          await this._load();
-          await App.go('voices');
-          Toast.success('已还原：新增 ' + r.added + ' 个文件' + (r.skipped ? '，跳过已存在 ' + r.skipped + ' 个' : ''));
-        } catch (e) {
-          Toast.error(String(e.message || e), true);
-          b.disabled = false; b.textContent = '从备份还原';
-        }
-      }));
-
-    el.querySelectorAll('[data-act="open-voice-dir"]').forEach(b =>
-      b.addEventListener('click', () => window.electronAPI.path.reveal((this._stat || {}).profiles || '')));
+    /* 备份入口：只保留一个按钮，点开是「备份与还原」弹窗
+       （立即备份 / 从备份还原 / 更改位置 / 打开位置 / 管理旧备份都在里面，
+        与设置页共用同一份实现，不会出现两处不一致） */
+    el.querySelectorAll('[data-act="backup-center"]').forEach(b =>
+      b.addEventListener('click', () => VoiceBackup.show()));
 
     el.querySelectorAll('[data-act="audition"]').forEach(b =>
       b.addEventListener('click', async () => {

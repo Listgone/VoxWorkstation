@@ -2257,3 +2257,22 @@ body.app-loading #titlebar{
 .vbackup-note{margin:8px 0 0;line-height:1.7}
 .vbackup-note code{font-family:var(--font-code);font-size:11px;padding:1px 5px;border-radius:4px;
   background:var(--bg-elev);color:var(--text-dim);word-break:break-all}
+/* ══════════════════════════════════════════════════
+   音色库「备份与还原」弹窗（音色库页 / 设置页共用）
+   ══════════════════════════════════════════════════ */
+.vbk-status{display:flex;flex-direction:column;gap:6px;padding:11px 13px;margin-bottom:12px;
+  border:1px solid var(--border-soft);border-radius:var(--radius);background:var(--bg-elev)}
+.vbk-status > div{display:flex;gap:10px;align-items:baseline}
+.vbk-status b{font-size:12.5px;min-width:88px;color:var(--text)}
+.vbk-status span{font-size:12px;color:var(--text-dim);word-break:break-all}
+.vbk-acts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.vbk-tip{line-height:1.7;margin:0 0 14px}
+.vbk-listhead{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.vbk-listhead > b{font-family:var(--font-head);font-size:13px}
+.vbk-list{max-height:min(38vh,320px);overflow:auto;display:flex;flex-direction:column;gap:6px}
+.vbk-row{display:flex;align-items:center;gap:10px;padding:8px 10px;cursor:pointer;
+  border:1px solid var(--border-soft);border-radius:var(--radius);background:var(--bg-elev)}
+.vbk-row:hover{border-color:var(--accent)}
+.vbk-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.vbk-main > b{font-size:12.5px;font-family:var(--font-code)}
+.vbk-main > span{font-size:11.5px;color:var(--text-mute)}
