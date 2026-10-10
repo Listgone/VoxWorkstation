@@ -2284,3 +2284,15 @@ body.app-loading #titlebar{
 .seasonblock table td:first-child{padding-left:15px}
 .seasonblock table th:last-child,
 .seasonblock table td:last-child{padding-right:15px}
+/* --- 季区块与上方筛选行之间留出间距 ------------------------------
+   两者是相邻兄弟，纵向 margin 会折叠（.toolrow 的 margin-bottom 与
+   .seasonblock 的 margin-top 只取较大者），所以只加这一处。 */
+.seasonblock{margin-top:9px}
+
+/* --- 季区块：季标题条与表头之间留出间距 --------------------------
+   两者背景色几乎相同（霓虹紫夜里分别是 rgba(255,255,255,.10) 与 .12），
+   不留空档会被看成一整块。不画分隔线，直接让表头往下让出一点位置。
+   注意四个角都要写：本条与上面那条 .seasonblock table 优先级相同，
+   后出现的会整体覆盖，少写一个角就会丢掉圆角。 */
+.seasonblock table{margin-top:7px;
+  border-radius:var(--radius-lg)}
