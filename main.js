@@ -1382,7 +1382,8 @@ ipcMain.handle('vox:setup:auto', async (_e, opts) => {
 
     await new Promise((resolve, reject) => {
       const c = spawn(py, ['-m', 'pip', 'install', '-r', req,
-                           '--disable-pip-version-check', '--no-warn-script-location'],
+                           '--disable-pip-version-check', '--no-warn-script-location',
+                           '--timeout', '120', '--retries', '5'],
                       { windowsHide: true, cwd: dir, env: PY_ENV });
       let buf = '';
       // 依赖总量约 2.5 GB；按 pip 输出的「已下载 MB」推进进度条，
