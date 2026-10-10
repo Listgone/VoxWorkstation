@@ -171,7 +171,7 @@ const SettingsPage = {
       ['minimal', '极简黑白', '深色 · 纯灰阶 · 无彩色', 'thprev-m'],
       ['glass', '液态玻璃', '毛玻璃 + 彩色光斑', 'thprev-g'],
       ['construct', '构成主义', '粗边分格 + 苏式红', 'thprev-c'],
-      ['poster', '复古老海报', '奶油纸 · 铅字衬线 · 锈红套色', 'thprev-p']
+      ['neonwave', '霓虹紫夜', '紫蓝渐变 · 落日网格 · 霓虹粉青', 'thprev-n']
     ];
     const fi = App.fontInfo || {};
     const FONTS = [

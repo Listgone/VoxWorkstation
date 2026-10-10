@@ -43,24 +43,41 @@
   </svg>
 </div>
 
-<!-- 复古老海报背景层（仅「复古老海报」主题显示）——纸纹 / 网点 / 蚀刻线，纯 CSS+SVG -->
-<div class="poster-bg" aria-hidden="true">
+<!-- 霓虹紫夜背景层（仅该主题显示）——紫蓝渐变 + 落日 + 透视网格，纯 CSS+SVG -->
+<div class="neonwave-bg" aria-hidden="true">
   <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
-    <g fill="none" stroke="#5b3a24">
-      <!-- 右上：印刷蚀刻标靶 -->
-      <g opacity=".17">
-        <circle cx="1345" cy="215" r="188" stroke-width="2.4"/>
-        <circle cx="1345" cy="215" r="150" stroke-width="1.6"/>
-        <circle cx="1345" cy="215" r="105" stroke-width="1.2"/>
-        <path d="M1345 27 L1345 403 M1157 215 L1533 215 M1212 82 L1478 348 M1478 82 L1212 348" stroke-width="1"/>
-        <path d="M1345 65 L1475 215 L1345 365 L1215 215 Z" stroke-width="1.2"/>
+    <defs>
+      <linearGradient id="nwSun" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffd36e"/>
+        <stop offset="0.45" stop-color="#ff77e9"/>
+        <stop offset="1" stop-color="#7a5cff"/>
+      </linearGradient>
+      <linearGradient id="nwGrid" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#43f6ff" stop-opacity=".55"/>
+        <stop offset="1" stop-color="#ff77e9" stop-opacity="0"/>
+      </linearGradient>
+      <clipPath id="nwSunClip">
+        <rect x="0" y="0" width="1600" height="672"/>
+      </clipPath>
+    </defs>
+    <!-- 落日：圆盘 + 横向切割（压低到内容区下方，避免和正文抢视线） -->
+    <circle cx="800" cy="672" r="215" fill="url(#nwSun)" opacity=".3"/>
+    <g fill="#2b1055" opacity=".55">
+      <rect x="560" y="572" width="480" height="9"/>
+      <rect x="560" y="598" width="480" height="12"/>
+      <rect x="560" y="628" width="480" height="15"/>
+      <rect x="560" y="662" width="480" height="18"/>
+    </g>
+    <!-- 透视网格 -->
+    <g stroke="url(#nwGrid)" fill="none">
+      <g stroke-width="1.5" opacity=".5">
+        <path d="M-200 900 L800 672 M0 900 L800 672 M200 900 L800 672 M400 900 L800 672
+                 M600 900 L800 672 M800 900 L800 672 M1000 900 L800 672 M1200 900 L800 672
+                 M1400 900 L800 672 M1600 900 L800 672 M1800 900 L800 672"/>
       </g>
-      <!-- 左下：波浪纹与同心圆 -->
-      <g opacity=".14">
-        <path d="M20 700 Q250 560 430 672 T840 610" stroke-width="2"/>
-        <path d="M20 760 Q270 620 460 730 T860 668" stroke-width="1.6"/>
-        <circle cx="180" cy="300" r="150" stroke-width="2"/>
-        <circle cx="180" cy="300" r="96" stroke-width="1.4"/>
+      <g stroke-width="1.2" opacity=".45">
+        <path d="M0 690 H1600 M0 708 H1600 M0 730 H1600 M0 758 H1600 M0 794 H1600
+                 M0 840 H1600"/>
       </g>
     </g>
   </svg>
@@ -73,7 +90,7 @@
   </div>
   <div class="titlebar-actions">
     <span id="engine-chip" class="engine-chip is-loading" title="语音引擎状态"><i></i><span id="side-status">启动中…</span></span>
-    <button id="btn-theme" title="切换主题（明亮现代 / 极简黑白 / 液态玻璃 / 构成主义 / 复古老海报）"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+    <button id="btn-theme" title="切换主题（明亮现代 / 极简黑白 / 液态玻璃 / 构成主义 / 霓虹紫夜）"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
     <button id="btn-min" title="最小化"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
     <button id="btn-max" title="最大化"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16"/></svg></button>
     <button id="btn-close" title="关闭"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
