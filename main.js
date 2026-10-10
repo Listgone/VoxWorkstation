@@ -154,8 +154,15 @@ function ensureEnginePersistent() {
     }
 
     if (isReparsePoint(link)) {
-      say('已是联接: ' + link + ' -> ' + fs.readlinkSync(link));
-      return;
+      /* 已经是联接：确认目标在不在。
+         目标存在 → 什么都不做（曾经这里直接继续往下走，会把目标目录里的东西
+         当成"待迁移内容"再搬一次，凭空制造出链接里的链接）。
+         目标不存在（悬空）→ 删掉链接后重建，指向真实目录。 */
+      let target = '';
+      try { target = fs.realpathSync(link); } catch (e) { target = ''; }
+      if (target) { say('已是联接: ' + link + ' -> ' + target); return; }
+      say('联接悬空，删除后重建: ' + link);
+      try { fs.rmdirSync(link); } catch (e) { say('删除悬空联接失败：' + e.message); return; }
     }
     say('base=' + base + ' real=' + real + ' hasContent=' + dirHasContent(link));
 
