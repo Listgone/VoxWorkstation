@@ -1456,7 +1456,20 @@ ipcMain.handle('vox:setup:modelDir', () => {
       if (st.isFile()) mb += st.size;
     }
   } catch (e) { /* 空目录 */ }
-  return { ok: true, dir, hasModel: fs.existsSync(weight), sizeMb: Math.round(mb / 1048576) };
+  /* engine 在安装目录里是个目录联接，真实数据在安装目录之外
+     （例如 D:\VoxStation\engine → D:\VoxWorkstation-engine）。
+     给用户看/打开的应该是真实位置 —— 否则他以为模型在软件目录里，
+     一删软件目录就以为模型没了。realpathSync 失败就退回原路径。 */
+  let real = dir;
+  try { real = fs.realpathSync(dir); } catch (e) { /* 对联接不适用时保持原样 */ }
+  return {
+    ok: true,
+    dir,
+    realDir: real,
+    isLinked: path.resolve(real).toLowerCase() !== path.resolve(dir).toLowerCase(),
+    hasModel: fs.existsSync(weight),
+    sizeMb: Math.round(mb / 1048576)
+  };
 });
 
 ipcMain.handle('vox:setup:validate', (_e, dir) => {

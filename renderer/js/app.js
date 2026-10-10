@@ -587,7 +587,9 @@ const App = {
         .then(() => modelDirFn())
         .then((m) => {
           const el = document.getElementById('loading-model-dir');
-          if (el && m && m.dir) el.textContent = m.dir;
+          /* 显示真实位置：engine 在安装目录里只是个入口，真实数据在安装目录之外
+             （卸载/覆盖安装不会动它）。只把位置告诉用户，不必解释实现方式。 */
+          if (el && m && (m.realDir || m.dir)) el.textContent = m.realDir || m.dir;
           else if (el) el.textContent = '(尚未确定，请先执行一键配置)';
         })
         .catch((e) => console.warn('取模型目录失败:', e));
@@ -604,7 +606,8 @@ const App = {
         try {
           if (!modelDirFn || !revealFn) { Toast.error('当前版本不支持打开目录', true); return; }
           const m = await modelDirFn();
-          if (m && m.dir) await revealFn(m.dir);
+          const target = (m && (m.realDir || m.dir)) || '';
+          if (target) await revealFn(target);
           else Toast.error((m && m.message) || '模型目录尚未确定，请先一键配置', true);
         } catch (e) {
           console.error('打开模型目录失败:', e);

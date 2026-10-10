@@ -510,6 +510,8 @@ const SettingsPage = {
       + this._row('后端服务', Util.escapeHtml(API.baseUrl) + ' · ' + Util.escapeHtml(cfg.serverDir || ''), '')
       + this._row('配置目录', Util.escapeHtml(Store.userData || ''),
           '<button class="btn btn-sm" data-act="open-userdata">打开</button>')
+      + this._row('模型与音色所在位置', Util.escapeHtml(Store.voicesDir || '(读取中…)'),
+          '<button class="btn btn-sm" data-act="open-voices-dir">打开</button>')
       + this._row('查看后端日志', '最近 200 行，排查生成失败用',
           '<button class="btn btn-sm" data-act="show-log">查看</button>')
       + '</div>'
@@ -546,10 +548,11 @@ const SettingsPage = {
       + '</ul></div>'
       + '</div>'
       + '<p class="about-note">想彻底清干净：删掉项目文件夹，再删掉配置目录（上面的「配置目录」有入口）。'
-      + '卸载软件会一并删掉软件目录内的模型，不会在你的磁盘上留下 4.6 GB 残留。</p>'
+      + '语音模型与音色存放在软件安装目录<b>之外</b>的位置，卸载或覆盖安装软件都不会删掉它们；'
+      + '不需要时可手动删除，具体位置见下面「语音模型」与「音色备份」里的路径。</p>'
       + '</div>';
 
-    /* 2) 模型：是什么、多大、要什么硬件、授权 */
+    /* 2) 模型：是什么、多大、要什么硬件、存在哪、授权 */
     const model = '<div class="card"><h2>语音模型 <span class="n">VoxCPM2</span></h2>'
       + '<div class="about-grid">'
       + '<div class="about-block"><b>它做什么</b><ul>'
@@ -566,6 +569,8 @@ const SettingsPage = {
       + '<li>实测参考：RTX 4060 Ti 启动加载约 27 秒</li>'
       + '</ul></div>'
       + '</div>'
+      + '<p class="about-note">模型存放在软件安装目录<b>之外</b>的位置（见上方「模型与音色所在位置」）。'
+      + '这样卸载或覆盖安装软件都不会删掉这 4.6 GB，不必每次升级重新下载。</p>'
       + '<p class="about-note">模型与推理库（VoxCPM / PyTorch 等）版权归各自作者所有，'
       + '本软件只是调用方，未对模型做修改或再分发。</p>'
       + '</div>';
@@ -659,6 +664,23 @@ const SettingsPage = {
       };
       a.addEventListener('click', open);
       a.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') open(e); });
+    });
+
+    /* 模型与音色的真实位置：engine 在安装目录里只是个入口，真实数据在安装目录之外。
+       取一次真实路径显示出来，并支持一键打开 —— 用户才知道东西到底在哪。 */
+    if (!Store.voicesDir) {
+      window.electronAPI?.setup?.modelDir?.().then((m) => {
+        const real = (m && (m.realDir || m.dir)) || '';
+        if (!real) return;
+        Store.voicesDir = real;
+        if (this._sec === 'about') App.go('settings');
+      }).catch(() => { /* 取不到就保持占位文案 */ });
+    }
+    el.querySelector('[data-act="open-voices-dir"]')?.addEventListener('click', async () => {
+      const p = Store.voicesDir;
+      if (!p) { Toast.error('路径尚未取到，请稍后再试', true); return; }
+      try { await window.electronAPI.path.reveal(p); }
+      catch (e) { Toast.error('打开失败：' + (e && e.message || e), true); }
     });
 
     const s = Store.settings;
