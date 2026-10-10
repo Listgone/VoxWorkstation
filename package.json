@@ -1,6 +1,6 @@
 {
   "name": "vox-workstation",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "VoxCPM2 AI Voice Workstation",
   "author": "VoxWorkstation",
   "license": "MIT",
@@ -37,7 +37,8 @@
       "shortcutName": "VoxWorkstation",
       "installerIcon": "assets/icons/app-icon.ico",
       "uninstallerIcon": "assets/icons/app-icon.ico",
-      "installerHeaderIcon": "assets/icons/app-icon.ico"
+      "installerHeaderIcon": "assets/icons/app-icon.ico",
+      "include": "scripts/installer.nsh"
     }
   },
   "devDependencies": {

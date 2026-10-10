@@ -25,8 +25,11 @@ const DEFAULTS = {
 };
 
 /** 相对路径 → 应用所在目录下的子目录；绝对路径原样返回。
-    打包后 __dirname 在 asar 里，不能用，所以按 exe 所在目录取。 */
+    打包后 __dirname 在 asar 里，不能用，所以按 exe 所在目录取。
+    appBaseDirOverride 只给安装器自测入口使用（--vox-test-engine-link）。 */
+let appBaseDirOverride = '';
 function appBaseDir() {
+  if (appBaseDirOverride) return appBaseDirOverride;
   return app.isPackaged ? path.dirname(process.execPath) : __dirname;
 }
 function resolveServerDir(dir) {
@@ -106,6 +109,99 @@ let mainWindow = null;
 let serverProcess = null;
 let serverState = 'idle';                 // idle | starting | ready | error
 let lastStatus = { status: 'starting', message: '正在启动 VoxCPM2 引擎...' };
+
+/* ══════════════════════════════════════════════════════════
+   让 engine 目录不被安装/卸载牵连
+   ══════════════════════════════════════════════════════════
+   背景：安装器（electron-builder 生成的 NSIS）在覆盖安装时会执行
+   `RMDir /r $INSTDIR`，把 engine 里的便携 Python（约 2–3 GB）和
+   语音模型（约 4.6 GB）一起删掉 —— 每次升级都要重下模型。
+
+   做法：把 engine 的**真实位置**放到安装目录之外
+   （%LOCALAPPDATA%\VoxWorkstation\engine），安装目录里的 engine
+   只保留一个**目录联接**（junction）。Windows 删除联接时不会跟随到
+   目标目录，所以安装器怎么删都不会碰到真实数据；也能建立联接后，
+   不存在的路径会自动落在目标里，一键配置照常可用。
+
+   首次执行本逻辑时会把已经存在的 engine 整体搬到新位置再建联接。
+   ══════════════════════════════════════════════════════════ */
+function isReparsePoint(p) {
+  try { return !!(fs.lstatSync(p).isSymbolicLink()); } catch (e) { return false; }
+}
+
+function dirHasContent(p) {
+  try { return fs.readdirSync(p).length > 0; } catch (e) { return false; }
+}
+
+function ensureEnginePersistent() {
+  const say = (m) => { try { console.log('[engine] ' + m); } catch (e) { /* 忽略 */ } };
+  try {
+    // 解析成绝对路径，避免相对路径下 path.dirname 取到父目录本身
+    const base = path.resolve(appBaseDir());
+    const link = path.join(base, 'engine');                            // 安装目录里的入口
+    const parent = path.dirname(base);                                 // 安装目录的父目录
+    const sibling = path.join(parent, 'VoxWorkstation-engine');        // 兄弟目录（同盘，且在安装目录之外）
+    let real;
+    try {
+      const probe = path.join(parent, '.vox-write-probe');
+      fs.writeFileSync(probe, 'x');
+      fs.rmSync(probe, { force: true });
+      const sameRoot = path.parse(sibling).root.toLowerCase() === path.parse(base).root.toLowerCase();
+      real = sameRoot ? sibling : path.join(app.getPath('userData'), 'engine');
+    } catch (e) {
+      real = path.join(app.getPath('userData'), 'engine');             // 父目录不可写 → 回退
+    }
+
+    if (isReparsePoint(link)) {
+      say('已是联接: ' + link + ' -> ' + fs.readlinkSync(link));
+      return;
+    }
+    say('base=' + base + ' real=' + real + ' hasContent=' + dirHasContent(link));
+
+    if (dirHasContent(link)) {
+      // 已有实体 engine —— 整体搬到真实位置，再把原路径换成联接
+      fs.mkdirSync(real, { recursive: true });
+      try {
+        for (const name of fs.readdirSync(link)) {
+          const s = path.join(link, name), d = path.join(real, name);
+          if (isReparsePoint(s)) { fs.symlinkSync(fs.readlinkSync(s), d, 'junction'); continue; }
+          const st = fs.lstatSync(s);
+          if (st.isDirectory()) {
+            fs.mkdirSync(d, { recursive: true });
+            for (const sub of fs.readdirSync(s)) {
+              const ss = path.join(s, sub), dd = path.join(d, sub);
+              try { fs.rmSync(dd, { recursive: true, force: true }); } catch (e) { /* 忽略 */ }
+              fs.renameSync(ss, dd);            // 同盘改名：瞬时，不复制数据
+            }
+            try { fs.rmdirSync(s); } catch (e) { /* 非空就留着 */ }
+          } else {
+            try { fs.rmSync(d, { force: true }); } catch (e) { /* 忽略 */ }
+            fs.renameSync(s, d);
+          }
+        }
+      } catch (e) {
+        say('搬迁失败: ' + e.message);
+        return;
+      }
+      // 搬空后删掉空壳，再建联接；还有东西就说明搬迁没干净，放弃
+      try { if (fs.readdirSync(link).length === 0) fs.rmdirSync(link); } catch (e) { /* 忽略 */ }
+      if (fs.existsSync(link)) {
+        say('搬迁后仍有残留: ' + fs.readdirSync(link).join(','));
+        return;
+      }
+    }
+
+    if (!fs.existsSync(link)) fs.mkdirSync(real, { recursive: true });
+    try {
+      fs.symlinkSync(real, link, 'junction');
+      say('已建联接 -> ' + real);
+    } catch (e) {
+      say('建联接失败: ' + e.message);
+    }
+  } catch (e) {
+    say('处理异常: ' + (e && e.message));
+  }
+}
 
 const logBuffer = [];
 
@@ -1785,6 +1881,25 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(async () => {
+    /* 自测入口：只跑 engine 联接逻辑然后退出，便于在一次性目录里验证安装器行为。
+       用法（仅开发用）：--vox-test-engine-link="D:\some\dir" */
+    const _linkTest = process.argv.find((x) => x.startsWith('--vox-test-engine-link='));
+    if (_linkTest) {
+      const dir = _linkTest.split('=').slice(1).join('=').replace(/^"|"$/g, '');
+      appBaseDirOverride = dir;
+      ensureEnginePersistent();
+      const link = path.join(dir, 'engine');
+      const real = path.join(app.getPath('userData'), 'engine');
+      console.log('VOXTEST link=' + link + ' isLink=' + isReparsePoint(link) + ' real=' + real);
+      console.log('VOXTEST realHasServer=' + fs.existsSync(path.join(real, 'server.py')));
+      console.log('VOXTEST linkHasServer=' + fs.existsSync(path.join(link, 'server.py')));
+      app.exit(0);
+      return;
+    }
+
+    /* 先做 engine 联接（真实数据放到安装目录外），再读配置 ——
+       保证 serverDir 解析出来的路径已经指向正确的后端位置。 */
+    ensureEnginePersistent();
     CONFIG = loadConfig();
     appSettings = loadAppSettings();
   migrateLegacyKey();
