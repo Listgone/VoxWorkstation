@@ -148,13 +148,16 @@ input,textarea,[contenteditable]{user-select:text !important;-webkit-user-select
    关于软件（设置 → 诊断与关于）
    隐私说明 / 模型介绍 / 版权 / 开源组件 / GitHub 入口
    ══════════════════════════════════════════════════ */
-/* 关于区的说明栏：宽窗口固定 3 列，窄窗口自动回落。
-   原先用 auto-fit(minmax(260px,1fr))：窗口宽时算出的列数会超过卡片数，
-   多出来的空列就在右侧留一条空白（实测内容区 1276px 下排 4 列、只放 3 张卡）。 */
+/* 关于区的说明栏：宽窗口排 2 列，第 3 块横跨整行。
+   为什么不用 3 等宽列：卡片数常是 3（隐私说明、开源组件都是），
+   三列等分时最后一块单独占一列、右侧空出一条，看着不协调。
+   改成 2 列 + 第 3 块跨行后，整块区域被填满且重心居中。
+   只有 2 块时（如「模型」段）依旧是并排一行，不受影响。 */
 .about-grid{display:grid;gap:var(--gap);
   grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))}
 @media (min-width:1040px){
-  .about-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .about-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .about-grid > *:nth-child(3){grid-column:1 / -1}
 }
 .about-block{border:1px solid var(--border-soft);border-radius:var(--radius);padding:12px 14px;
   background:var(--bg-elev)}
