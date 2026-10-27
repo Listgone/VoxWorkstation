@@ -117,11 +117,58 @@ def get_all_presets():
     return base
 
 def combine_text(user_text, style_preset):
-    all_presets = get_all_presets()
-    desc = all_presets.get(style_preset, "")
-    if desc:
-        return f"{desc} {user_text}"
-    return user_text
+    """把「音色/风格描述」按 VoxCPM2 的官方格式拼进待合成文本。
+
+    官方 CLI（voxcpm/cli.py 的 build_final_text）要求的格式是：
+        (控制描述)正文
+    描述必须用**圆括号**包起来、紧贴正文，模型才会把它当控制指令。
+    写成「描述 正文」（无括号、带空格）模型不认，等于没传 ——
+    音色会退化成随机的默认音色。这是之前音色设计"描述不生效"的根因。
+
+    style_preset 有两种来源，都要支持：
+      - 配音页传的是预设名（如「温柔」「★ 我的音色」）→ 查预设表换成描述
+      - 音色设计页传的是用户直接输入的描述 → 查不到就当作描述原文
+    """
+    style = (style_preset or "").strip()
+    if not style or style == "无":
+        return user_text
+    desc = (get_all_presets().get(style) or "").strip()
+    if not desc:
+        desc = style                      # 不在预设表里 → 视为用户直接输入的描述
+    desc = desc.strip().strip("()（）").strip()   # 避免外面再套一层变成 ((…))
+    if not desc:
+        return user_text
+    return f"({desc}){user_text}"
+
+
+def apply_seed(seed):
+    """给生成过程固定随机种子；seed < 0 表示不固定。
+
+    为什么需要：模型内部用 torch.randn 采样（流匹配），同一句描述
+    每次生成的音色会飘。实测同一描述两次的声学特征差异 0.17~0.26，
+    甚至比"不同描述之间的差异"（0.17~0.25）还大 —— 描述的作用被随机性淹没，
+    用户体验就是"填描述没用、每次都不一样"。
+    实测固定种子后同描述两次差异为 0（完全可复现），换种子才得到不同结果。
+    所以产品侧用「描述文本派生的种子」，做到同描述同音色、并可「换一版」。
+    """
+    try:
+        s = int(seed)
+    except Exception:
+        return
+    if s < 0:
+        return
+    try:
+        import torch
+        torch.manual_seed(s)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(s)
+    except Exception:
+        pass
+    try:
+        import numpy as _np
+        _np.random.seed(s % (2 ** 32 - 1))
+    except Exception:
+        pass
 
 # ---------- 历史记录 ----------
 def load_history(mode):
@@ -594,10 +641,12 @@ async def generate_design(
     text: str = Form(...),
     style: str = Form("无"),
     cfg: float = Form(2.0),
-    steps: int = Form(10)
+    steps: int = Form(10),
+    seed: int = Form(-1)
 ):
     full_text = combine_text(text, style)
     try:
+        apply_seed(seed)
         wav = model.generate(
             text=full_text,
             cfg_value=cfg,

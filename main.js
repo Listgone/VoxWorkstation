@@ -134,6 +134,56 @@ function dirHasContent(p) {
   try { return fs.readdirSync(p).length > 0; } catch (e) { return false; }
 }
 
+/** 把安装包里的后端脚本同步到 engine 目录。
+ *
+ *  为什么需要：engine 的真实位置在安装目录之外（这样升级/卸载才不丢 4.6 GB 模型），
+ *  因此安装器**不会覆盖**它 —— 升级后后端仍然跑着旧代码，改了 server.py 等于没改。
+ *  实测：安装版 D:\\VoxWorkstation-engine\\server.py 长期停留在旧版本。
+ *
+ *  做法：只比对 server.py 与 requirements.txt 两个**程序文件**，内容不同才覆盖，
+ *  并把旧文件留一份 .bak 便于回滚。
+ *  绝不碰 custom_presets.json / voice_profiles / pretrained_models / history（那些是用户数据）。
+ *  失败不阻塞启动（最坏情况就是继续用旧脚本）。
+ */
+function syncEngineScripts() {
+  const say = (m) => { try { console.log('[engine-sync] ' + m); } catch (e) { /* 忽略 */ } };
+  try {
+    /* 只在打包后的运行环境里同步。
+       开发模式下 engine/ 就是正在改的源码，bootstrap/ 里是上一次构建的旧副本，
+       若在这里同步会把刚改的 server.py 覆盖回旧版（自伤）。
+       开发时两者由 npm run build:win 的 prebuild 单向同步（engine → bootstrap）。 */
+    if (!app.isPackaged) { say('开发模式，跳过（避免覆盖 engine/ 里正在改的源码）'); return 0; }
+    const engineDir = (CONFIG && CONFIG.serverDir) || path.join(appBaseDir(), 'engine');
+    if (!fs.existsSync(engineDir)) return 0;         // 还没配后端，交给「一键配置」
+    const srcDir = app.isPackaged
+      ? path.join(process.resourcesPath, 'app.asar', 'bootstrap')
+      : path.join(__dirname, 'bootstrap');
+    let updated = 0;
+    for (const f of ['server.py', 'requirements.txt']) {
+      const s = path.join(srcDir, f);
+      const d = path.join(engineDir, f);
+      let want;
+      try { want = fs.readFileSync(s); } catch (e) { continue; }   // 包里没有就跳过
+      let have = null;
+      try { have = fs.readFileSync(d); } catch (e) { have = null; }
+      if (have && want.length === have.length && want.equals(have)) continue;   // 一致，不动
+      try {
+        if (have) fs.copyFileSync(d, d + '.bak');   // 留一份可回滚的旧版
+        fs.writeFileSync(d, want);
+        updated++;
+        say('已更新 ' + f + (have ? '（旧版已备份为 ' + f + '.bak）' : '（首次写入）'));
+      } catch (e) {
+        say('写入 ' + f + ' 失败：' + (e && e.message));
+      }
+    }
+    if (updated) say('同步完成，共 ' + updated + ' 个文件；后端将用新脚本启动');
+    return updated;
+  } catch (e) {
+    say('同步失败（不影响启动）：' + (e && e.message));
+    return 0;
+  }
+}
+
 function ensureEnginePersistent() {
   const say = (m) => { try { console.log('[engine] ' + m); } catch (e) { /* 忽略 */ } };
   try {
@@ -2102,6 +2152,10 @@ if (!app.requestSingleInstanceLock()) {
     ensureEnginePersistent();
     CONFIG = loadConfig();
     appSettings = loadAppSettings();
+    /* engine 在安装目录之外（为的是升级不丢模型），安装器不会覆盖它 ——
+       于是升级后后端还是旧代码，改了 server.py 等于没改。
+       这里在启动时把安装包里的后端脚本同步过去，只在内容不同时才覆盖。 */
+    syncEngineScripts();
   migrateLegacyKey();
     store = new ProjectStore(appSettings.output.root);
   // 启动时清理回收站里超过保留天数的条目（默认 30 天）

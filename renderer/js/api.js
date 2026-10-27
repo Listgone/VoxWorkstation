@@ -88,12 +88,14 @@ const API = (() => {
     },
 
     // ── Generate ──
-    async generateDesign(text, style, cfg, steps) {
+    /** seed 省略/-1 表示不固定（保持随机）；>=0 时同种子得到完全相同的音色 */
+    async generateDesign(text, style, cfg, steps, seed) {
       const fd = new FormData();
       fd.append('text', text);
       fd.append('style', style);
       fd.append('cfg', cfg);
       fd.append('steps', steps);
+      if (seed !== undefined && seed !== null) fd.append('seed', seed);
       return request('/api/generate/design', { method: 'POST', body: fd });
     },
     async generateClone(text, style, cfg, steps, refAudio, voiceProfile) {

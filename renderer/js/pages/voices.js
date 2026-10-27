@@ -202,11 +202,13 @@ const VoicesPage = {
         + '<button class="tab-btn" data-mode="hifi">极致克隆</button></div>'
         + '<div id="nv-body">' + this._form('design') + '</div>',
       footer: '<button class="btn" data-act="cancel">取消</button>'
+            + '<button class="btn" data-act="shuffle" title="同样的描述，换一个随机种子再生成一版">换一版</button>'
             + '<button class="btn" data-act="audition">试听</button>'
             + '<button class="btn btn-primary" data-act="save">保存到音色库</button>'
     });
     const overlay = document.getElementById('modal-host');
     let mode = 'design';
+    this._variant = 0;                 // 「换一版」的计数，参与种子派生
     overlay.querySelectorAll('[data-mode]').forEach(b =>
       b.addEventListener('click', () => {
         mode = b.dataset.mode;
@@ -215,6 +217,12 @@ const VoicesPage = {
       }));
     overlay.querySelector('[data-act="cancel"]').addEventListener('click', () => Modal.close());
     overlay.querySelector('[data-act="audition"]').addEventListener('click', () => this._audition(mode));
+    /* 换一版：同描述换下一个种子再生成。只在音色设计模式下有意义。 */
+    overlay.querySelector('[data-act="shuffle"]').addEventListener('click', () => {
+      if (mode !== 'design') { Toast.show('「换一版」只用于音色设计'); return; }
+      this._variant = (this._variant || 0) + 1;
+      this._audition(mode);
+    });
     overlay.querySelector('[data-act="save"]').addEventListener('click', () => this._save(mode));
   },
 
@@ -227,6 +235,9 @@ const VoicesPage = {
     return '<div class="form-group"><label class="form-label">' + hint[0] + '</label>'
       + (mode === 'design'
           ? '<textarea id="nv-desc" rows="2" placeholder="' + hint[1] + '"></textarea>'
+            + '<p class="text-sm text-muted" style="margin:8px 0 0">'
+            + '同一段描述每次得到<b>同一个音色</b>（结果可复现）；想换一个就点「换一版」。'
+            + '描述里写清性别、年龄、音色质感、语速，效果更好。</p>'
           : '<input type="file" id="nv-ref" accept="audio/*">'
             + (mode === 'hifi' ? '<input type="text" id="nv-prompt-text" class="mt-8" placeholder="音频对应的文本内容">' : ''))
       + '</div>'
@@ -234,6 +245,18 @@ const VoicesPage = {
       + '<input type="text" id="nv-text" value="你好，这是一段用于试听的示例文本。"></div>'
       + '<div class="form-group mt-12"><label class="form-label">音色名称（满意后再填）</label>'
       + '<input type="text" id="nv-name" placeholder="例如：纪录片旁白-温柔女声"></div>';
+  },
+
+  /** 由描述文本派生一个稳定的种子：同一描述永远得到同一音色。
+   *  用 FNV-1a 32 位哈希，避开「同分不同串」的碰撞习惯，结果落在 0..2^31-1。 */
+  _seedOf(desc, variant) {
+    const s = String(desc || '');
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return ((h + (variant || 0) * 0x9e3779b1) >>> 0) % 2147483647;
   },
 
   async _audition(mode) {
@@ -247,7 +270,13 @@ const VoicesPage = {
       if (mode === 'design') {
         const desc = host.querySelector('#nv-desc').value.trim();
         if (!desc) throw new Error('请描述你想要的音色');
-        r = await API.generateDesign(text, '无', 2.0, 10);
+        /* 描述必须作为 style 传下去。
+           之前这里传的是固定值 '无'，读出来的 desc 根本没用上 ——
+           填什么描述都等于没填，音色永远是随机的默认音色。
+           seed 由描述派生：同描述→同音色（可复现），换一版时 seed 变。 */
+        this._variant = this._variant || 0;
+        const seed = this._seedOf(desc, this._variant);
+        r = await API.generateDesign(text, desc, 2.0, 10, seed);
       } else {
         const f = host.querySelector('#nv-ref').files[0];
         if (!f) throw new Error('请选择参考音频');
