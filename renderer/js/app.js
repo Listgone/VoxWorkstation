@@ -343,7 +343,7 @@ const App = {
     window.electronAPI.onServerStatus((data) => {
       if (!data) return;
       if (data.status === 'ready') this._onServerReady();
-      else if (data.status === 'engine-ready') this._onEngineReady();
+      else if (data.status === 'engine-ready') this._onEngineReady(data);
       else if (data.status === 'engine-downloading') this._onEngineDownloading(data);
       else if (data.status === 'engine-loading') this._onEngineLoading(data);
       else if (data.status === 'starting') {
@@ -424,6 +424,30 @@ const App = {
    * 顺带把百分比写到进度条容器的 data-pct，加载页用它显示一个可读数字
    * （CSS ::after 读这个属性）—— 比让 JS 写两个元素少一处不同步。
    */
+
+  /** 按进度点亮加载页的阶段清单。
+      阶梯不编造额外阶段：<12% 启动引擎；12–88% 加载模型；88–99% 预热；100% 就绪。 */
+  _syncLoadSteps(pct) {
+    const box = document.getElementById('loading-steps');
+    if (!box) return;
+    /* 只有 3 步，全部对应后端真实阶段，不编造：
+         <40%  启动引擎（后端 starting）
+         40-99% 加载语音模型（后端 loading_model）
+         100%   就绪（后端 ready） */
+    const stage = pct >= 100 ? 3 : pct >= 40 ? 2 : 1;
+    const rows = box.querySelectorAll('.ld-step');
+    rows.forEach((row, i) => {
+      const n = i + 1;
+      row.classList.toggle('done', n < stage || pct >= 100);
+      row.classList.toggle('doing', n === stage && pct < 100);
+      const b = row.querySelector('b');
+      if (!b) return;
+      if (n < stage || pct >= 100) b.textContent = '完成';
+      else if (n === stage) b.textContent = Math.round(pct) + '%';
+      else b.textContent = '';
+    });
+  },
+
   _smoothTo(id, pct) {
     this._pg = this._pg || {};
     const st = this._pg[id] || (this._pg[id] = { shown: 0, target: 0, timer: null });
@@ -435,6 +459,10 @@ const App = {
       const box = el && el.parentElement;
       if (box && box.classList && box.classList.contains('ld-bar')) {
         box.setAttribute('data-pct', Math.round(st.shown) + '%');
+      }
+      // 进度条动了就同步加载页的阶段清单（只认 loading-bar）
+      if (id === 'loading-bar') {
+        try { this._syncLoadSteps(st.shown); } catch (e) { /* 清单出错不影响加载 */ }
       }
     };
     st.timer = setInterval(() => {
@@ -497,9 +525,13 @@ const App = {
 
   /** 正在下载模型：显示真实进度（首次启动可能要几十分钟） */
   /** 模型下载完成、转入加载：把两条进度条都推到 100%，并换文案 */
+  /** 模型下载完成、开始加载到显卡。
+      注意：这一步**不是** 100% —— 以前这里把进度条直接推满并暂停，
+      结果四步清单全部显示"完成"，但模型其实还在读盘加载，
+      用户看到的就是"卡住不动、假加载"。 */
   _onEngineLoading(d) {
-    this._pgPaused = true;
-    this._smoothTo('loading-bar', 100);
+    this._pgPaused = false;                 // 让计时器继续估算，进度条还会动
+    this._smoothTo('loading-bar', 78);      // 开始加载 ≈ 78%，真正的 100% 由 _onEngineReady 给
     const setupBox = document.getElementById('setup-prog');
     if (setupBox && setupBox.style.display !== 'none') {
       this._smoothTo('setup-prog-fill', 100);
@@ -510,7 +542,7 @@ const App = {
     }
     this._setLoadingText('正在加载模型到显卡…');
     this._setSideStatus('加载模型', 'loading');
-    this._openLog();
+    /* 不自动展开日志：那是排查用的细节，用户想看会自己点「查看详情」。 */
   },
 
   _onEngineDownloading(d) {
@@ -746,33 +778,154 @@ const App = {
   },
 
   /** 引擎（模型）加载完成 —— 与「服务已响应」是两回事。
-      后端改成后台加载后，界面先放出来，生成按钮等这里再解禁。 */
-  _onEngineReady() {
+      加载页真正代表"模型加载"：进度到 100%、停留一下，再放主界面。 */
+  _onEngineReady(data) {
+    if (this._engineReadyDone) return;      // 幂等：IPC 与兜底可能同时到达
+    this._engineReadyDone = true;
+    /* 记下这台机器的真实加载耗时，之后所有"要等多久"的文案都用它，
+       而不是写死"约 1 分钟" —— 高配机可能 20 秒，低配机可能 2 分钟。 */
+    const ms = data && Number(data.elapsedMs);
+    if (ms && ms > 1000) {
+      this._lastLoadMs = ms;
+      try { window.electronAPI?.settings?.save?.({ tts: { lastLoadMs: Math.round(ms) } }); } catch (e) {}
+      try { if (Store && Store.settings && Store.settings.tts) Store.settings.tts.lastLoadMs = Math.round(ms); } catch (e) {}
+    }
+    clearInterval(this._loadingTimer);      // 到这一步才真的不用再计时了
+    clearInterval(this._readyFallback);     // 兜底轮询也停掉
+    this._readyFallback = null;
     // 收尾：主进度条走到 100%，并停掉时间估算
     this._pgPaused = true;
     this._smoothTo('loading-bar', 100);
     document.body.classList.remove('engine-loading');
     this._setSideStatus('引擎就绪', 'ready');
+    try { this._appendLog('模型加载完成（100%），0.6 秒后进入主界面'); } catch (e) {}
     window.dispatchEvent(new CustomEvent('vox:engine-ready'));
+    /* 让"100% + 就绪"停留半秒再切主界面，
+       否则进度条刚满就消失，用户看不到"加载完成"这个结果。 */
+    setTimeout(() => { this._revealApp(); }, 1200);
   },
 
-  async _onServerReady() {
-    clearInterval(this._loadingTimer);
-    this._setSideStatus('模型加载中', 'loading');
-    document.body.classList.add('engine-loading');
-    if (this._ready) return;
-    this._ready = true;
+
+  /** 兜底：自己查 /api/ready，防止主进程事件丢失导致永远停在加载页。
+      模型已经加载完成却没收到 engine-ready 时，这里 3 秒内就会把界面放出来。 */
+  _startReadyFallback() {
+    if (this._readyFallback) return;
+    const tick = async () => {
+      try {
+        const base = await (window.electronAPI?.getServerUrl?.() || Promise.resolve(''));
+        const url = (typeof base === 'string' && base ? base : 'http://127.0.0.1:8001') + '/api/ready';
+        const r = await fetch(url, { cache: 'no-store' }).then((x) => x.json());
+        if (r && r.ready) {
+          clearInterval(this._readyFallback);
+          this._readyFallback = null;
+          this._appendLog('兜底检查：后端已就绪，直接进入主界面');
+          this._onEngineReady({ elapsedMs: r.elapsed_ms || 0 });
+        }
+      } catch (e) { /* 后端还没起来，下一轮再试 */ }
+    };
+    this._readyFallback = setInterval(tick, 3000);
+    setTimeout(tick, 1200);                 // 先试一次，命中就不用等 3 秒
+  },
+
+  /** 放出主界面（只做一次）。
+      以前是在「服务已响应」时就放出界面，而模型还在后台读盘 ——
+      加载动画显示的和真正在加载的并不是一回事。
+      现在统一由模型加载完成来触发。 */
+  async _revealApp() {
+    if (this._revealed) return;
+    this._revealed = true;
     const ov = document.getElementById('loading-overlay');
     if (ov) ov.style.display = 'none';
     const shell = document.getElementById('app-shell');
     if (shell) shell.style.display = 'flex';
+    try { await this.go('dash'); } catch (e) { /* 页面切换失败不影响使用 */ }
+    try { this._appendLog('已进入主界面'); } catch (e) {}
+    try { GpuMonitor.start(); } catch (e) { /* 监控失败不影响使用 */ }
+  },
 
-    await this.go('dash');
-    GpuMonitor.start();
+  async _onServerReady() {
+    /* 注意：这里**不能** clearInterval(this._loadingTimer)。
+       服务起来了但模型还在加载，秒数和进度必须继续走 ——
+       以前在这里就停掉，表现就是"秒数不动了、进度卡在某个数上"。
+       计时器统一在 _onEngineReady 里停。 */
+    this._setSideStatus('模型加载中', 'loading');
+    document.body.classList.add('engine-loading');
+    if (this._ready) return;
+    this._ready = true;
+    /* 关键：服务起来了不等于模型加载好了。
+       这里不再隐藏加载页，只把进度推到"服务就绪"这一段（约 62%），
+       剩下的由 _onEngineReady 收尾 —— 加载页从此就是模型加载的真实进度。 */
+    this._pgPaused = false;
+    this._smoothTo('loading-bar', 62);
+    this._startReadyFallback();
   },
 
   /* ── 窗口按钮 ─────────────────────────────── */
+
+  /** 关闭确认（应用内 Modal，不用系统对话框）。
+      托盘 / 退出两个选项各自写清代价，因为这件事对用户是"快 1 分钟 vs 占 5GB 显存"的取舍。 */
+
+  /** 这台机器加载一次模型大概多久（秒）。优先用上次实测值，没有就返回 0。 */
+  _machineLoadSec() {
+    let ms = this._lastLoadMs;
+    if (!ms) {
+      try { ms = Store && Store.settings && Store.settings.tts && Store.settings.tts.lastLoadMs; } catch (e) {}
+    }
+    return ms ? Math.round(ms / 1000) : 0;
+  },
+
+  /** 关闭弹窗第一句：有实测就说实测，没有就说不确定。 */
+  _loadCostText() {
+    const s = this._machineLoadSec();
+    if (s > 0) return '这台电脑上次加载模型用了约 ' + s + ' 秒，所以先问你一句：';
+    return '引擎需要把模型加载进显卡（不同电脑差别较大），所以先问你一句：';
+  },
+
+  /** 关闭弹窗里"彻底退出"那句的后缀：只在有实测时才写具体时长。 */
+  _loadCostSuffix() {
+    const s = this._machineLoadSec();
+    return s > 0 ? '（这台电脑上次约 ' + s + ' 秒）' : '';
+  },
+
+  _onCloseConfirm() {
+    /* 防重入看 DOM：弹窗关掉（含点遮罩/ESC）后元素就没了，下次还能正常弹。
+       以前用布尔标志，点遮罩关闭时标志没复位，第二次点 ✕ 就再也不弹了。 */
+    if (document.querySelector('.close-opt')) return;
+    let remember = false;
+    const overlay = Modal.open({
+      title: '关闭 VoxWorkstation',
+      width: 460,
+      body:
+        '<p class="text-sm text-muted" style="margin:0 0 14px">' + this._loadCostText() + '</p>'
+        + '<div class="close-opt" data-opt="tray">'
+        +   '<b>最小化到托盘</b>'
+        +   '<span>窗口消失，引擎和模型继续留在显存里。下次打开几乎瞬开（约占用 5 GB 显存）。</span>'
+        + '</div>'
+        + '<div class="close-opt" data-opt="quit">'
+        +   '<b>彻底退出</b>'
+        +   '<span>结束引擎并释放显存。下次启动要重新加载模型' + this._loadCostSuffix() + '。</span>'
+        + '</div>'
+        + '<label class="close-remember"><input type="checkbox" id="close-remember"> 记住这个选择，下次不再询问</label>',
+      footer: '<button class="btn" data-act="cancel">取消</button>',
+    });
+    const done = (action) => {
+      Modal.close();
+      try { window.electronAPI?.closeDecision?.(action, remember); } catch (e) { /* 忽略 */ }
+    };
+    overlay.querySelector('#close-remember').addEventListener('change', (e) => {
+      remember = !!e.target.checked;
+    });
+    overlay.querySelectorAll('[data-opt]').forEach((el) => {
+      el.addEventListener('click', () => done(el.dataset.opt));
+    });
+    overlay.querySelector('[data-act="cancel"]').addEventListener('click', () => {
+      Modal.close();
+    });
+  },
+
   _setupWindowControls() {
+    /* 主进程请求关闭确认时，弹应用内 Modal */
+    try { window.electronAPI?.onCloseConfirm?.(() => this._onCloseConfirm()); } catch (e) { /* 忽略 */ }
     document.getElementById('btn-min')?.addEventListener('click', () => window.electronAPI?.minimize());
     document.getElementById('btn-max')?.addEventListener('click', async () => {
       await window.electronAPI?.maximize(); this._updateMaxIcon();

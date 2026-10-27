@@ -45,7 +45,13 @@ const GpuMonitor = {
     } catch {
       // 单次网络抖动不刷 UI；连续 3 次失败才标记离线
       this._failures++;
-      if (this._failures >= 3) this._setText('GPU 离线', true);
+      /* 后端加载模型时可能一时响应不过来：以前连续 3 次（15 秒）失败就把数值抹成
+         "GPU 离线"，看着像显卡不工作了。现在只要有历史读数就保留数字、只把颜色变灰；
+         从没读到过才写离线。阈值也从 3 次放宽到 6 次（30 秒）。 */
+      if (this._failures >= 6) {
+        const had = this._lastText && /^GPU [0-9]/.test(this._lastText);
+        this._setText(had ? this._lastText : 'GPU 离线', true);
+      }
     }
   }
 };

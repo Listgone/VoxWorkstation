@@ -42,7 +42,10 @@ const DubPage = {
       + '<span class="n" id="dub-now">未选择</span>'
       + '<button class="lf-toggle" data-act="rail-toggle" id="dub-rail-btn" '
       + 'title="' + (this.railCollapsed() ? '展开 参数 / 队列 / 本次生成' : '收起 参数 / 队列 / 本次生成') + '">'
-      + '<span class="rt-ic">' + (this.railCollapsed() ? '›' : '⌄') + '</span>'
+      + '<span class="rt-ic">'
+      + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" '
+      + 'stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'
+      + '</span>'
       + '</button>'
       + '</h2>'
       + '<div id="dub-player"></div>'
@@ -83,7 +86,7 @@ const DubPage = {
       + '</h2>'
       + (lines.length
         ? '<table class="line-table"><tr><th style="width:40px">#</th><th style="width:100px">角色</th><th style="width:128px">情绪 / 动作</th><th>台词</th>'
-          + '<th style="width:128px">音色</th><th style="width:96px">状态</th><th style="width:120px"></th></tr>'
+          + '<th style="width:128px">音色</th><th style="width:96px">状态</th><th style="width:104px"></th></tr>'
           + lines.map((l, i) => this._row(l, i)).join('') + '</table>'
         : '<p class="text-sm text-muted" style="margin:0">还没有台词。先去「文本处理」把文本切好句。</p>')
       + '</div>'
@@ -114,9 +117,12 @@ const DubPage = {
     if (main) main.classList.toggle('rail-off', collapsed);
     const btn = document.getElementById('dub-rail-btn');
     if (btn) {
-      const ic = btn.querySelector('.rt-ic');
-      if (ic) ic.textContent = collapsed ? '›' : '⌄';
+      /* 箭头是 SVG，不能再改 textContent（那会把图标清掉）。
+         收起时朝右（-90°），展开时朝下（0°），用旋转表达状态。 */
+      const svg = btn.querySelector('.rt-ic svg');
+      if (svg) svg.style.transform = collapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
       btn.title = collapsed ? '展开 参数 / 队列 / 本次生成' : '收起 参数 / 队列 / 本次生成';
+      btn.setAttribute('aria-expanded', String(!collapsed));
     }
     // 播放器宽度变了，波形要按新宽度重画
     setTimeout(() => { try { window.dispatchEvent(new Event('resize')); } catch (e) { /* 忽略 */ } }, 320);

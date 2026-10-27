@@ -234,6 +234,14 @@ def _engine_info():
         info["torch"] = torch.__version__
         info["cuda"] = torch.version.cuda or ""
         info["gpu"] = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU"
+        # 实际推理设备。以前这里从来没赋值，永远是初始的 "?"，
+        # 界面就显示不出"到底用显卡还是 CPU"。
+        info["device"] = "cuda" if torch.cuda.is_available() else "cpu"
+        if torch.cuda.is_available():
+            try:
+                info["vram_gb"] = round(torch.cuda.get_device_properties(0).total_memory / 1024 ** 3, 1)
+            except Exception:
+                pass
     except Exception:
         pass
     return info

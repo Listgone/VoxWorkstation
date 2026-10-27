@@ -197,6 +197,15 @@ const SettingsPage = {
               + Math.round(v * 100) + '%</option>').join('') + '</select>')
       + this._row('界面语言', '目前仅简体中文',
           '<select style="width:150px"><option>简体中文</option></select>')
+      + this._row('关闭窗口时', '模型加载约 1 分钟；最小化到托盘可让下次打开几乎瞬开（但会占着显存）',
+          '<select id="s-close-action" style="width:180px">'
+          + [['ask', '每次都问我'],
+             ['tray', '最小化到托盘'],
+             ['quit', '直接退出']].map(([v, label]) =>
+              '<option value="' + v + '"'
+              + (((s.window && s.window.closeAction) || 'ask') === v ? ' selected' : '')
+              + '>' + label + '</option>').join('')
+          + '</select>')
       + this._row('减少动效', '关闭光斑游动与卡片入场动画，省电',
           this._sw(!s.reduceMotion, 'toggle-motion'))
       + '<div class="action-row mt-12"><button class="btn btn-primary" data-act="save-appearance">保存</button></div>'
@@ -714,6 +723,12 @@ const SettingsPage = {
       }));
 
     /* 界面缩放：改下拉就立刻生效（以前要再点"保存"才应用，容易以为没作用） */
+    /* 关闭窗口行为：改了就存，不需要点保存 */
+    el.querySelector('#s-close-action')?.addEventListener('change', async (e) => {
+      const action = e.target.value;
+      await save({ window: { closeAction: action } }, '关闭行为已保存');
+    });
+
     el.querySelector('#s-scale')?.addEventListener('change', async (e) => {
       const scale = Number(e.target.value) || 1;
       const r = await window.electronAPI?.ui?.setZoom?.(scale);

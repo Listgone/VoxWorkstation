@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, safeStorage, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, safeStorage, dialog, Tray, Menu, nativeImage } = require('electron');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
@@ -269,6 +269,8 @@ const logBuffer = [];
    ══════════════════════════════════════════════════════════ */
 const APP_SETTINGS_DEFAULTS = {
   theme: 'light',
+  /* 关闭窗口时的行为：ask=每次询问 / tray=最小化到托盘（引擎继续跑）/ quit=直接退出（释放显存） */
+  window: { closeAction: 'ask' },
   font: 'system',              // system | han（都用系统已装字体，不内置字体文件）
   reduceMotion: false,
   uiScale: 1,
@@ -284,7 +286,7 @@ const APP_SETTINGS_DEFAULTS = {
     retries: 2,
     maxCharsPerCall: 12000
   },
-  tts: { autoStart: true, cfg: 2.0, steps: 10, vramWarnPct: 90 },
+  tts: { autoStart: true, cfg: 2.0, steps: 10, vramWarnPct: 90, lastLoadMs: 0 },
   output: {
     root: 'D:\\VoxOutput',
     format: 'wav',
@@ -960,7 +962,8 @@ function watchEngineReady() {
       clearInterval(enginePoll); enginePoll = null;
       serverState = 'ready';
       pushLog(`[shell] 引擎就绪（耗时 ${(r.elapsed_ms / 1000).toFixed(1)}s）`);
-      setStatus({ status: 'engine-ready' });
+      /* 带上真实加载耗时：这台机器到底多久，界面按它来写文案，不再写死"约 1 分钟" */
+      setStatus({ status: 'engine-ready', elapsedMs: r.elapsed_ms || 0 });
       return;
     }
     if (r.error) {
@@ -1085,11 +1088,26 @@ function createWindow() {
   });
 
   mainWindow.on('closed', () => { mainWindow = null; });
+
 }
 
 /* ══════════════════════════════════════════════════════════
    IPC
    ══════════════════════════════════════════════════════════ */
+/* 关闭确认：渲染层的 Modal 回传用户的选择。
+   tray = 隐藏窗口、引擎继续跑；quit = 结束引擎并退出；cancel = 什么都不做。 */
+ipcMain.on('vox:close-decision', (_e, payload) => {
+  const action = payload && payload.action;
+  const remember = !!(payload && payload.remember);
+  try { console.log('[shell] 关闭决定:', action, 'remember=' + remember); } catch (e) {}
+  if (remember && (action === 'tray' || action === 'quit')) {
+    appSettings.window = Object.assign({}, appSettings.window, { closeAction: action });
+    try { persistAppSettings(); } catch (e) { /* 忽略 */ }
+  }
+  if (action === 'tray') { try { hideToTray(); } catch (e) { console.log('托盘失败', e && e.message); } }
+  else if (action === 'quit') { try { reallyQuit(); } catch (e) { console.log('退出失败', e && e.message); } }
+});
+
 ipcMain.handle('window-minimize', () => mainWindow?.minimize());
 ipcMain.handle('window-maximize', () => {
   if (!mainWindow) return false;
@@ -2180,6 +2198,11 @@ if (!app.requestSingleInstanceLock()) {
 
     createWindow();
 
+    /* 关窗口行为要绑在具体窗口上，必须在这一层（mainWindow 已创建、且同作用域）挂载 */
+    try { setupCloseBehavior(); } catch (e) {
+      try { pushLog('[shell] 关闭行为挂载失败：' + (e && e.message)); } catch (e2) {}
+    }
+
     const res = await ensurePromise;
     if (res.ok) setStatus({ status: 'ready' });
     else setStatus({ status: 'error', message: res.message });
@@ -2198,10 +2221,89 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
 
+  /* ── 关闭行为：询问 / 托盘 / 退出 ──────────────────────
+     模型加载一次要 50-80 秒，所以「关窗口」和「退引擎」应该分开：
+       · 最小化到托盘：窗口消失，引擎和模型留在显存里，再打开几乎瞬开
+       · 彻底退出：结束引擎、释放显存，下次要重新加载模型
+  */
+  let tray = null;
+  let isQuitting = false;
+
+  function ensureTray() {
+    if (tray) return tray;
+    try {
+      let img = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icons', 'app-icon-32.png'));
+      if (img.isEmpty()) img = nativeImage.createFromPath(path.join(__dirname, 'assets', 'icons', 'app-icon.ico'));
+      tray = new Tray(img);
+      tray.setToolTip('VoxWorkstation（引擎仍在运行）');
+      tray.setContextMenu(Menu.buildFromTemplate([
+        { label: '打开主窗口', click: () => showMainWindow() },
+        { type: 'separator' },
+        { label: '彻底退出（结束引擎）', click: () => reallyQuit() },
+      ]));
+      tray.on('click', () => showMainWindow());
+      tray.on('double-click', () => showMainWindow());
+      pushLog('[shell] 已最小化到托盘，引擎继续运行');
+    } catch (e) {
+      pushLog('[shell] 托盘创建失败：' + (e && e.message));
+      return null;
+    }
+    return tray;
+  }
+
+  function showMainWindow() {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+
+  function hideToTray() {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.hide();
+    ensureTray();
+  }
+
+  function reallyQuit() {
+    isQuitting = true;
+    try { killServerTree(); } catch (e) { /* 忽略 */ }
+    try { if (tray) { tray.destroy(); tray = null; } } catch (e) { /* 忽略 */ }
+    app.quit();
+  }
+
+  function setupCloseBehavior() {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.on('close', async (e) => {
+      if (isQuitting) return;                       // 真正退出时放行
+      e.preventDefault();                           // 先拦住，按用户选择决定
+      const act = (appSettings.window && appSettings.window.closeAction) || 'ask';
+
+      if (act === 'tray') { hideToTray(); return; }
+      if (act === 'quit') { reallyQuit(); return; }
+
+      /* 弹应用内 Modal（和界面同风格），不再用系统对话框 */
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (!mainWindow.isVisible()) mainWindow.show();
+        mainWindow.webContents.send('vox:close-confirm');
+      }
+      return;
+
+    });
+  }
+
   app.on('window-all-closed', () => {
-    killServerTree();
+    /* 窗口被 hide 到托盘时不会走到这里；
+       真走到这里说明确实没有窗口了 —— 只有「彻底退出」才结束引擎。 */
+    if (!isQuitting) {
+      isQuitting = true;
+      killServerTree();
+    }
     app.quit();
   });
 
-  app.on('before-quit', () => killServerTree());
+  app.on('before-quit', () => {
+    isQuitting = true;
+    killServerTree();
+    try { if (tray) tray.destroy(); } catch (e) { /* 忽略 */ }
+  });
 }

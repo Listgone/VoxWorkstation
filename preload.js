@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getConfig: () => invoke('get-config'),
   restartServer: () => invoke('restart-server'),
   onServerStatus: (cb) => subscribe('server-status', cb),
+  /* 关闭确认：主进程问「托盘还是退出」，界面用 Modal 回答 */
+  onCloseConfirm: (cb) => subscribe('vox:close-confirm', cb),
+  closeDecision: (action, remember) => ipcRenderer.send('vox:close-decision', { action, remember: !!remember }),
   onServerLog: (cb) => subscribe('server-log', cb),
 
   /* 应用设置 */

@@ -20,6 +20,11 @@
   --bg-app:#f6f8fa; --bg-side:#ffffff; --bg-card:#ffffff; --bg-elev:#f1f3f5;
   --bg-hover:#eef1f4; --bg-input:#ffffff;
   --border:#d0d7de; --border-soft:#eaeef2;
+  /* 无缝重构新增：行悬停底色、卡片阴影（替掉原来的 1px 边框） */
+  --panel-block:#ffffff;
+  --panel-card:#f4f6f8;
+  --row-hover:rgba(31,35,40,.035);
+  --card-shadow:0 1px 2px rgba(31,35,40,.045), 0 10px 28px rgba(140,149,159,.10);
   --text:#1f2328; --text-dim:#656d76; --text-mute:#8c959f;
   --accent:#0969da; --accent-hover:#0550ae; --accent-soft:rgba(9,105,218,.09); --accent-fg:#ffffff;
   --ok:#1a7f37; --ok-soft:rgba(26,127,55,.10);
@@ -46,6 +51,10 @@
   --bg-input:rgba(255,255,255,.62);
   --border:rgba(255,255,255,.72);
   --border-soft:rgba(255,255,255,.44);
+  --panel-block:rgba(255,255,255,.52);
+  --panel-card:rgba(255,255,255,.34);
+  --row-hover:rgba(255,255,255,.32);
+  --card-shadow:0 1px 0 rgba(255,255,255,.70) inset, 0 10px 30px rgba(80,110,160,.12);
   --text:#1b1b1f; --text-dim:#57575e; --text-mute:#8b8b93;
   --accent:#0a84ff; --accent-hover:#0070e0; --accent-soft:rgba(10,132,255,.18); --accent-fg:#ffffff;
   --ok:#1f9d55; --ok-soft:rgba(31,157,85,.16);
@@ -58,7 +67,7 @@
   --shadow-lg:0 22px 60px rgba(31,41,55,.22);
   --font-head:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
   --titlebar-bg:rgba(255,255,255,.42);
-  --radius:10px; --radius-lg:16px; --radius-xl:22px;
+  --radius:12px; --radius-lg:20px; --radius-xl:26px;
 }
 
 :root {
@@ -193,7 +202,7 @@ input,textarea,[contenteditable]{user-select:text !important;-webkit-user-select
 .gh-tile:hover .gh-go{color:var(--accent)}
 
 #titlebar{position:relative;z-index:2;display:flex;align-items:center;height:38px;min-height:38px;
-  background:var(--titlebar-bg);border-bottom:1px solid var(--border);flex-shrink:0}
+  background:var(--titlebar-bg);border-bottom:none;flex-shrink:0}
 .titlebar-drag{flex:1;height:100%;display:flex;align-items:center;gap:10px;padding-left:16px;
   -webkit-app-region:drag;app-region:drag;min-width:0}
 .titlebar-logo{display:flex;align-items:center;gap:8px;font-family:var(--font-head);
@@ -214,8 +223,8 @@ input,textarea,[contenteditable]{user-select:text !important;-webkit-user-select
 /* --- 外壳 ------------------------------------------ */
 #app-shell{position:relative;z-index:1;display:flex;flex:1;overflow:hidden}
 
-#sidebar{width:var(--sidebar-w);min-width:var(--sidebar-w);background:var(--bg-side);
-  border-right:1px solid var(--border);display:flex;flex-direction:column;
+#sidebar{width:var(--sidebar-w);min-width:var(--sidebar-w);background:transparent;
+  border-right:none;display:flex;flex-direction:column;
   padding:10px;overflow-y:auto}
 .nav-group{font-size:10px;font-weight:600;letter-spacing:.14em;color:var(--text-mute);padding:12px 10px 6px}
 .nav-item{position:relative;display:flex;align-items:center;gap:10px;width:100%;
@@ -239,14 +248,21 @@ input,textarea,[contenteditable]{user-select:text !important;-webkit-user-select
 #side-status{color:var(--text-dim)}
 
 /* --- 主区 & 页头 ------------------------------------ */
-#main-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+#main-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;
+  /* 无缝：内容区是一整块浮起的"台面"。
+     四周都要留白 —— 左边若为 0，圆角会直接贴住侧栏，
+     浅色主题下就露出一道生硬的直边和拐角。 */
+  background:var(--panel-block);
+  border-radius:22px;
+  margin:12px 14px 12px 12px;
+  box-shadow:0 1px 0 rgba(255,255,255,.55) inset, 0 10px 30px rgba(20,30,50,.07);}
 .page-scroll{flex:1;overflow-y:auto;overflow-x:hidden}
 .page{display:none}
 .page.active{display:block;animation:fadeIn .16s ease both}
 [data-theme="glass"] .page.active{animation:glassIn .28s cubic-bezier(.2,.9,.3,1) both}
 
 .phead{display:flex;align-items:center;gap:12px;padding:16px var(--pad-x) 12px;
-  border-bottom:1px solid var(--border-soft);flex-wrap:wrap}
+  border-bottom:none;flex-wrap:wrap}
 .phead h1{font-family:var(--font-head);font-size:16px;font-weight:600;letter-spacing:.02em}
 .phead .desc{font-size:12px;color:var(--text-mute)}
 .phead .sp{flex:1}
@@ -258,15 +274,18 @@ input,textarea,[contenteditable]{user-select:text !important;-webkit-user-select
 .wrap.slim{max-width:calc(var(--slim-max) + 2 * var(--pad-x))}
 
 /* --- 卡片 ------------------------------------------ */
-.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);
-  padding:15px 17px;margin-bottom:var(--gap)}
+/* 无缝重构：卡片不再有 1px 边框，靠底色差 + 大圆角 + 极淡内高光分层。
+   danger 这类"靠边框表达状态"的卡片改成靠底色表达。 */
+.card{background:var(--panel-card);border:none;border-radius:var(--radius-lg);
+  padding:18px 20px;margin-bottom:var(--gap);
+  box-shadow:var(--card-shadow);}
 [data-theme="glass"] .page.active .card{animation:glassIn .36s cubic-bezier(.2,.9,.3,1) both}
 [data-theme="glass"] .page.active .card:nth-child(2){animation-delay:55ms}
 [data-theme="glass"] .page.active .card:nth-child(3){animation-delay:110ms}
 .card h2{font-family:var(--font-head);font-size:12.5px;font-weight:600;letter-spacing:.05em;
   margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .card h2 .n{font-size:11.5px;font-weight:400;color:var(--text-mute);font-family:inherit;letter-spacing:0}
-.card.danger{border-color:rgba(207,34,46,.32)}
+.card.danger{background:var(--danger-soft);box-shadow:none}
 
 /* --- 按钮 ------------------------------------------ */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
@@ -325,22 +344,32 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;appearance:non
   width:14px;height:14px;border-radius:50%;background:var(--accent);
   border:2px solid var(--bg-card);cursor:pointer;box-shadow:0 0 0 1px var(--border)}
 input[type="file"]{font-size:12px;color:var(--text-dim)}
+/* 开关：开启=主色轨道+对比色圆点；关闭=暗轨道+灰圆点。
+   圆点用 --accent-fg 而不是写死白色 —— 否则在极简黑主题（accent 也是白色）下
+   会出现"白点落在白底上"，完全看不出是开还是关。 */
 .sw{width:38px;height:21px;border-radius:12px;background:var(--accent);position:relative;
-  flex-shrink:0;cursor:pointer;display:inline-block;transition:background var(--transition)}
+  flex-shrink:0;cursor:pointer;display:inline-block;
+  box-shadow:0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent),
+             0 0 10px color-mix(in srgb, var(--accent) 45%, transparent);
+  transition:background var(--transition),box-shadow var(--transition)}
 .sw::after{content:'';position:absolute;right:2px;top:2px;width:17px;height:17px;border-radius:50%;
-  background:#fff;transition:left .16s,right .16s}
-.sw.off{background:var(--border)}
-.sw.off::after{left:2px;right:auto}
+  background:var(--accent-fg);
+  box-shadow:0 1px 2px rgba(0,0,0,.28);
+  transition:left .16s,right .16s,background .16s}
+.sw.off{background:var(--bg-elev);box-shadow:0 0 0 1px var(--border) inset}
+.sw.off::after{left:2px;right:auto;background:var(--text-mute)}
+.sw:hover{filter:brightness(1.06)}
 
 /* --- 表格 ------------------------------------------ */
+/* 无缝重构：表格不再有外框、表头底色和行分割线。
+   行与行靠「行高 + 悬停反馈 + 首列序号」区分，而不是靠线。 */
 table{width:100%;border-collapse:collapse;font-size:12.5px}
-th{background:var(--bg-elev);font-size:11px;font-weight:600;color:var(--text-dim);text-align:left;white-space:nowrap;
+th{background:transparent;font-size:11px;font-weight:600;color:var(--text-dim);text-align:left;white-space:nowrap;
   height:38px;letter-spacing:.4px;
-  padding:10px 14px;border-bottom:1px solid var(--border)}
-td{padding:11px 14px;border-bottom:1px solid var(--border-soft);vertical-align:middle}
-tr:last-child td{border-bottom:none}
-tbody tr:hover, table tr:hover{background:var(--bg-app)}
-table{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+  padding:10px 14px;border-bottom:none}
+td{padding:13px 14px;border-bottom:none;vertical-align:middle}
+tbody tr:hover, table tr:hover{background:var(--row-hover)}
+table{background:transparent;border:none;border-radius:var(--radius-lg)}
 .num{font-variant-numeric:tabular-nums;color:var(--text-dim)}
 .tx{max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 tr.row-cur{background:var(--accent-soft)}
@@ -494,12 +523,16 @@ svg{display:block}
 .listen-head{display:flex;align-items:center;gap:8px}
 .listen-head .lh-t{flex:none}
 .listen-head .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lf-toggle{flex:none;display:inline-flex;align-items:center;justify-content:center;
-  width:26px;height:22px;padding:0;cursor:pointer;
-  border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-elev);
-  color:var(--text-dim);font-family:inherit;font-size:12px;line-height:1;
-  transition:border-color var(--transition),color var(--transition),background var(--transition)}
-.lf-toggle:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+/* 展开箭头：无外圈，只留一个居中的箭头；hover 才给淡底 */
+.lf-toggle{flex:none;display:inline-grid;place-items:center;
+  width:24px;height:24px;padding:0;cursor:pointer;
+  border:none;border-radius:50%;background:transparent;
+  color:var(--text-mute);line-height:1;
+  transition:color var(--transition),background var(--transition),transform var(--transition)}
+.lf-toggle .rt-ic{display:grid;place-items:center;width:14px;height:14px}
+.lf-toggle .rt-ic svg{width:14px;height:14px;display:block;transition:transform .22s cubic-bezier(.3,.9,.4,1)}
+.lf-toggle:hover{color:var(--accent);background:var(--accent-soft)}
+.lf-toggle:active{transform:scale(.92)}
 /* 右栏第 2 行：展开内容接在试听下面 */
 .rail-col{grid-column:2;grid-row:2;display:flex;flex-direction:column;
   min-height:0;max-height:100%;align-self:stretch}
@@ -569,7 +602,7 @@ svg{display:block}
 .pick-item{border:1px solid var(--border);border-radius:var(--radius);padding:9px 11px;cursor:pointer}
 .pick-item:hover{border-color:var(--accent);background:var(--accent-soft)}
 .pick-item b{display:block;font-size:12.5px}
-.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border)}
+.tabs{display:flex;gap:2px;border-bottom:none}
 .tab-btn{height:32px;padding:0 12px;border:none;background:transparent;font-family:inherit;
   font-size:13px;font-weight:500;color:var(--text-dim);cursor:pointer;
   border-bottom:2px solid transparent;margin-bottom:-1px;transition:color var(--transition),border-color var(--transition)}
@@ -632,7 +665,7 @@ code{background:var(--bg-elev);padding:1px 6px;border-radius:4px;font-size:11.5p
 
 /* --- 状态栏 ---------------------------------------- */
 #status-bar{position:relative;z-index:1;height:28px;min-height:28px;flex-shrink:0;
-  background:var(--bg-side);border-top:1px solid var(--border);
+  background:var(--bg-side);border-top:none;
   display:flex;align-items:center;gap:16px;padding:0 16px;font-size:11px;color:var(--text-mute)}
 #status-bar .status-right{margin-left:auto;display:flex;align-items:center;gap:14px}
 #gpu-indicator{display:inline-flex;align-items:center;gap:5px;color:var(--text-mute)}
@@ -899,6 +932,10 @@ html[data-font="han"] table, html[data-font="han"] .pill, html[data-font="han"] 
   --bg-input:#161616;
   --border:#262626;
   --border-soft:#1e1e1e;
+  --panel-block:#141414;
+  --panel-card:#1b1b1b;
+  --row-hover:rgba(255,255,255,.045);
+  --card-shadow:0 1px 0 rgba(255,255,255,.05) inset;
   --text:#f2f2f2;
   --text-dim:#a8a8a8;
   --text-mute:#6e6e6e;
@@ -915,7 +952,7 @@ html[data-font="han"] table, html[data-font="han"] .pill, html[data-font="han"] 
   --shadow-lg:0 10px 30px rgba(0,0,0,.55);
   --font-head:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
   --titlebar-bg:#0f0f0f;
-  --radius-sm:8px; --radius:10px; --radius-lg:14px; --radius-xl:22px;
+  --radius-sm:9px; --radius:12px; --radius-lg:20px; --radius-xl:26px;
 }
 
 [data-theme="minimal"] #sidebar,
@@ -991,7 +1028,7 @@ html[data-font="han"] table, html[data-font="han"] .pill, html[data-font="han"] 
 [data-theme="minimal"] .cselect-caret{border-top-color:var(--text-mute)}
 [data-theme="minimal"] input:focus,[data-theme="minimal"] textarea:focus,
 [data-theme="minimal"] select:focus{border-color:#4a4a4a;box-shadow:0 0 0 3px rgba(255,255,255,.07)}
-[data-theme="minimal"] th{background:var(--bg-elev);color:var(--text-mute);font-size:11px;
+[data-theme="minimal"] th{background:transparent;color:var(--text-mute);font-size:11px;
   letter-spacing:.06em;border-bottom:1px solid var(--border)}
 [data-theme="minimal"] tr:hover{background:var(--bg-elev)}
 [data-theme="minimal"] .pill{background:var(--bg-elev);border:1px solid var(--border);color:var(--text-dim)}
@@ -1032,7 +1069,8 @@ html[data-font="han"] table, html[data-font="han"] .pill, html[data-font="han"] 
 
 /* --- 焦点 / 滚动条 / 降级 --------------------------- */
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-::-webkit-scrollbar{width:8px;height:8px}
+/* 滚动条隐藏：滚动能力保留，只是不画出来 */
+::-webkit-scrollbar{width:0;height:0;display:none}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 ::-webkit-scrollbar-thumb:hover{background:var(--text-mute)}
@@ -1165,7 +1203,11 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
   --bg-hover:#e3dbcc;
   --bg-input:#fbf8f2;
   --border:#1a1a1a;
+  --row-hover:rgba(26,26,26,.055);
+  --card-shadow:0 5px 0 rgba(26,26,26,.09);
   --border-soft:#c9c0ae;
+  --panel-block:#faf6ee;
+  --panel-card:#f2ede4;
   --text:#16150f;
   --text-dim:#4d4a40;
   --text-mute:#8a8375;
@@ -2034,6 +2076,10 @@ body.app-loading #titlebar{
   --bg-input:rgba(255,255,255,.18);
   --border:rgba(255,255,255,.34);
   --border-soft:rgba(255,255,255,.20);
+  --panel-block:rgba(255,255,255,.062);
+  --panel-card:rgba(255,255,255,.038);
+  --row-hover:rgba(255,255,255,.055);
+  --card-shadow:0 1px 0 rgba(255,255,255,.07) inset;
   --text:#ffffff;
   --text-dim:#e6dcff;
   --text-mute:#c3b2ea;
@@ -2053,7 +2099,7 @@ body.app-loading #titlebar{
   --shadow-lg:0 26px 70px rgba(12,2,36,.46);
   --titlebar-bg:rgba(24,8,52,.78);
   --font-head:"Trebuchet MS","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-  --radius-sm:10px; --radius:12px; --radius-lg:18px; --radius-xl:26px;
+  --radius-sm:10px; --radius:12px; --radius-lg:20px; --radius-xl:26px;
 }
 
 /* 外壳：霓虹细边 + 顶部一条粉青渐变线 */
@@ -2140,9 +2186,9 @@ body.app-loading #titlebar{
 [data-theme="neonwave"] .card h2{color:#fff;letter-spacing:.04em}
 [data-theme="neonwave"] .card h2 .n{color:var(--text-mute)}
 [data-theme="neonwave"] table{border-color:var(--border)}
-[data-theme="neonwave"] th{background:rgba(255,255,255,.12);color:var(--text-dim);
-  border-bottom:1px solid var(--border)}
-[data-theme="neonwave"] td{border-bottom:1px solid var(--border-soft)}
+[data-theme="neonwave"] th{background:transparent;color:var(--text-dim);
+  border-bottom:none}
+[data-theme="neonwave"] td{border-bottom:none}
 [data-theme="neonwave"] tr:hover{background:rgba(255,255,255,.10)}
 [data-theme="neonwave"] .kpi .lb{color:var(--text-mute)}
 [data-theme="neonwave"] .kpi .vl{color:#fff;text-shadow:0 0 16px rgba(67,246,255,.35)}
@@ -2338,3 +2384,189 @@ body.app-loading #titlebar{
 #page-roles .card h2 .pill{margin-left:6px}
 #page-roles .hbar .nm{font-size:12px}
 #page-roles .hbar .vv{font-size:11.5px}
+
+
+/* ══════════════════════════════════════════════════════════════════
+   无缝重构 · 批次 2（2026-10-27）
+   集管理页的表格嵌在 .seasonbody 里，层级比全局 td 规则深，
+   这里补齐；同时 seasonhead 不再用边框，改成靠底差与圆角。
+   ══════════════════════════════════════════════════════════════════ */
+.seasonbody td, .seasonblock td, .seasonbody th, .seasonblock th{
+  border-bottom:none; border-top:none;
+}
+.seasonhead{
+  border:none;
+  background:var(--bg-elev);
+}
+.seasonblock table{ border-top:none; }
+
+/* 无缝重构 · 批次 3（2026-10-27）
+   窄窗口下台词表的问题：固定列宽合计 612px（40+100+128+128+96+120），
+   1280 窗口时台词卡只有 ~614px 可用 —— 台词列被压到几乎 0，正文看不见。
+   修法：台词列给保底宽度、表格可横向滚动，而不是把正文压死。 */
+.line-table{ min-width: 560px; }
+.card.dub-lines{ overflow-x: auto; }
+
+/* 窄窗口（<1400）：台词表优先保正文，暂时隐藏「情绪 / 动作」列 */
+@media (max-width:1400px){
+  .line-table th:nth-child(3),
+  .line-table td:nth-child(3){ display:none; }
+}
+
+/* 构成主义保留硬边语言（无缝只适用于 light / glass / minimal / neonwave） */
+[data-theme="construct"] .card{ border:1px solid var(--border); box-shadow:0 5px 0 rgba(26,26,26,.09); }
+[data-theme="construct"] table{ border:1px solid var(--border); }
+[data-theme="construct"] th{ background:var(--bg-elev); border-bottom:1px solid var(--border); }
+[data-theme="construct"] td{ border-bottom:1px solid var(--border-soft); }
+
+/* 构造主义：表头是浅底，文字必须用深色，否则几乎看不见 */
+[data-theme="construct"] th{ color:var(--text); }
+
+/* 个别主题会给滚动条上色，这里统一压掉 */
+::-webkit-scrollbar-track, ::-webkit-scrollbar-thumb{ background:transparent; width:0; height:0; }
+*{ scrollbar-width:none; }
+
+/* ══════════════════════════════════════════════════════════════════
+   修正（2026-10-27）
+   ══════════════════════════════════════════════════════════════════ */
+
+/* 1) 引擎状态点/文字：就绪=成功色、加载中=警示色、错误=危险色。
+      用 !important 是因为主题里有更具体的 .engine-chip 规则会覆盖它。 */
+.engine-chip.is-ready,
+.engine-chip.is-ready #side-status,
+.engine-chip.is-ready i{ color:var(--ok) !important; }
+.engine-chip.is-ready{ background:var(--ok-soft) !important; border-color:currentColor !important; }
+
+.engine-chip.is-loading,
+.engine-chip.is-loading #side-status,
+.engine-chip.is-loading i{ color:var(--warn) !important; }
+.engine-chip.is-loading{ background:var(--warn-soft) !important; border-color:currentColor !important; }
+
+.engine-chip.is-error,
+.engine-chip.is-error #side-status,
+.engine-chip.is-error i{ color:var(--danger) !important; }
+.engine-chip.is-error{ background:var(--danger-soft) !important; border-color:currentColor !important; }
+
+/* ══════════════════════════════════════════════════════════════════
+   加载页 · 心电图波动（2026-10-27）
+   一条完整波形（暗）+ 一段亮线扫描（循环），表示引擎正在加载。
+   颜色全部走主题令牌，所以五个主题自动适配。
+   ══════════════════════════════════════════════════════════════════ */
+.ld-ecg{
+  position:absolute; left:0; right:0; bottom:0;
+  height:min(24vh, 190px);
+  width:100%; pointer-events:none; overflow:hidden;
+  z-index:0;
+  /* 渐隐：两端淡出，避免"横线切过画面"的生硬感 */
+  -webkit-mask-image:linear-gradient(90deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  mask-image:linear-gradient(90deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+}
+.ld-ecg .ecg-base{
+  fill:none; stroke:var(--text-mute); stroke-width:1;
+  vector-effect:non-scaling-stroke; opacity:.35;
+}
+.ld-ecg .ecg-scan{
+  fill:none; stroke:var(--ok); stroke-width:2.2;
+  stroke-linecap:round; stroke-linejoin:round;
+  vector-effect:non-scaling-stroke;
+  stroke-dasharray:18 82;
+  stroke-dashoffset:100;
+  animation:ecgScan 4.2s linear infinite;
+  filter:drop-shadow(0 0 5px currentColor);
+  opacity:.9;
+}
+@keyframes ecgScan{
+  from{ stroke-dashoffset:100; }
+  to  { stroke-dashoffset:0; }
+}
+/* 减少动效偏好：不闪，只保留静态波形 */
+@media (prefers-reduced-motion: reduce){
+  .ld-ecg .ecg-scan{ animation:none; stroke-dasharray:none; opacity:.35; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   加载页 · 阶段清单 & 每主题适配（2026-10-27）
+   ══════════════════════════════════════════════════════════════════ */
+
+/* 紫色波浪图只属于霓虹紫夜；其它主题用各自底色 + 心电图，避免"紫图配白底" */
+.ld-waves{ display:none; }
+[data-theme="neonwave"] .ld-waves{ display:block; }
+
+/* 阶段清单 */
+.ld-steps{
+  width:100%; max-width:420px; margin:14px auto 0;
+  display:flex; flex-direction:column; gap:6px; text-align:left;
+}
+.ld-step{
+  display:flex; align-items:center; gap:9px;
+  height:30px; padding:0 11px; border-radius:9px;
+  font-size:12px; color:var(--text-mute);
+  background:transparent; transition:background .25s, color .25s;
+}
+.ld-step i{
+  width:16px; height:16px; border-radius:50%; flex:none;
+  display:grid; place-items:center; font-size:9px; font-style:normal; font-weight:700;
+  background:var(--bg-elev); color:var(--text-mute);
+}
+.ld-step span{ flex:1; }
+.ld-step b{ font-family:var(--font-mono, monospace); font-size:10.5px; font-weight:600; opacity:.8; }
+
+/* 已完成 */
+.ld-step.done{ color:var(--text-dim); }
+.ld-step.done i{ background:var(--ok-soft); color:var(--ok); }
+.ld-step.done i::before{ content:"✓"; }
+
+/* 进行中 */
+.ld-step.doing{
+  background:var(--bg-elev); color:var(--text);
+  box-shadow:0 0 0 1px var(--accent-soft) inset;
+}
+.ld-step.doing i{
+  background:var(--accent); color:var(--accent-fg);
+  animation:ldStepPulse 1.4s ease-in-out infinite;
+}
+.ld-step.doing i::before{ content:"●"; }
+@keyframes ldStepPulse{
+  0%,100%{ transform:scale(1); opacity:1 }
+  50%    { transform:scale(.82); opacity:.65 }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .ld-step.doing i{ animation:none; }
+}
+
+/* 加载页内容层压在背景纹理之上 */
+.ld-stage{ position:relative; z-index:2; }
+#loading-overlay .ld-bar{ position:relative; z-index:2; }
+
+/* 极简黑：白轨道 + 黑圆点对比最强，再给轨道描边一圈让边界清楚 */
+[data-theme="minimal"] .sw{box-shadow:0 0 0 1px #4a4a4a, 0 0 12px rgba(255,255,255,.28)}
+[data-theme="minimal"] .sw.off{box-shadow:0 0 0 1px var(--border) inset}
+[data-theme="minimal"] .sw::after{background:#0a0a0a}
+[data-theme="minimal"] .sw.off::after{background:#6e6e6e}
+
+/* 关闭确认弹窗：两个选项做成可点的卡片，代价写在卡片里 */
+.close-opt{display:block; padding:14px 16px; border-radius:14px;
+
+  background:var(--bg-elev); margin-bottom:10px; cursor:pointer;
+  border:1px solid transparent;
+  transition:background .18s, border-color .18s, transform .12s}
+.close-opt b{display:block; font-size:13.5px; margin-bottom:5px; color:var(--text)}
+.close-opt span{display:block; font-size:12px; color:var(--text-mute); line-height:1.62}
+.close-opt:hover{background:var(--bg-hover); border-color:var(--accent)}
+.close-opt:active{transform:scale(.995)}
+.close-remember{display:flex; align-items:center; gap:8px; font-size:12px;
+  color:var(--text-mute); margin-top:14px; cursor:pointer}
+.close-remember input{accent-color:var(--accent); width:14px; height:14px}
+
+/* 标题栏图标：用真实应用图标（V 字 logo），不再用 CSS 画的声波方块。
+   20px 小尺寸下 V 字可能偏淡，加一层极淡描边提升辨识度。 */
+.titlebar-logo .logo-img{
+  width:20px; height:20px; border-radius:6px; display:block; margin-right:7px;
+  flex:none; object-fit:contain;
+  box-shadow:0 0 0 1px rgba(0,0,0,.10), 0 1px 3px rgba(0,0,0,.22);
+}
+[data-theme="minimal"] .titlebar-logo .logo-img,
+[data-theme="neonwave"] .titlebar-logo .logo-img{
+  box-shadow:0 0 0 1px rgba(255,255,255,.16), 0 1px 4px rgba(0,0,0,.5);
+}
