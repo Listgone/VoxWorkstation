@@ -668,8 +668,14 @@ code{background:var(--bg-elev);padding:1px 6px;border-radius:4px;font-size:11.5p
   cursor:pointer;font-size:12.5px}
 .popmenu-item:hover{background:var(--bg-elev)}
 .popmenu-item.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
-.pm-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pm-sub{font-size:10.5px;color:var(--text-mute);font-weight:400;white-space:nowrap}
+/* label 是名字、sub 是描述。描述可能很长（例如"老年男性，六十多岁，音色沙哑低沉…"），
+   若 sub 只加 nowrap 而不限宽，它会把 label 挤成 0 宽 ——
+   实测长描述时 labelW=0、sub 溢出菜单 229px，用户看到的是描述开头而不是音色名字
+   （表现为"新建的音色在列表里看不到名字"）。
+   所以：label 给最小宽度保证名字始终可见，sub 限宽并用省略号截断。 */
+.pm-label{flex:1 1 auto;min-width:84px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pm-sub{flex:0 1 auto;max-width:52%;overflow:hidden;text-overflow:ellipsis;
+  font-size:10.5px;color:var(--text-mute);font-weight:400;white-space:nowrap}
 
 /* --- 配音台词行操作 -------------------------------- */
 .row-acts{display:flex;gap:5px;justify-content:flex-end;white-space:nowrap}

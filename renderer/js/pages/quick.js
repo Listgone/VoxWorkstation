@@ -570,9 +570,12 @@ const QuickPage = {
 
   /* ── 音色 ───────────────────────────────── */
 
-  async _loadVoices() {
-    if (this._voices.length) return this._voices;
-    try { this._voices = await API.getPresets(); } catch (e) { this._voices = []; }
+  /** 音色列表。force=true 时强制重新拉取。
+   *  为什么要有 force：之前只在第一次加载并缓存，用户在音色库里
+   *  新增/改名/删除之后就看不到最新列表 —— 表现为"新建的音色选不到"。 */
+  async _loadVoices(force) {
+    if (!force && this._voices.length) return this._voices;
+    try { this._voices = await API.getPresets(); } catch (e) { this._voices = this._voices || []; }
     return this._voices;
   },
 
@@ -580,7 +583,7 @@ const QuickPage = {
   async _pickVoice(i, btn) {
     const line = this._draft.lines[i];
     if (!line) return;
-    const vs = await this._loadVoices();
+    const vs = await this._loadVoices(true);   // 每次拉最新：音色库刚新增/改名的能立刻选到
     const items = [{ label: '默认（音色设计）', value: '__none__', active: !line.voice }]
       .concat(vs.map(v => ({ label: v.name, value: v.name, sub: v.desc || '', active: v.name === line.voice })));
     App._menu(btn || document.body, items, async (v) => {
@@ -596,7 +599,7 @@ const QuickPage = {
 
   /** 整批音色：一次指定，全部台词跟着走；后续新增的台词也沿用 */
   async _pickVoiceForAll(btn) {
-    const vs = await this._loadVoices();
+    const vs = await this._loadVoices(true);   // 每次拉最新：音色库刚新增/改名的能立刻选到
     const cur = this._lastVoice || '';
     const items = [{ label: '默认（音色设计）', value: '__none__', active: !cur }]
       .concat(vs.map(v => ({ label: v.name, value: v.name, sub: v.desc || '', active: v.name === cur })));

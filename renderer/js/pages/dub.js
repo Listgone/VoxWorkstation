@@ -304,9 +304,9 @@ const DubPage = {
     // 每次渲染都要重建播放器：App.go() 会重建 #dub-player 的 DOM，
     // 复用旧实例会指向已被移除的节点，导致点了播放没反应
     this._player = AudioPlayer.create('dub-player');
-    if (!this._voices.length) {
-      try { this._voices = await API.getPresets(); } catch (e) { this._voices = []; }
-    }
+    /* 音色列表每次进页面都重新拉：音色库新增/改名/删除后，
+       缓存的旧列表里没有新音色，表现在"新建的音色选不到"。 */
+    try { this._voices = await API.getPresets(); } catch (e) { this._voices = this._voices || []; }
 
     el.querySelectorAll('[data-act="set-role"]').forEach(b =>
       b.addEventListener('click', (e) => { e.stopPropagation(); this._setRole(Number(b.dataset.i), b); }));
