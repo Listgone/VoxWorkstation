@@ -240,7 +240,9 @@ const VoicesPage = {
             + '同一段描述每次得到<b>同一个音色</b>（结果可复现）；想换一个就点「换一版」。'
             + '描述里写清性别、年龄、音色质感、语速，效果更好。</p>'
           : '<input type="file" id="nv-ref" accept="audio/*">'
-            + (mode === 'hifi' ? '<input type="text" id="nv-prompt-text" class="mt-8" placeholder="音频对应的文本内容">' : ''))
+            + (mode === 'hifi' ? '<input type="text" id="nv-prompt-text" class="mt-8" placeholder="音频对应的文本内容">' : '')
+            + '<p class="text-sm text-muted" style="margin:8px 0 0">'
+            + '请确认你有权使用这段音频；克隆他人声音需取得本人同意。</p>')
       + '</div>'
       + '<div class="form-group mt-12"><label class="form-label">试听文本</label>'
       + '<input type="text" id="nv-text" value="你好，这是一段用于试听的示例文本。"></div>'

@@ -576,6 +576,7 @@ const SettingsPage = {
       + '<div class="about-block"><b>体积与来源</b><ul>'
       + '<li>权重约 <b>4.6 GB</b>（7 个文件），下载一次长期可用</li>'
       + '<li>从 ModelScope 获取；也可自行下载后放进模型目录，软件会自动识别、不重复下载</li>'
+      + '<li>模型许可：<b>Apache-2.0</b>，可商用；版权归 OpenBMB</li>'
       + '</ul></div>'
       + '<div class="about-block"><b>硬件要求</b><ul>'
       + '<li>NVIDIA 显卡，显存 ≥ 6 GB，架构 8.0 及以上（bf16）</li>'
@@ -607,7 +608,12 @@ const SettingsPage = {
       + '</ul></div>'
       + '<div class="about-block"><b>许可</b><ul>'
       + '<li>仓库内的第三方组件遵循其各自许可证，版权归各原作者</li>'
-      + '<li>本项目源码以仓库内 LICENSE 为准</li>'
+      + '<li>本软件为作者个人作品：源代码与界面设计保留一切权利，完整条款见仓库根目录的 LICENSE</li>'
+      + '</ul></div>'
+      + '<div class="about-block"><b>使用限制</b><ul>'
+      + '<li>克隆他人声音须取得本人同意，只使用你拥有合法授权的音频</li>'
+      + '<li>严禁用于冒充他人、诈骗、伪造证据或传播虚假信息</li>'
+      + '<li>生成的 AI 语音内容请遵守当地法律，并明确标注为 AI 生成</li>'
       + '</ul></div>'
       + '</div></div>';
 
