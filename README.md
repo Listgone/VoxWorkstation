@@ -15,6 +15,12 @@
 
 Electron 桌面端 + [VoxCPM2](https://github.com/OpenBMB/VoxCPM) 语音合成引擎。不依赖任何在线服务即可完成配音；接入大模型后还能自动把原文整理成带角色与情绪的规范剧本。
 
+| 配音 | 音色库 |
+|:--:|:--:|
+| ![](docs/screenshots/01-dub.png) | ![](docs/screenshots/02-voices.png) |
+| **工具箱（音频转格式）** | **文本处理** |
+| ![](docs/screenshots/03-tools.png) | ![](docs/screenshots/04-text.png) |
+
 ---
 
 ## 目录
