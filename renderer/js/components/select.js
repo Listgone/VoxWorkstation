@@ -18,6 +18,8 @@ const Select = {
     sel.setAttribute('data-sel-ready', '1');
     const box = document.createElement('div');
     box.className = 'cselect';
+    // 加了 data-sel-center 的下拉：选中值居中显示（短选项靠左会显得很空）
+    if (sel.hasAttribute('data-sel-center')) box.classList.add('cselect-center');
     if (sel.style.width) box.style.width = sel.style.width;
     if (sel.style.maxWidth) box.style.maxWidth = sel.style.maxWidth;
     sel.parentNode.insertBefore(box, sel);

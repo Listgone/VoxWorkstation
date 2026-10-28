@@ -2079,7 +2079,7 @@ ipcMain.handle('vox:quick:status', () => {
   return {
     active: quickActive,
     enabled: !(appSettings.quickDub && appSettings.quickDub.enabled === false),
-    dir: quickActive ? getQuickStore().quickDir() : ''
+    dir: getQuickStore().quickDir()
   };
 });
 ipcMain.handle('vox:quick:reveal', () => {
@@ -2134,6 +2134,23 @@ ipcMain.handle('vox:path:pick', async (_e, { title, defaultPath }) => {
     properties: ['openDirectory', 'createDirectory']
   });
   return r.canceled ? { ok: false } : { ok: true, path: r.filePaths[0] };
+});
+
+/* 工具箱：把前端处理好的数据存成用户选定的文件。
+   处理的是任意位置的文件，必须让用户选保存位置；默认给原目录 + 原文件名。 */
+ipcMain.handle('vox:file:save', async (_e, args) => {
+  const { title, defaultName, dir, base64 } = args || {};
+  try {
+    const r = await dialog.showSaveDialog(mainWindow, {
+      title: title || '保存文件',
+      defaultPath: dir && defaultName ? path.join(dir, defaultName) : (defaultName || undefined)
+    });
+    if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+    await fs.promises.writeFile(r.filePath, Buffer.from(String(base64 || ''), 'base64'));
+    return { ok: true, path: r.filePath };
+  } catch (e) {
+    return { ok: false, message: e && e.message };
+  }
 });
 
 /* ══════════════════════════════════════════════════════════

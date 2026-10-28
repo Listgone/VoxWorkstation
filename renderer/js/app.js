@@ -23,6 +23,7 @@ const App = {
     text:                () => TextPage,
     dub:                 () => DubPage,
     export:              () => ExportPage,
+    tools:               () => ToolsPage,
     voices:              () => VoicesPage,
     settings:            () => SettingsPage
   },
@@ -143,6 +144,12 @@ const App = {
         sub: pp.episodeCount + ' 集'
       })), async (id) => {
         await Store.openProject(id);
+        /* 切项目会清空「当前集」：停在配音/文本/导出这类必须打开集才有的页面时，
+           页面会变成空白、面包屑的集下拉也跟着消失。这里直接把新项目的第一集打开。 */
+        if (['text', 'dub', 'export'].includes(this.current)
+            && !Store.currentEpisodeNo && Store.episodes.length) {
+          await Store.openEpisode(Store.episodes[0].no);
+        }
         await App.go(this.current === 'dash' ? 'episodes' : this.current);
       });
     });

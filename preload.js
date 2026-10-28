@@ -109,6 +109,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     reveal: (p) => invoke('vox:path:reveal', p)
   },
 
+  /* 工具箱：另存为（弹出保存对话框，不覆盖原文件） */
+  file: {
+    save: (args) => invoke('vox:file:save', args)
+  },
+
   /* 外部链接：主进程只放行 http/https，其余协议会被拒绝 */
   openExternal: (url) => invoke('vox:open-external', url),
 

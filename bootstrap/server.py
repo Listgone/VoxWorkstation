@@ -16,6 +16,7 @@ import pynvml
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
+from starlette.background import BackgroundTask
 from voxcpm import VoxCPM
 import soundfile as sf
 
@@ -56,27 +57,135 @@ def cleanup_gpu_memory():
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
 
+# ---------- 响度标准化（EBU R128）----------
+# 为什么需要：实测同一段文本，用 -13 LUFS 的声纹生成出来是 -17 LUFS，用 -34 LUFS 的声纹
+# 生成出来是 -34 LUFS —— 模型的输出音量基本跟着参考音频走。而音色库里的声纹来源五花八门，
+# 实测综合响度从 -34.1 到 -13.2 LUFS（相差 20.9 dB），耳朵听就是「有的声音大、有的声音小」。
+# 所以在两个位置统一到同一个标准，音量问题从源头消失：
+#   1. 送进模型的参考音频 / Prompt 音频（ensure_wav）
+#   2. 存进音色库的声纹文件（add_preset / update_preset）
+# 标准取 -20 LUFS、真峰值 -1.5 dBTP：语音常用区间，留出混音余量，也不会削波。
+LOUDNESS_TARGET_I = -20.0     # 目标综合响度（LUFS）
+LOUDNESS_TARGET_TP = -1.5     # 真峰值上限（dBTP）
+LOUDNESS_TARGET_LRA = 11.0    # 响度范围（LU）
+LOUDNESS_MIN_I = -55.0        # 比这更轻就当静音：不放大，免得把底噪拉起来
+LOUDNESS_MAX_GAIN = 20.0      # 最多提升 20 dB（同上）
+
+
+def _ffmpeg_run(args, timeout=120):
+    # 必须显式用 utf-8 解码：Windows 默认按 GBK 解 stderr，而 ffmpeg 在文件名含中文时
+    # 会输出非 GBK 字节，text=True 会让读线程直接抛 UnicodeDecodeError（等于响度测量必失败）。
+    return subprocess.run(['ffmpeg', '-hide_banner', '-nostats'] + args,
+                          capture_output=True, encoding='utf-8', errors='replace',
+                          timeout=timeout)
+
+
+def measure_loudness(path):
+    """loudnorm 第一遍：只测量、不写文件。测不出来返回 None。"""
+    try:
+        r = _ffmpeg_run([
+            '-i', path, '-af',
+            'loudnorm=I=%s:TP=%s:LRA=%s:print_format=json'
+            % (LOUDNESS_TARGET_I, LOUDNESS_TARGET_TP, LOUDNESS_TARGET_LRA),
+            '-f', 'null', '-'])
+    except Exception as e:
+        print(f'[warn] 响度测量失败：{e}', flush=True)
+        return None
+    err = r.stderr or ''
+    a, b = err.rfind('{'), err.rfind('}')
+    if a < 0 or b <= a:
+        return None
+    try:
+        return json.loads(err[a:b + 1])
+    except Exception:
+        return None
+
+
+def _fnum(d, key, default=None):
+    try:
+        return float(d.get(key))
+    except (TypeError, ValueError, AttributeError):
+        return default
+
+
+def loudnorm_filter(path):
+    """组装两遍法 loudnorm 的滤镜参数；该跳过时返回 None。
+
+    用 linear=true 做整体增益，不压缩动态 —— 语音的抑扬顿挫要保住。
+    """
+    m = measure_loudness(path)
+    if not m:
+        return None
+    i = _fnum(m, 'input_i')
+    thresh = _fnum(m, 'input_thresh')
+    if i is None or thresh is None or i <= LOUDNESS_MIN_I:
+        return None                      # 静音 / 太轻，不动
+    gain = LOUDNESS_TARGET_I - i
+    if gain > LOUDNESS_MAX_GAIN:
+        return None
+    tp = _fnum(m, 'input_tp', 0.0)
+    lra = _fnum(m, 'input_lra', LOUDNESS_TARGET_LRA)
+    offset = _fnum(m, 'target_offset', 0.0)
+    if abs(gain) >= 0.5:
+        print('[loudness] %s：%.1f LUFS → %.0f LUFS（%+.1f dB）'
+              % (os.path.basename(path), i, LOUDNESS_TARGET_I, gain), flush=True)
+    return ('loudnorm=I=%s:TP=%s:LRA=%s:measured_I=%s:measured_TP=%s:'
+            'measured_LRA=%s:measured_thresh=%s:offset=%s:linear=true'
+            % (LOUDNESS_TARGET_I, LOUDNESS_TARGET_TP, LOUDNESS_TARGET_LRA,
+               i, tp, lra, thresh, offset))
+
+
+def normalize_voice_file(path):
+    """把声纹文件就地统一到标准响度，保留原格式。失败返回 False，原文件保持不动。"""
+    ext = os.path.splitext(path)[1].lower()
+    codec = {'.wav': ['-c:a', 'pcm_s16le'],
+             '.flac': ['-c:a', 'flac'],
+             '.mp3': ['-c:a', 'libmp3lame', '-b:a', '192k'],
+             '.m4a': ['-c:a', 'aac', '-b:a', '192k']}.get(ext)
+    if not codec:
+        return False
+    filt = loudnorm_filter(path)
+    if not filt:
+        return False
+    tmp = path + '.norm' + ext
+    try:
+        r = _ffmpeg_run(['-y', '-i', path, '-af', filt] + codec + [tmp], timeout=180)
+        if r.returncode != 0 or not os.path.exists(tmp) or os.path.getsize(tmp) < 4096:
+            raise RuntimeError((r.stderr or '')[-300:])
+        os.replace(tmp, path)
+        return True
+    except Exception as e:
+        print(f'[warn] 响度统一失败，保留原文件：{os.path.basename(path)}（{e}）', flush=True)
+        try:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+        except Exception:
+            pass
+        return False
+
+
 # ---------- 模型自动下载 ----------
 def ensure_wav(path, sample_rate=16000):
-    """把任意格式的音频转成模型能稳定读取的 16kHz 单声道 WAV。
+    """把任意格式的音频转成模型能稳定读取的 16kHz 单声道 WAV，并统一响度。
 
     为什么必须转：Windows 上 librosa / soundfile 对 m4a(AAC)、部分 mp3 解码不稳定，
     直接喂原始字节只会得到
         PySoundFile failed. Trying audioread instead.
     然后静音或报错。早期版本的总结文档里记录过这个坑，但转码逻辑在重构时丢了。
+
+    为什么要统一响度：模型输出的音量跟着参考音频走（见上方 LOUDNESS_TARGET_I）。
+    响度测不出来 / 该跳过时退回单纯转码，绝不阻断生成。
     """
     if not path or not os.path.exists(path):
         return path
-    if path.lower().endswith('.wav'):
-        # 已是 wav，但采样率/声道可能不合规，仍统一转一遍（很快）
-        pass
     out = tempfile.NamedTemporaryFile(suffix='.wav', delete=False).name
     try:
-        subprocess.run(
-            ['ffmpeg', '-y', '-i', path,
-             '-ar', str(sample_rate), '-ac', '1', '-sample_fmt', 's16', out],
-            check=True, capture_output=True, timeout=120
-        )
+        args = ['-y', '-i', path]
+        filt = loudnorm_filter(path)
+        if filt:
+            args += ['-af', filt]
+        args += ['-ar', str(sample_rate), '-ac', '1', '-sample_fmt', 's16', out]
+        subprocess.run(['ffmpeg'] + args, check=True, capture_output=True, timeout=120)
         return out
     except Exception as e:
         print(f'[warn] ffmpeg 转码失败，改用原文件：{e}', flush=True)
@@ -563,6 +672,8 @@ async def add_preset(
         voice_path = os.path.join(VOICE_PROFILES_DIR, name + ext)
         with open(voice_path, "wb") as f:
             f.write(await voice.read())
+        # 统一响度：音色库里的声音大小要一致（失败只保留原文件，不让保存失败）
+        normalize_voice_file(voice_path)
     return {"status": "ok"}
 
 @app.post("/api/update_preset")
@@ -609,8 +720,11 @@ async def update_preset(
         allowed_ext = ['.wav', '.mp3', '.m4a', '.flac']
         if ext.lower() not in allowed_ext:
             return JSONResponse({"error": f"不支持的音频格式: {ext}"}, status_code=400)
-        with open(os.path.join(VOICE_PROFILES_DIR, new_name + ext), "wb") as f:
+        voice_path = os.path.join(VOICE_PROFILES_DIR, new_name + ext)
+        with open(voice_path, "wb") as f:
             f.write(await voice.read())
+        # 换了新声纹 → 同样统一响度（只改名/改描述时不重编码旧文件）
+        normalize_voice_file(voice_path)
     elif reuse_bytes is not None:
         # 没传新声纹：沿用旧内容，只换名字
         with open(os.path.join(VOICE_PROFILES_DIR, new_name + reuse_ext), "wb") as f:
@@ -731,7 +845,9 @@ async def generate_hifi(
     _praw = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     _praw.write(await prompt_audio.read())
     _praw.close()
-    prompt_path = ensure_wav(_praw.name)      # 同上，格式统一
+    # ensure_wav 返回的是**路径字符串**。早期代码在这里取了文件对象才有的 .name 属性，
+    # 必然 AttributeError → 极致克隆每次都 500。这里统一用路径本身。
+    prompt_path = ensure_wav(_praw.name)      # 同上：转码 + 统一响度
     ref_path = None
     if ref_audio:
         ref_f = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
@@ -741,22 +857,25 @@ async def generate_hifi(
     try:
         wav = model.generate(
             text=text,
-            prompt_wav_path=prompt_path.name,
+            prompt_wav_path=prompt_path,
             prompt_text=prompt_text,
             reference_wav_path=ref_path,
             cfg_value=cfg,
             inference_timesteps=steps,
         )
         filename = save_audio_and_record('hifi', text, wav)
-        os.unlink(prompt_path.name)
-        if ref_path: os.unlink(ref_path)
         cleanup_gpu_memory()
         return FileResponse(os.path.join(HISTORY_DIR, filename), media_type="audio/wav", filename=filename)
     except Exception as e:
-        if os.path.exists(prompt_path.name): os.unlink(prompt_path.name)
-        if ref_path and os.path.exists(ref_path): os.unlink(ref_path)
         cleanup_gpu_memory()
         return JSONResponse({"error": str(e)}, status_code=500)
+    finally:
+        for _p in (prompt_path, ref_path, _praw.name):
+            try:
+                if _p and os.path.exists(_p):
+                    os.unlink(_p)
+            except Exception:
+                pass
 
 # ========== 历史与音频服务 ==========
 @app.get("/api/history/{mode}")
@@ -795,6 +914,15 @@ async def download_audio(filename: str):
 AUDIO_FORMATS = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a']
 VIDEO_FORMATS = ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv']
 
+
+def _remove_file(path):
+    """响应发完后再删临时文件（FileResponse 的 background 钩子）。"""
+    try:
+        if path and os.path.exists(path):
+            os.unlink(path)
+    except Exception:
+        pass
+
 @app.post("/api/tools/audio/convert")
 async def convert_audio(
     file: UploadFile = File(...),
@@ -810,13 +938,21 @@ async def convert_audio(
         input_path = tmp_in.name
     output_path = tempfile.mktemp(suffix=f".{target_format}")
     try:
-        cmd = ["ffmpeg", "-y", "-i", input_path, "-ar", str(sample_rate), "-ab", bitrate, "-vn", output_path]
-        subprocess.run(cmd, check=True, capture_output=True)
+        cmd = ["ffmpeg", "-y", "-i", input_path, "-ar", str(sample_rate), "-vn"]
+        # WAV / FLAC 是无损格式，码率参数没有意义（传了 ffmpeg 会告警），只对有损格式加
+        if target_format in ('mp3', 'm4a', 'aac', 'ogg'):
+            cmd += ["-ab", bitrate]
+        cmd += [output_path]
+        subprocess.run(cmd, check=True, capture_output=True, timeout=600)
     except subprocess.CalledProcessError as e:
         os.unlink(input_path)
-        return JSONResponse({"error": f"转换失败: {e.stderr.decode()}"}, status_code=500)
+        err = (e.stderr or b'').decode('utf-8', 'replace')
+        return JSONResponse({"error": f"转换失败: {err[-400:]}"}, status_code=500)
     os.unlink(input_path)
-    return FileResponse(output_path, media_type=f"audio/{target_format}", filename=f"converted.{target_format}")
+    # 临时文件在响应发完后删掉：以前这里没人清理，转换过的文件会一直堆在系统临时目录
+    return FileResponse(output_path, media_type=f"audio/{target_format}",
+                        filename=f"converted.{target_format}",
+                        background=BackgroundTask(_remove_file, output_path))
 
 @app.post("/api/tools/video/convert")
 async def convert_video(

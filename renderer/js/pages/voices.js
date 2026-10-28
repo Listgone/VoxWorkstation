@@ -25,7 +25,7 @@ const VoicesPage = {
       + (list.length
         ? '<div class="vgrid" style="margin-top:12px">' + list.map(v => this._card(v)).join('') + '</div>'
         : '<div class="card"><p class="text-sm text-muted" style="margin:0">'
-          + (this._voices.length ? '没有匹配的音色。' : '音色库是空的。点右上角「＋ 新建音色」，或去「克隆源」用设计/克隆的方式生成一个。') + '</p></div>')
+          + (this._voices.length ? '没有匹配的音色。' : '音色库是空的。点右上角「＋ 新建音色」，用音色设计或克隆的方式做一个。') + '</p></div>')
       + '</div>';
   },
 
@@ -195,7 +195,8 @@ const VoicesPage = {
       title: '新建音色', width: 520,
       body:
         '<p class="text-sm text-muted" style="margin-bottom:12px">'
-        + '三种方式获得音色，结果都存进音色库。建议<b>先试听、满意再保存</b>。</p>'
+        + '三种方式获得音色，结果都存进音色库。建议<b>先试听、满意再保存</b>。<br>'
+        + '保存时会把音量自动统一到同一标准，后面的配音不会出现一个声音大、一个声音小。</p>'
         + '<div class="tabs" style="margin-bottom:14px">'
         + '<button class="tab-btn active" data-mode="design">音色设计</button>'
         + '<button class="tab-btn" data-mode="clone">可控克隆</button>'

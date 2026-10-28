@@ -735,6 +735,8 @@ code{background:var(--bg-elev);padding:1px 6px;border-radius:4px;font-size:11.5p
 .cselect-btn:focus-visible{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .cselect-btn:disabled{opacity:.5;cursor:not-allowed}
 .cselect-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 短选项（如 MP3、192 kbps）居中显示，别贴着左边缘 */
+.cselect-center .cselect-label{text-align:center}
 .cselect-caret{flex-shrink:0;width:0;height:0;border-left:4px solid transparent;
   border-right:4px solid transparent;border-top:5px solid var(--text-mute)}
 .popmenu-item.disabled{opacity:.4;cursor:not-allowed}

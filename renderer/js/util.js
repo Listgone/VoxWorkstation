@@ -105,6 +105,21 @@ const Util = {
       + '<span class="num">' + done + '/' + total + '</span>';
   },
 
+  /** 按「文件命名规则」拼一个文件名（不含扩展名）。
+      模板支持 {no} {role} {text} {voice} {ep} {project}。
+      模板里没有 {no} 时自动在开头补序号 —— 否则两句台词按同一条规则拼出同名文件，
+      后生成的会把先生成的覆盖掉。 */
+  audioName(tpl, vars) {
+    const v = vars || {};
+    const clean = (s) => String(s == null ? '' : s)
+      .replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+    const t = String(tpl || '').trim() || '{no}_{role}_{text}';
+    let name = t.replace(/\{(no|role|text|voice|ep|project)\}/g, (m, k) => clean(v[k]).slice(0, 40));
+    if (t.indexOf('{no}') < 0) name = clean(v.no) + '_' + name;
+    name = name.replace(/\s+/g, ' ').replace(/^[ _\-]+|[ _\-]+$/g, '').slice(0, 120);
+    return name || ('line_' + clean(v.no));
+  },
+
   /** 安全设置 innerHTML 后返回元素 */
   html(el, s) { el.innerHTML = s; return el; },
 

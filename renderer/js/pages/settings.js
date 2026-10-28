@@ -355,7 +355,7 @@ const SettingsPage = {
           + '</select>')
       + this._row('默认句间停顿', '逐句拼接时的静音长度',
           '<input type="number" id="o-pause" value="' + (o.pauseMs || 300) + '" style="width:90px"><span class="text-sm text-muted">ms</span>')
-      + this._row('文件命名规则', '可用占位符：{no} 序号 {role} 角色 {text} 台词前几字 {ep} 集号 {voice} 音色',
+      + this._row('文件命名规则', '可用占位符：{no} 序号 {role} 角色 {text} 台词前几字 {ep} 集号 {voice} 音色 {project} 项目；例 003_林寻_终于看见',
           '<input type="text" id="o-naming" value="' + Util.escapeAttr(o.naming || '{no}_{role}_{text}') + '" style="width:250px">')
       + this._row('导出时同时生成 SRT', '按真实时长生成时间轴', this._sw(o.exportSrt !== false, 'toggle-srt'))
       + '<div class="action-row mt-12"><button class="btn btn-primary" data-act="save-output">保存</button></div>'
@@ -366,8 +366,7 @@ const SettingsPage = {
     const p = Store.currentProject;
     if (!p) {
       return '<div class="card"><h2>发音词典</h2>'
-        + '<p class="text-sm text-muted" style="margin:0">词典是<b>项目级</b>的，先选一个项目。'
-        + '全局词典以后再加。</p></div>';
+        + '<p class="text-sm text-muted" style="margin:0">词典是<b>项目级</b>的，先选一个项目。</p></div>';
     }
     return '<div class="card"><h2>发音词典 <span class="n">项目：' + Util.escapeHtml(p.name) + '</span></h2>'
       + '<p class="text-sm text-muted" style="margin:-6px 0 12px">某个词永远读对。在「项目设置 → 项目词典」里维护。</p>'
@@ -400,7 +399,8 @@ const SettingsPage = {
       + this._row('快速配音入口', '只想单独配几句话时不建项目、不建集。关闭后入口变灰、点击会提示；工作区数据保留',
           this._sw(!(s.quickDub && s.quickDub.enabled === false), 'toggle-quick'))
       + this._row('快速配音目录', '它的文本、逐句音频与成品都独立存放，不进项目列表与回收站',
-          '<button class="btn btn-sm" data-act="open-quick">打开文件夹</button>')
+          '<span class="text-sm text-muted" id="s-quick-dir" style="margin-right:10px;word-break:break-all"></span>'
+          + '<button class="btn btn-sm" data-act="open-quick">打开文件夹</button>')
       + '<div class="action-row mt-12"><button class="btn btn-primary" data-act="save-project">保存</button></div>'
       + '</div>';
   },
@@ -759,6 +759,14 @@ const SettingsPage = {
       // 主进程会先保证目录存在再打开（不可用时走系统兜底，不会报错）
       window.electronAPI.quick.reveal();
     });
+    // 把快速配音工作区的真实路径写出来，免得用户只知道「有个按钮」却不知道文件在哪
+    (async () => {
+      try {
+        const qs = await window.electronAPI.quick.status();
+        const slot = document.getElementById('s-quick-dir');
+        if (slot) slot.textContent = qs && qs.dir ? qs.dir : '';
+      } catch (e) { /* 取不到就留空，不影响其它设置 */ }
+    })();
 
     /* 通知：内容开关 / 提示音 / 音量 */
     el.querySelectorAll('[data-notify]').forEach(b =>

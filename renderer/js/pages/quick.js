@@ -671,7 +671,13 @@ const QuickPage = {
             .replace(/[\\/:*?"<>|\r\n]/g, '')
             .replace(/\s+/g, '')
             .slice(0, 6) || '未命名';
-          const filename = idx + '_quick_' + snippet + '.wav';
+          // 与项目配音同一套命名规则（设置 → 音频输出 → 文件命名规则）
+          const _tpl = (Store.settings.output && Store.settings.output.naming) || '{no}_{role}_{text}';
+          const filename = Util.audioName(_tpl, {
+            no: idx, role: line.role || '旁白', text: snippet,
+            voice: line.voice || '', ep: String(Store.currentEpisodeNo || ''),
+            project: '快速配音'
+          }) + '.wav';
           const w = await window.electronAPI.audio.save(Store.currentProjectId, Store.currentEpisodeNo, filename, b64);
           if (w && w.ok === false) throw new Error(w.message || '保存音频失败');
 

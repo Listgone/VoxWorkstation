@@ -86,7 +86,7 @@ const DubPage = {
       + '</h2>'
       + (lines.length
         ? '<table class="line-table"><tr><th style="width:40px">#</th><th style="width:100px">角色</th><th style="width:128px">情绪 / 动作</th><th>台词</th>'
-          + '<th style="width:128px">音色</th><th style="width:96px">状态</th><th style="width:104px"></th></tr>'
+          + '<th style="width:128px">音色</th><th style="width:96px">状态</th><th style="width:168px"></th></tr>'
           + lines.map((l, i) => this._row(l, i)).join('') + '</table>'
         : '<p class="text-sm text-muted" style="margin:0">还没有台词。先去「文本处理」把文本切好句。</p>')
       + '</div>'
@@ -518,14 +518,25 @@ const DubPage = {
         const buf = await r.blob.arrayBuffer();
         // 注意：不能用 String.fromCharCode(...bytes)，130KB 的 WAV 会爆栈
         const b64 = Util.ab2b64(buf);
-        // 命名：序号_角色_台词前几字 —— 便于在文件夹里认出是谁的台词
+        // 命名：按「设置 → 音频输出 → 文件命名规则」拼；没设就用默认 序号_角色_台词
         const idx = String(i + 1).padStart(3, '0');
         const snippet = String(line.text || '')
           .replace(/\[[^\]]*\]/g, '')                 // 去掉语气标记
           .replace(/[\\/:*?"<>|\r\n]/g, '')
           .replace(/\s+/g, '')
           .slice(0, 6) || '未命名';
-        const filename = idx + '_' + (line.role || '旁白') + '_' + snippet + '.wav';
+        const _p = Store.currentProject || {};
+        const _tpl = (_p.output && _p.output.naming)
+          || (Store.settings.output && Store.settings.output.naming)
+          || '{no}_{role}_{text}';
+        const filename = Util.audioName(_tpl, {
+          no: idx,
+          role: line.role || '旁白',
+          text: snippet,
+          voice: bind.voice || '',
+          ep: String(Store.currentEpisodeNo || '').padStart(_p.padWidth || 2, '0'),
+          project: _p.name || ''
+        }) + '.wav';
         await window.electronAPI.audio.save(Store.currentProjectId, Store.currentEpisodeNo, filename, b64);
 
         // 估算时长
