@@ -157,16 +157,17 @@ input,textarea,[contenteditable]{user-select:text !important;-webkit-user-select
    关于软件（设置 → 诊断与关于）
    隐私说明 / 模型介绍 / 版权 / 开源组件 / GitHub 入口
    ══════════════════════════════════════════════════ */
-/* 关于区的说明栏：宽窗口排 2 列，第 3 块横跨整行。
-   为什么不用 3 等宽列：卡片数常是 3（隐私说明、开源组件都是），
-   三列等分时最后一块单独占一列、右侧空出一条，看着不协调。
-   改成 2 列 + 第 3 块跨行后，整块区域被填满且重心居中。
-   只有 2 块时（如「模型」段）依旧是并排一行，不受影响。 */
+/* 关于区的说明栏：宽窗口排 2 列。
+   块数是奇数时（3 块、5 块）最后一块通栏，避免右侧空一格；
+   偶数块时两两成行，不留空位。 */
 .about-grid{display:grid;gap:var(--gap);
   grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))}
 @media (min-width:1040px){
   .about-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .about-grid > *:nth-child(3){grid-column:1 / -1}
+  /* 奇数块（3 块、5 块…）时最后一块通栏，避免右侧留一个空格子；
+     偶数块（4 块）就规规矩矩两行两列。以前写死 nth-child(3)，
+     后来加了第 4 块，第 3 块仍通栏、第 4 块单独占左半边，右边空一大片。 */
+  .about-grid > *:last-child:nth-child(odd){grid-column:1 / -1}
 }
 .about-block{border:1px solid var(--border-soft);border-radius:var(--radius);padding:12px 14px;
   background:var(--bg-elev)}
